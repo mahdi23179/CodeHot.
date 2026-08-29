@@ -5866,8 +5866,11 @@
           if (SCENE_STATE.selectedId === objData.id) this.selectObject(objData.id);
           this.updateHierarchy();
           // V10: Register GLB animations as animation assets
-          if (loaded && loaded.animations && loaded.animations.length && typeof AnimationManager !== 'undefined') {
-            AnimationManager.importFromGLB(loaded.animations, objData.name, loadedRoot);
+          if (loaded && loaded.animations && loaded.animations.length) {
+            const animBridge = window.CodeHotAnimationStore;
+            if (animBridge && typeof animBridge.importFromGLB === 'function') {
+              animBridge.importFromGLB(loaded.animations, objData.name, loadedRoot);
+            }
           }
           this.emitEvent('sceneeditor:modelLoaded', { id: objData.id, name: objData.name, assetId: objData.assetId, format: format });
           return true;
@@ -8358,7 +8361,8 @@
         saveToStorage: () => manager.saveToStorage(),
         getRuntimeEngine: () => RuntimeEngine,
         getRuntimeState: () => RUNTIME_STATE,
-        getRuntime: () => manager.runtime
+        getRuntime: () => manager.runtime,
+        scene: manager.scene
       };
       window.dispatchEvent(new CustomEvent('sceneeditor:ready', { detail: { selectedId: SCENE_STATE.selectedId } }));
       manager.render();
@@ -10786,6 +10790,14 @@ Rules:
       }
     }
 
+    // ── Cross-module bridge for AnimationManager ──────────────────
+    // SceneEditorModule needs to register GLB animations when models load.
+    window.CodeHotAnimationStore = {
+      importFromGLB: (...args) => AnimationManager.importFromGLB(...args),
+      getForObject: (id) => AnimationManager.getForObject(id),
+      getAll: () => AnimationManager.getAll()
+    };
+
     // ── AnimationPreview (independent Three.js preview) ──────────
 
     class AnimationPreview {
@@ -11143,6 +11155,7 @@ Rules:
 
       static importFromSelectedGLB() {
         // Try to get the selected scene object and its GLB animations
+        try {
         if (!window.CodeHotScene) {
           UIManager.showToast('Scene not available');
           return;
@@ -11174,6 +11187,10 @@ Rules:
           this.render();
         } else {
           UIManager.showToast('No animations imported');
+        }
+        } catch (e) {
+          console.error('[Animation] Import from GLB failed:', e);
+          UIManager.showToast('Import from GLB failed: ' + (e && e.message ? e.message : e));
         }
       }
 
