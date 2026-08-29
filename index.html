@@ -5795,7 +5795,71 @@
             if (String(url).indexOf('blob:') === 0) URL.revokeObjectURL(url);
           }, undefined, () => { if (String(url).indexOf('blob:') === 0) URL.revokeObjectURL(url); });
         });
-        return { scene: root, animations: json.animations || [] };
+        // Build THREE.AnimationClip objects from raw glTF animation data
+        const clips = this.buildAnimationClips(json, bin, buildNode);
+        return { scene: root, animations: clips };
+      }
+
+      buildAnimationClips(json, bin, buildNodeRef) {
+        const clips = [];
+        const animations = json.animations || [];
+        if (!animations.length) return clips;
+
+        for (const animDef of animations) {
+          const tracks = [];
+          const channels = animDef.channels || [];
+          const samplers = animDef.samplers || [];
+
+          for (const channel of channels) {
+            try {
+              const sampler = samplers[channel.sampler];
+              if (!sampler) continue;
+
+              const target = channel.target;
+              if (!target) continue;
+
+              const timeData = this.getGltfAccessor(json, bin, sampler.input);
+              const times = (timeData instanceof Float32Array) ? timeData : new Float32Array(timeData);
+
+              const valueData = this.getGltfAccessor(json, bin, sampler.output);
+              const values = (valueData instanceof Float32Array) ? valueData : new Float32Array(valueData);
+
+              const nodeIndex = target.node;
+              const nodeDef = (json.nodes || [])[nodeIndex];
+              const nodeName = nodeDef ? (nodeDef.name || ('Node_' + nodeIndex)) : ('Node_' + nodeIndex);
+              const path = target.path;
+
+              let trackName, TrackClass;
+              if (path === 'rotation') {
+                trackName = nodeName + '.quaternion';
+                TrackClass = THREE.QuaternionKeyframeTrack;
+              } else if (path === 'translation') {
+                trackName = nodeName + '.position';
+                TrackClass = THREE.VectorKeyframeTrack;
+              } else if (path === 'scale') {
+                trackName = nodeName + '.scale';
+                TrackClass = THREE.VectorKeyframeTrack;
+              } else {
+                continue;
+              }
+
+              tracks.push(new TrackClass(trackName, times, values));
+            } catch (e) {
+              console.warn('[GLB] Failed to build track:', e);
+            }
+          }
+
+          if (tracks.length) {
+            const clip = new THREE.AnimationClip(
+              animDef.name || ('Animation_' + (clips.length + 1)),
+              -1,
+              tracks
+            );
+            clips.push(clip);
+          }
+        }
+
+        return clips;
       }
 
       async loadModelIntoObject(objData, placeholder) {
@@ -10601,9 +10665,14 @@ Rules:
       }
 
       // ── Import from GLB animations ──────────────────────────────
-      static importFromGLB(glbAnimations, modelName, objectRoot) {
+      static importFromGLB(glbAnimations, modelName, objectRoot, sourceObjectId) {
         const results = [];
         if (!Array.isArray(glbAnimations) || !glbAnimations.length) return results;
+
+        // Remove old animations for this object before re-registering
+        if (sourceObjectId) {
+          ANIMATION_STATE.animations = ANIMATION_STATE.animations.filter(a => a.sourceObjectId !== sourceObjectId);
+        }
 
         for (const clip of glbAnimations) {
           const anim = {
@@ -10611,6 +10680,7 @@ Rules:
             name: clip.name || (modelName + '_anim_' + (results.length + 1)),
             type: 'glb-clip',
             clipName: clip.name,
+            sourceObjectId: sourceObjectId || null,
             duration: clip.duration || 1,
             fps: Math.round((clip.tracks ? clip.tracks.length : 1) / (clip.duration || 1)) || 24,
             loop: true,
@@ -10794,6 +10864,10 @@ Rules:
     // SceneEditorModule needs to register GLB animations when models load.
     window.CodeHotAnimationStore = {
       importFromGLB: (...args) => AnimationManager.importFromGLB(...args),
+      unregisterForObject: (objectId) => {
+        ANIMATION_STATE.animations = ANIMATION_STATE.animations.filter(a => a.sourceObjectId !== objectId);
+        AnimationManager.saveToStorage();
+      },
       getForObject: (id) => AnimationManager.getForObject(id),
       getAll: () => AnimationManager.getAll()
     };
@@ -10880,13 +10954,34 @@ Rules:
             this.previewMesh.material = this.animPlayer.material;
           }
         } else if (anim.type === 'glb-clip') {
-          // GLB clip preview — show a generic animated mesh
+          // GLB clip preview — try to find and play the actual clip
           const geo = new THREE.BoxGeometry(1, 1, 1);
           const mat = new THREE.MeshStandardMaterial({ color: 0xff6b35 });
           this.previewMesh.material.dispose();
           this.previewMesh.material = mat;
           this.previewMesh.geometry.dispose();
           this.previewMesh.geometry = geo;
+
+          // Try to find the clip from the source model in the scene
+          try {
+            const scene = window.CodeHotScene && window.CodeHotScene.scene;
+            if (scene && anim.clipName) {
+              scene.traverse(child => {
+                if (child.userData && child.userData.animations) {
+                  const clip = child.userData.animations.find(c => c.name === anim.clipName);
+                  if (clip && !this.mixer) {
+                    this.mixer = new THREE.AnimationMixer(this.previewMesh);
+                    const action = this.mixer.clipAction(clip.clone());
+                    action.setLoop(anim.loop ? THREE.LoopRepeat : THREE.LoopOnce);
+                    action.clampWhenFinished = !anim.loop;
+                    action.play();
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('[AnimPreview] GLB clip preview failed:', e);
+          }
         }
       }
 
@@ -10903,6 +10998,9 @@ Rules:
         if (this._raf) {
           cancelAnimationFrame(this._raf);
           this._raf = null;
+        }
+        if (this.mixer) {
+          this.mixer.stopAllAction();
         }
       }
 
@@ -10944,104 +11042,134 @@ Rules:
         const panel = document.getElementById('as-animationPanel');
         if (!panel) return;
 
-        const anims = ANIMATION_STATE.animations;
+        // Get the currently selected SCENE OBJECT
+        let selectedObjectId = null;
+        let selectedObjectName = '';
+        try {
+          const data = window.CodeHotScene && window.CodeHotScene.getSceneData ? window.CodeHotScene.getSceneData() : null;
+          if (data && data.selectedId) {
+            selectedObjectId = data.selectedId;
+            const obj = data.objects.find(o => o.id === selectedObjectId);
+            if (obj) selectedObjectName = obj.name || '';
+          }
+        } catch (e) {}
+
+        // Get animations for this object only
+        const objectAnims = selectedObjectId ? AnimationManager.getForObject(selectedObjectId) : [];
         const selected = ANIMATION_STATE.selectedId
           ? ANIMATION_STATE.animations.find(a => a.id === ANIMATION_STATE.selectedId)
           : null;
 
         let html = '';
 
-        // Header
+        // Header: context-aware
         html += '<div class="anim-header">';
-        html += '<button class="anim-header-btn primary" id="anim-import-btn">+ Import Frames</button>';
-        html += '<button class="anim-header-btn" id="anim-import-glb-btn">Import from GLB</button>';
+        if (selectedObjectId) {
+          html += '<span style="font-size:11px;color:#888;">Object:</span>';
+          html += '<span style="font-size:12px;color:#e0e0e0;font-weight:600;">' + selectedObjectName.replace(/</g, '&lt;') + '</span>';
+        } else {
+          html += '<span style="font-size:12px;color:#666;">Select an object in Scene</span>';
+        }
         html += '</div>';
 
-        // Preview area
         html += '<div class="anim-content">';
 
-        if (selected) {
-          html += '<div class="anim-preview-container" id="anim-preview-container"></div>';
-          html += '<div class="anim-controls">';
-          html += '<button id="anim-play-btn" class="' + (this.preview && this.preview.isPlaying ? 'active' : '') + '">▶ Play</button>';
-          html += '<button id="anim-stop-btn">⏹ Stop</button>';
-          html += '<label>FPS: <input type="number" id="anim-fps-input" value="' + (selected.fps || 12) + '" min="1" max="120"></label>';
-          html += '<label><input type="checkbox" id="anim-loop-check" ' + (selected.loop ? 'checked' : '') + '> Loop</label>';
-          html += '</div>';
-
-          // API hint
-          html += '<div class="anim-api-box">';
-          html += '<div class="label">📜 Use in Script:</div>';
-          html += '<code>self.animation.play("' + (selected.name || '').replace(/"/g, '\\"') + '");</code>';
-          html += '<div class="hint">Copy this into your object\'s script to play this animation at runtime.</div>';
-          html += '<code style="margin-top:4px;display:block">self.animation.stop();</code>';
-          html += '<div class="hint">Use this to stop the current animation.</div>';
-          html += '</div>';
-
-          // Assign section
-          html += '<div class="anim-assign-section">';
-          html += '<button id="anim-assign-btn" ' + (!window.CodeHotScene ? 'disabled' : '') + '>Assign to Selected Object</button>';
-          const boundObjects = selected.linkedObjectIds || [];
-          if (boundObjects.length) {
-            const names = boundObjects.map(oid => {
-              const obj = (typeof window.CodeHotScene !== 'undefined' && window.CodeHotScene.getSceneData)
-                ? window.CodeHotScene.getSceneData().objects.find(o => o.id === oid) : null;
-              return obj ? obj.name : oid;
-            });
-            html += '<div class="anim-bound-info">Bound to: ' + names.join(', ') + '</div>';
-          }
-          html += '</div>';
-
-          // Delete
-          html += '<div style="margin-top:10px;text-align:center;">';
-          html += '<button id="anim-delete-btn" style="background:#3a1515;border:1px solid #5a2020;color:#ff6666;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">Delete Animation</button>';
-          html += '</div>';
-        }
-
-        // Animation list
-        if (anims.length === 0) {
+        if (!selectedObjectId) {
+          // No object selected
           html += '<div class="anim-empty">';
-          html += 'No animations yet.<br><br>';
-          html += 'Import image frames (e.g. walk_01.png to walk_12.png) to create a frame-sequence animation.';
+          html += '<div style="font-size:28px;margin-bottom:12px;">\u{1F3AC}</div>';
+          html += '<div style="font-size:13px;color:#aaa;margin-bottom:8px;">No object selected</div>';
+          html += '<div style="font-size:11px;color:#666;line-height:1.6;">';
+          html += 'Select an object in the Scene to view its animations.';
+          html += '</div>';
+          html += '</div>';
+        } else if (objectAnims.length === 0) {
+          // Object selected but no animations
+          html += '<div class="anim-empty">';
+          html += '<div style="font-size:28px;margin-bottom:12px;">\u{1F4ED}</div>';
+          html += '<div style="font-size:13px;color:#aaa;margin-bottom:8px;">No animations for "' + selectedObjectName.replace(/</g, '&lt;') + '"</div>';
+          html += '<div style="font-size:11px;color:#666;line-height:1.6;">';
+          html += 'This object has no animations.<br><br>';
+          html += 'Import a GLB model with animations to auto-register them.';
+          html += '</div>';
           html += '</div>';
         } else {
-          html += '<div style="margin-top:10px;">';
-          for (const anim of anims) {
-            const sel = ANIMATION_STATE.selectedId === anim.id ? ' selected' : '';
-            html += '<div class="anim-item' + sel + '" data-anim-id="' + anim.id + '">';
+          // Object has animations
+          for (const anim of objectAnims) {
+            const isActive = selected && selected.id === anim.id;
+            html += '<div class="anim-item' + (isActive ? ' selected' : '') + '" data-anim-id="' + anim.id + '">';
             html += '<div class="anim-item-name">' + (anim.name || '').replace(/</g, '&lt;') + '</div>';
             html += '<div class="anim-item-meta">';
-            html += '<span>' + anim.type + '</span>';
-            html += '<span>' + (anim.frameCount || 0) + ' frames</span>';
-            html += '<span>' + (anim.fps || 12) + ' fps</span>';
+            html += '<span>' + (anim.type === 'glb-clip' ? 'GLB Animation' : 'Frame Sequence') + '</span>';
             html += '<span>' + (anim.duration || 0).toFixed(2) + 's</span>';
             html += '<span>' + (anim.loop ? 'Loop' : 'Once') + '</span>';
             html += '</div>';
             html += '</div>';
           }
-          html += '</div>';
+
+          if (selected && objectAnims.find(a => a.id === selected.id)) {
+            html += '<div style="margin-top:12px;border-top:1px solid #1a1a2e;padding-top:12px;">';
+
+            // Info card
+            html += '<div style="background:#0d1117;border:1px solid #1a1a2e;border-radius:6px;padding:10px;margin-bottom:8px;">';
+            html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:10px;color:#666;">Name</span><span style="font-size:11px;color:#e0e0e0;">' + (selected.name || '').replace(/</g, '&lt;') + '</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:10px;color:#666;">Type</span><span style="font-size:11px;color:#e0e0e0;">' + (selected.type === 'glb-clip' ? 'GLB Animation' : 'Frame Sequence') + '</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:10px;color:#666;">Duration</span><span style="font-size:11px;color:#e0e0e0;">' + (selected.duration || 0).toFixed(2) + 's</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:10px;color:#666;">Loop</span><span style="font-size:11px;color:#e0e0e0;">' + (selected.loop ? 'Yes' : 'No') + '</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;"><span style="font-size:10px;color:#666;">Target</span><span style="font-size:11px;color:#ff6b35;">' + selectedObjectName.replace(/</g, '&lt;') + '</span></div>';
+            html += '</div>';
+
+            // Preview
+            html += '<div class="anim-preview-container" id="anim-preview-container"></div>';
+            html += '<div class="anim-controls">';
+            html += '<button id="anim-play-btn" class="' + (this.preview && this.preview.isPlaying ? 'active' : '') + '">&#9654; Play</button>';
+            html += '<button id="anim-stop-btn">&#9209; Stop</button>';
+            html += '<label><input type="checkbox" id="anim-loop-check" ' + (selected.loop ? 'checked' : '') + '> Loop</label>';
+            html += '</div>';
+
+            // API hint
+            html += '<div class="anim-api-box">';
+            html += '<div class="label">Use in Script:</div>';
+            html += '<code>self.animation.play("' + (selected.name || '').replace(/"/g, '\\"') + '");</code>';
+            html += '<div class="hint">Copy this into your object script to play this animation at runtime.</div>';
+            html += '<code style="margin-top:4px;display:block">self.animation.stop();</code>';
+            html += '</div>';
+
+            html += '<div style="margin-top:8px;text-align:center;">';
+            html += '<button id="anim-delete-btn" style="background:#3a1515;border:1px solid #5a2020;color:#ff6666;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">Remove Animation</button>';
+            html += '</div>';
+
+            html += '</div>';
+          }
         }
 
         html += '</div>';
         panel.innerHTML = html;
+
+        // Auto-detect unregistered GLB animations
+        if (selectedObjectId) {
+          try {
+            const scene = window.CodeHotScene && window.CodeHotScene.scene;
+            if (scene) {
+              const liveObj = scene.children.find(c => c.userData && c.userData.id === selectedObjectId);
+              if (liveObj && liveObj.userData && liveObj.userData.animations && liveObj.userData.animations.length) {
+                const registeredNames = objectAnims.map(a => a.clipName || a.name);
+                const unregistered = liveObj.userData.animations.filter(c => !registeredNames.includes(c.name));
+                if (unregistered.length) {
+                  AnimationManager.importFromGLB(unregistered, selectedObjectName, liveObj, selectedObjectId);
+                  setTimeout(() => this.render(), 50);
+                  return;
+                }
+              }
+            }
+          } catch (e) {}
+        }
 
         // Bind events
         this.bindEvents(panel, selected);
       }
 
       static bindEvents(panel, selected) {
-        // Import frames button
-        const importBtn = panel.querySelector('#anim-import-btn');
-        if (importBtn) {
-          importBtn.addEventListener('click', () => this.promptImportFrames());
-        }
-
-        // Import from GLB
-        const importGlbBtn = panel.querySelector('#anim-import-glb-btn');
-        if (importGlbBtn) {
-          importGlbBtn.addEventListener('click', () => this.importFromSelectedGLB());
-        }
-
         // Preview container
         if (selected) {
           const container = panel.querySelector('#anim-preview-container');
@@ -11118,6 +11246,17 @@ Rules:
             this.render();
           });
         });
+
+        // Listen for scene selection changes to re-render
+        const sceneSelectHandler = () => {
+          if (document.getElementById('as-animationPanel') && document.getElementById('as-animationPanel').classList.contains('as-active')) {
+            if (this.preview) { this.preview.dispose(); this.preview = null; }
+            ANIMATION_STATE.selectedId = null;
+            this.render();
+          }
+        };
+        window.removeEventListener('sceneeditor:objectSelected', sceneSelectHandler);
+        window.addEventListener('sceneeditor:objectSelected', sceneSelectHandler);
       }
 
       static promptImportFrames() {
@@ -11413,7 +11552,23 @@ Rules:
         const detail = event.detail || {};
         UIManager.showToast('Model failed: ' + (detail.error || 'unsupported or invalid model'));
       });
-      window.addEventListener('sceneeditor:modelLoaded', () => UIManager.showToast('Model loaded into Scene'));
+      window.addEventListener('sceneeditor:modelLoaded', (event) => {
+        UIManager.showToast('Model loaded into Scene');
+        // Auto-register GLB animations
+        try {
+          const detail = (event && event.detail) || {};
+          const objectId = detail.id || detail.objectId;
+          const root = detail.root || detail.loadedRoot;
+          if (objectId && root && root.animations && root.animations.length) {
+            const animResults = window.CodeHotAnimationStore.importFromGLB(root.animations, detail.name || 'Model', root, objectId);
+            if (animResults.length) {
+              UIManager.showToast(animResults.length + ' animation(s) registered from ' + (detail.name || 'model'));
+            }
+          }
+        } catch (e) {
+          console.warn('[Animation] Auto GLB animation registration failed:', e);
+        }
+      });
       window.addEventListener('sceneeditor:textureApplyFailed', () => UIManager.showToast('Texture could not be applied'));
       ASSET_STATE.assets = AssetManager.loadFromStorage();
       try {
