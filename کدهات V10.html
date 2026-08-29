@@ -5795,7 +5795,71 @@
             if (String(url).indexOf('blob:') === 0) URL.revokeObjectURL(url);
           }, undefined, () => { if (String(url).indexOf('blob:') === 0) URL.revokeObjectURL(url); });
         });
-        return { scene: root, animations: json.animations || [] };
+        // Build THREE.AnimationClip objects from raw glTF animation data
+        const clips = this.buildAnimationClips(json, bin, buildNode);
+        return { scene: root, animations: clips };
+      }
+
+      buildAnimationClips(json, bin, buildNodeRef) {
+        const clips = [];
+        const animations = json.animations || [];
+        if (!animations.length) return clips;
+
+        for (const animDef of animations) {
+          const tracks = [];
+          const channels = animDef.channels || [];
+          const samplers = animDef.samplers || [];
+
+          for (const channel of channels) {
+            try {
+              const sampler = samplers[channel.sampler];
+              if (!sampler) continue;
+
+              const target = channel.target;
+              if (!target) continue;
+
+              const timeData = this.getGltfAccessor(json, bin, sampler.input);
+              const times = (timeData instanceof Float32Array) ? timeData : new Float32Array(timeData);
+
+              const valueData = this.getGltfAccessor(json, bin, sampler.output);
+              const values = (valueData instanceof Float32Array) ? valueData : new Float32Array(valueData);
+
+              const nodeIndex = target.node;
+              const nodeDef = (json.nodes || [])[nodeIndex];
+              const nodeName = nodeDef ? (nodeDef.name || ('Node_' + nodeIndex)) : ('Node_' + nodeIndex);
+              const path = target.path;
+
+              let trackName, TrackClass;
+              if (path === 'rotation') {
+                trackName = nodeName + '.quaternion';
+                TrackClass = THREE.QuaternionKeyframeTrack;
+              } else if (path === 'translation') {
+                trackName = nodeName + '.position';
+                TrackClass = THREE.VectorKeyframeTrack;
+              } else if (path === 'scale') {
+                trackName = nodeName + '.scale';
+                TrackClass = THREE.VectorKeyframeTrack;
+              } else {
+                continue;
+              }
+
+              tracks.push(new TrackClass(trackName, times, values));
+            } catch (e) {
+              console.warn('[GLB] Failed to build track:', e);
+            }
+          }
+
+          if (tracks.length) {
+            const clip = new THREE.AnimationClip(
+              animDef.name || ('Animation_' + (clips.length + 1)),
+              -1,
+              tracks
+            );
+            clips.push(clip);
+          }
+        }
+
+        return clips;
       }
 
       async loadModelIntoObject(objData, placeholder) {
@@ -10880,13 +10944,34 @@ Rules:
             this.previewMesh.material = this.animPlayer.material;
           }
         } else if (anim.type === 'glb-clip') {
-          // GLB clip preview — show a generic animated mesh
+          // GLB clip preview — try to find and play the actual clip
           const geo = new THREE.BoxGeometry(1, 1, 1);
           const mat = new THREE.MeshStandardMaterial({ color: 0xff6b35 });
           this.previewMesh.material.dispose();
           this.previewMesh.material = mat;
           this.previewMesh.geometry.dispose();
           this.previewMesh.geometry = geo;
+
+          // Try to find the clip from the source model in the scene
+          try {
+            const scene = window.CodeHotScene && window.CodeHotScene.scene;
+            if (scene && anim.clipName) {
+              scene.traverse(child => {
+                if (child.userData && child.userData.animations) {
+                  const clip = child.userData.animations.find(c => c.name === anim.clipName);
+                  if (clip && !this.mixer) {
+                    this.mixer = new THREE.AnimationMixer(this.previewMesh);
+                    const action = this.mixer.clipAction(clip.clone());
+                    action.setLoop(anim.loop ? THREE.LoopRepeat : THREE.LoopOnce);
+                    action.clampWhenFinished = !anim.loop;
+                    action.play();
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('[AnimPreview] GLB clip preview failed:', e);
+          }
         }
       }
 
@@ -10903,6 +10988,9 @@ Rules:
         if (this._raf) {
           cancelAnimationFrame(this._raf);
           this._raf = null;
+        }
+        if (this.mixer) {
+          this.mixer.stopAllAction();
         }
       }
 
