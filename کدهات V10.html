@@ -8355,7 +8355,10 @@
         applyTextureAsset: (assetId, objectId) => manager.applyTextureToObject(objectId, assetId) === true,
         clearTextureAsset: (assetId) => manager.clearTextureAsset(assetId) === true,
         getSceneData: () => ({ objects: SCENE_STATE.objects, selectedId: SCENE_STATE.selectedId }),
-        saveToStorage: () => manager.saveToStorage()
+        saveToStorage: () => manager.saveToStorage(),
+        getRuntimeEngine: () => RuntimeEngine,
+        getRuntimeState: () => RUNTIME_STATE,
+        getRuntime: () => manager.runtime
       };
       window.dispatchEvent(new CustomEvent('sceneeditor:ready', { detail: { selectedId: SCENE_STATE.selectedId } }));
       manager.render();
@@ -11195,7 +11198,8 @@ Rules:
       }
 
       play(name) {
-        if (!RUNTIME_STATE.isPlaying) return false;
+        const rt = window.CodeHotScene.getRuntimeState();
+        if (!rt.isPlaying) return false;
 
         // Find the animation
         const anims = AnimationManager.getForObject(this._objectId);
@@ -11297,94 +11301,97 @@ Rules:
       get currentAnimation() { return this._currentAnim ? this._currentAnim.name : null; }
     }
 
-    // ── Inject animation API into createObjectApi ────────────────
-    // We monkey-patch RuntimeEngine to add animation support
-
-    // Animation API cache — stored on RuntimeEngine instance so APIs persist across
-    // multiple getObject() calls (which return fresh API objects each time).
-    const _origCreateObjectApi = RuntimeEngine.prototype.createObjectApi;
-    RuntimeEngine.prototype.createObjectApi = function(object) {
-      const api = _origCreateObjectApi.call(this, object);
-      const runtimeRef = this;
-
-      // Use cached animation API if available, otherwise create one
-      if (!runtimeRef._animAPICache) runtimeRef._animAPICache = {};
-      if (!runtimeRef._animAPICache[object.id]) {
-        runtimeRef._animAPICache[object.id] = new AnimationRuntimeAPI(object.id, runtimeRef);
-      }
-      const cachedAnim = runtimeRef._animAPICache[object.id];
-
-      Object.defineProperty(api, 'animation', {
-        get() { return cachedAnim; },
-        configurable: true
-      });
-
-      return api;
-    };
-
-    // ── Hook into runtime update loop to update animation players ──
-    const _origRuntimeUpdate = RuntimeEngine.prototype.update;
-    RuntimeEngine.prototype.update = function(timestamp) {
-      // Call original update (which calls behavior.update for all objects)
-      _origRuntimeUpdate.call(this, timestamp);
-
-      // Now update all animation players for each behavior object
-      if (RUNTIME_STATE.isPlaying) {
-        if (this._animAPICache) {
-          Object.values(this._animAPICache).forEach(animApi => {
-            if (animApi && typeof animApi._update === 'function') {
-              animApi._update(RUNTIME_STATE.deltaTime);
-            }
-          });
-        }
-      }
-    };
-
-    // Store runtime reference globally for animation API access
-    // (will be set when SceneEditorManager is constructed)
-    window._codeHotRuntime = null;
-
-    // ── Hook into runtime start to set reference ──────────────────
-    const _origStart = RuntimeEngine.prototype.start;
-    RuntimeEngine.prototype.start = function(options) {
-      window._codeHotRuntime = this;
-
-      // Clean up old animation APIs
-      if (this._animAPICache) {
-        Object.values(this._animAPICache).forEach(a => { try { a.dispose(); } catch(e) {} });
-        this._animAPICache = {};
-      }
-
-      const result = _origStart.call(this, options);
-
-      // After start, auto-play animations bound to active objects
-      if (result !== false && this._animAPICache) {
-        Object.entries(this._animAPICache).forEach(([id, animApi]) => {
-          if (RUNTIME_STATE.behaviors.has(id)) {
-            const boundAnims = AnimationManager.getForObject(id);
-            if (boundAnims.length) {
-              animApi.play(boundAnims[0].name);
-            }
-          }
-        });
-      }
-      return result;
-    };
-
-    // ── Hook into runtime stop to clean up animation players ──────
-    const _origStop = RuntimeEngine.prototype.stop;
-    RuntimeEngine.prototype.stop = function() {
-      if (this._animAPICache) {
-        Object.values(this._animAPICache).forEach(a => {
-          try { a.stop(); a.dispose(); } catch(e) {}
-        });
-        this._animAPICache = {};
-      }
-      return _origStop.call(this);
-    };
 
 
     document.addEventListener('DOMContentLoaded', async () => {
+        // ── Inject animation API into createObjectApi ────────────────
+        // We monkey-patch RuntimeEngine to add animation support
+
+        // Animation API cache — stored on RuntimeEngine instance so APIs persist across
+        // multiple getObject() calls (which return fresh API objects each time).
+        const RuntimeEngine = window.CodeHotScene.getRuntimeEngine();
+        const RUNTIME_STATE = window.CodeHotScene.getRuntimeState();
+        const _origCreateObjectApi = RuntimeEngine.prototype.createObjectApi;
+        RuntimeEngine.prototype.createObjectApi = function(object) {
+          const api = _origCreateObjectApi.call(this, object);
+          const runtimeRef = this;
+
+          // Use cached animation API if available, otherwise create one
+          if (!runtimeRef._animAPICache) runtimeRef._animAPICache = {};
+          if (!runtimeRef._animAPICache[object.id]) {
+            runtimeRef._animAPICache[object.id] = new AnimationRuntimeAPI(object.id, runtimeRef);
+          }
+          const cachedAnim = runtimeRef._animAPICache[object.id];
+
+          Object.defineProperty(api, 'animation', {
+            get() { return cachedAnim; },
+            configurable: true
+          });
+
+          return api;
+        };
+
+        // ── Hook into runtime update loop to update animation players ──
+        const _origRuntimeUpdate = RuntimeEngine.prototype.update;
+        RuntimeEngine.prototype.update = function(timestamp) {
+          // Call original update (which calls behavior.update for all objects)
+          _origRuntimeUpdate.call(this, timestamp);
+
+          // Now update all animation players for each behavior object
+          if (RUNTIME_STATE.isPlaying) {
+            if (this._animAPICache) {
+              Object.values(this._animAPICache).forEach(animApi => {
+                if (animApi && typeof animApi._update === 'function') {
+                  animApi._update(RUNTIME_STATE.deltaTime);
+                }
+              });
+            }
+          }
+        };
+
+        // Store runtime reference globally for animation API access
+        // (will be set when SceneEditorManager is constructed)
+        window._codeHotRuntime = null;
+
+        // ── Hook into runtime start to set reference ──────────────────
+        const _origStart = RuntimeEngine.prototype.start;
+        RuntimeEngine.prototype.start = function(options) {
+          window._codeHotRuntime = this;
+
+          // Clean up old animation APIs
+          if (this._animAPICache) {
+            Object.values(this._animAPICache).forEach(a => { try { a.dispose(); } catch(e) {} });
+            this._animAPICache = {};
+          }
+
+          const result = _origStart.call(this, options);
+
+          // After start, auto-play animations bound to active objects
+          if (result !== false && this._animAPICache) {
+            Object.entries(this._animAPICache).forEach(([id, animApi]) => {
+              if (RUNTIME_STATE.behaviors.has(id)) {
+                const boundAnims = AnimationManager.getForObject(id);
+                if (boundAnims.length) {
+                  animApi.play(boundAnims[0].name);
+                }
+              }
+            });
+          }
+          return result;
+        };
+
+        // ── Hook into runtime stop to clean up animation players ──────
+        const _origStop = RuntimeEngine.prototype.stop;
+        RuntimeEngine.prototype.stop = function() {
+          if (this._animAPICache) {
+            Object.values(this._animAPICache).forEach(a => {
+              try { a.stop(); a.dispose(); } catch(e) {}
+            });
+            this._animAPICache = {};
+          }
+          return _origStop.call(this);
+        };
+
       window.addEventListener('sceneeditor:modelLoadFailed', (event) => {
         const detail = event.detail || {};
         UIManager.showToast('Model failed: ' + (detail.error || 'unsupported or invalid model'));

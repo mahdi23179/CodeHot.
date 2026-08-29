@@ -2273,7 +2273,42 @@
       flex-direction: column;
     }
 
-    .as-content-panel.as-active {
+    
+/* ── Animation Panel ── */
+.anim-panel { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+.anim-panel.as-active { display: flex; }
+.anim-header { padding: 8px 12px; border-bottom: 1px solid #1a1a2e; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.anim-header-btn { background: #1a1a2e; border: 1px solid #2a2a3e; color: #ccc; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.anim-header-btn:hover { background: #2a2a3e; color: #fff; }
+.anim-header-btn.primary { background: #ff6b35; border-color: #ff6b35; color: #fff; }
+.anim-header-btn.primary:hover { background: #e55a25; }
+.anim-content { flex: 1; overflow-y: auto; padding: 8px 12px; }
+.anim-empty { text-align: center; color: #666; padding: 30px 10px; font-size: 12px; }
+.anim-item { background: #161b22; border: 1px solid #1a1a2e; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+.anim-item:hover { border-color: #ff6b35; }
+.anim-item.selected { border-color: #ff6b35; background: #1a1520; }
+.anim-item-name { font-size: 12px; color: #eee; font-weight: 600; margin-bottom: 4px; }
+.anim-item-meta { font-size: 10px; color: #888; display: flex; gap: 8px; flex-wrap: wrap; }
+.anim-item-meta span { background: #0d1117; padding: 1px 5px; border-radius: 3px; }
+.anim-preview-container { width: 100%; height: 180px; background: #0d1117; border: 1px solid #1a1a2e; border-radius: 6px; margin-bottom: 8px; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
+.anim-preview-container canvas { width: 100% !important; height: 100% !important; }
+.anim-controls { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.anim-controls button { background: #1a1a2e; border: 1px solid #2a2a3e; color: #ccc; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+.anim-controls button:hover { background: #2a2a3e; color: #fff; }
+.anim-controls button.active { background: #ff6b35; border-color: #ff6b35; color: #fff; }
+.anim-controls label { font-size: 10px; color: #888; display: flex; align-items: center; gap: 4px; }
+.anim-controls input[type="number"] { width: 50px; background: #0d1117; border: 1px solid #2a2a3e; color: #ccc; border-radius: 3px; padding: 2px 4px; font-size: 10px; }
+.anim-api-box { background: #0d1117; border: 1px solid #2a2a3e; border-radius: 6px; padding: 10px; margin-top: 8px; }
+.anim-api-box .label { font-size: 10px; color: #ff6b35; font-weight: 600; margin-bottom: 4px; }
+.anim-api-box code { font-size: 11px; color: #a8ff60; font-family: monospace; word-break: break-all; }
+.anim-api-box .hint { font-size: 10px; color: #666; margin-top: 4px; }
+.anim-assign-section { padding: 8px 0; border-top: 1px solid #1a1a2e; margin-top: 8px; }
+.anim-assign-section button { width: 100%; background: #ff6b35; border: none; color: #fff; border-radius: 4px; padding: 6px 0; font-size: 11px; font-weight: 600; cursor: pointer; }
+.anim-assign-section button:hover { background: #e55a25; }
+.anim-assign-section button:disabled { background: #333; cursor: default; }
+.anim-bound-info { font-size: 10px; color: #888; margin-top: 4px; text-align: center; }
+
+.as-content-panel.as-active {
       display: flex;
     }
 
@@ -2952,12 +2987,14 @@
   <div id="as-tabs">
     <button class="as-tab-button as-active" data-tab="assets">Assets</button>
     <button class="as-tab-button" data-tab="hierarchy">Hierarchy</button>
+    <button class="as-tab-button" data-tab="animation">Animation</button>
     <div class="as-tab-indicator"></div>
   </div>
 
   <div id="as-content">
     <div id="as-assetsPanel" class="as-content-panel as-active as-drop-zone"></div>
     <div id="as-hierarchyPanel" class="as-content-panel"></div>
+    <div id="as-animationPanel" class="as-content-panel anim-panel"></div>
   </div>
 
   <div id="as-footer">
@@ -5828,6 +5865,10 @@
           if (objData.textureAssetId) this.applyTextureToObject(objData.id, objData.textureAssetId);
           if (SCENE_STATE.selectedId === objData.id) this.selectObject(objData.id);
           this.updateHierarchy();
+          // V10: Register GLB animations as animation assets
+          if (loaded && loaded.animations && loaded.animations.length && typeof AnimationManager !== 'undefined') {
+            AnimationManager.importFromGLB(loaded.animations, objData.name, loadedRoot);
+          }
           this.emitEvent('sceneeditor:modelLoaded', { id: objData.id, name: objData.name, assetId: objData.assetId, format: format });
           return true;
         } catch (e) {
@@ -8312,7 +8353,12 @@
         },
         addModelAsset: (assetId) => manager.addModelAsset(assetId) === true,
         applyTextureAsset: (assetId, objectId) => manager.applyTextureToObject(objectId, assetId) === true,
-        clearTextureAsset: (assetId) => manager.clearTextureAsset(assetId) === true
+        clearTextureAsset: (assetId) => manager.clearTextureAsset(assetId) === true,
+        getSceneData: () => ({ objects: SCENE_STATE.objects, selectedId: SCENE_STATE.selectedId }),
+        saveToStorage: () => manager.saveToStorage(),
+        getRuntimeEngine: () => RuntimeEngine,
+        getRuntimeState: () => RUNTIME_STATE,
+        getRuntime: () => manager.runtime
       };
       window.dispatchEvent(new CustomEvent('sceneeditor:ready', { detail: { selectedId: SCENE_STATE.selectedId } }));
       manager.render();
@@ -10438,7 +10484,914 @@ Rules:
       }
     };
 
+    // ═══════════════════════════════════════════════════════════════
+    // V10 — Animation System
+    // ═══════════════════════════════════════════════════════════════
+
+    const ANIMATION_STORAGE_KEY = 'codehot-animations';
+
+    let ANIMATION_STATE = {
+      animations: [],
+      selectedId: null,
+      activePreview: null  // { renderer, scene, camera, mixer, clock, frame }
+    };
+
+    // ── AnimationManager ──────────────────────────────────────────
+
+    class AnimationManager {
+
+      // ── ID generation ───────────────────────────────────────────
+      static genId() {
+        return 'anim_' + Math.random().toString(36).substr(2, 9);
+      }
+
+      // ── Sort frames naturally (walk_01, walk_02, ..., walk_12) ──
+      static sortFrames(frames) {
+        return frames.slice().sort((a, b) => {
+          const na = (a.name || '').replace(/\.[^.]+$/, '');
+          const nb = (b.name || '').replace(/\.[^.]+$/, '');
+          // Try numeric comparison first
+          const numA = parseInt(na.replace(/[^0-9]/g, ''), 10);
+          const numB = parseInt(nb.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+          return na.localeCompare(nb, undefined, { numeric: true, sensitivity: 'base' });
+        });
+      }
+
+      // ── Load from localStorage ──────────────────────────────────
+      static loadFromStorage() {
+        try {
+          const data = localStorage.getItem(ANIMATION_STORAGE_KEY);
+          return data ? JSON.parse(data) : [];
+        } catch (e) { return []; }
+      }
+
+      // ── Save to localStorage ────────────────────────────────────
+      static saveToStorage() {
+        try {
+          localStorage.setItem(ANIMATION_STORAGE_KEY, JSON.stringify(ANIMATION_STATE.animations));
+        } catch (e) {
+          console.error('[Animation] Save failed:', e);
+        }
+      }
+
+      // ── Get all animations ──────────────────────────────────────
+      static getAll() { return ANIMATION_STATE.animations.slice(); }
+
+      // ── Get by id ───────────────────────────────────────────────
+      static getById(id) { return ANIMATION_STATE.animations.find(a => a.id === id) || null; }
+
+      // ── Import frame sequence ───────────────────────────────────
+      // files: FileList of images
+      // name: animation name (e.g. "Walk")
+      // fps: frames per second
+      // loop: boolean
+      static async importFrameSequence(fileList, name, fps, loop) {
+        const files = Array.from(fileList || []);
+        if (!files.length) return null;
+
+        fps = Number(fps) || 12;
+        loop = loop !== false; // default true
+
+        const anim = {
+          id: this.genId(),
+          name: name || 'Animation_' + (ANIMATION_STATE.animations.length + 1),
+          type: 'frame-sequence',
+          frames: [],
+          fps: fps,
+          loop: loop,
+          duration: files.length / fps,
+          frameCount: files.length,
+          createdAt: Date.now()
+        };
+
+        // Read each frame and store as data URL in IndexedDB
+        for (const file of files) {
+          const frameId = this.genId();
+          try {
+            const dataUrl = await this.readFileAsDataUrl(file);
+            const frame = {
+              id: frameId,
+              name: file.name,
+              dataUrl: dataUrl,
+              width: 0,
+              height: 0
+            };
+            // Get dimensions
+            const img = await this.loadImageFromDataUrl(dataUrl);
+            frame.width = img.naturalWidth;
+            frame.height = img.naturalHeight;
+            anim.frames.push(frame);
+          } catch (e) {
+            console.error('[Animation] Failed to read frame:', file.name, e);
+          }
+        }
+
+        // Sort frames naturally
+        anim.frames = this.sortFrames(anim.frames);
+        anim.duration = anim.frames.length / fps;
+
+        ANIMATION_STATE.animations.push(anim);
+        this.saveToStorage();
+        return anim;
+      }
+
+      // ── Import from GLB animations ──────────────────────────────
+      static importFromGLB(glbAnimations, modelName, objectRoot) {
+        const results = [];
+        if (!Array.isArray(glbAnimations) || !glbAnimations.length) return results;
+
+        for (const clip of glbAnimations) {
+          const anim = {
+            id: this.genId(),
+            name: clip.name || (modelName + '_anim_' + (results.length + 1)),
+            type: 'glb-clip',
+            clipName: clip.name,
+            duration: clip.duration || 1,
+            fps: Math.round((clip.tracks ? clip.tracks.length : 1) / (clip.duration || 1)) || 24,
+            loop: true,
+            frameCount: 0,
+            frames: [],
+            createdAt: Date.now()
+          };
+          ANIMATION_STATE.animations.push(anim);
+          results.push(anim);
+        }
+        this.saveToStorage();
+        return results;
+      }
+
+      // ── Delete animation ────────────────────────────────────────
+      static delete(id) {
+        ANIMATION_STATE.animations = ANIMATION_STATE.animations.filter(a => a.id !== id);
+        if (ANIMATION_STATE.selectedId === id) ANIMATION_STATE.selectedId = null;
+        this.saveToStorage();
+      }
+
+      // ── Rename ──────────────────────────────────────────────────
+      static rename(id, newName) {
+        const anim = this.getById(id);
+        if (!anim) return false;
+        anim.name = newName;
+        this.saveToStorage();
+        return true;
+      }
+
+      // ── Update settings (fps, loop) ─────────────────────────────
+      static updateSettings(id, settings) {
+        const anim = this.getById(id);
+        if (!anim) return false;
+        if (settings.fps !== undefined) {
+          anim.fps = Math.max(1, Math.min(120, Number(settings.fps) || 12));
+          if (anim.type === 'frame-sequence') anim.duration = anim.frameCount / anim.fps;
+        }
+        if (settings.loop !== undefined) anim.loop = Boolean(settings.loop);
+        if (settings.name !== undefined) anim.name = settings.name;
+        this.saveToStorage();
+        return true;
+      }
+
+      // ── Assign animation to scene object ────────────────────────
+      static assignToObject(animId, objectId) {
+        const anim = this.getById(animId);
+        if (!anim) return false;
+        if (!window.CodeHotScene) return false;
+
+        const obj = (typeof window.CodeHotScene.getSceneData === 'function')
+          ? window.CodeHotScene.getSceneData().objects.find(o => o.id === objectId)
+          : null;
+        if (!obj) return false;
+
+        // Store the binding on the scene object
+        if (!obj.animationBindings) obj.animationBindings = [];
+        // One animation per object (replace if same name)
+        obj.animationBindings = obj.animationBindings.filter(b => b.animName !== anim.name);
+        obj.animationBindings.push({ animId: anim.id, animName: anim.name });
+
+        // Also store reference on asset
+        if (!anim.linkedObjectIds) anim.linkedObjectIds = [];
+        if (!anim.linkedObjectIds.includes(objectId)) anim.linkedObjectIds.push(objectId);
+
+        this.saveToStorage();
+        if (window.CodeHotScene.saveToStorage) window.CodeHotScene.saveToStorage();
+        return true;
+      }
+
+      // ── Unbind animation from object ─────────────────────────────
+      static unbindFromObject(animId, objectId) {
+        const anim = this.getById(animId);
+        if (anim) {
+          anim.linkedObjectIds = (anim.linkedObjectIds || []).filter(id => id !== objectId);
+        }
+        if (window.CodeHotScene) {
+          const data = typeof window.CodeHotScene.getSceneData === 'function'
+            ? window.CodeHotScene.getSceneData() : null;
+          if (data) {
+            const obj = data.objects.find(o => o.id === objectId);
+            if (obj && obj.animationBindings) {
+              obj.animationBindings = obj.animationBindings.filter(b => b.animId !== animId);
+            }
+          }
+        }
+        this.saveToStorage();
+      }
+
+      // ── Get animations bound to an object ────────────────────────
+      static getForObject(objectId) {
+        const results = [];
+        for (const anim of ANIMATION_STATE.animations) {
+          if ((anim.linkedObjectIds || []).includes(objectId)) {
+            results.push(anim);
+          }
+        }
+        return results;
+      }
+
+      // ── Utility: read file as data URL ──────────────────────────
+      static readFileAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // ── Utility: load image from data URL ───────────────────────
+      static loadImageFromDataUrl(url) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Failed to load image'));
+          img.src = url;
+        });
+      }
+
+      // ── API string for scripts ──────────────────────────────────
+      static getApiString(animName) {
+        return 'self.animation.play("' + animName + '");';
+      }
+
+      // ── Create Runtime animation player for frame-sequence ──────
+      static createFramePlayer(anim) {
+        if (!anim || anim.type !== 'frame-sequence' || !anim.frames.length) return null;
+        let currentIndex = 0;
+        let elapsed = 0;
+        const textures = [];
+        let material = null;
+
+        // Pre-create textures from frame data URLs
+        for (const frame of anim.frames) {
+          const tex = new THREE.TextureLoader().load(frame.dataUrl);
+          tex.minFilter = THREE.LinearFilter;
+          tex.magFilter = THREE.LinearFilter;
+          textures.push(tex);
+        }
+
+        if (textures.length) {
+          material = new THREE.MeshBasicMaterial({ map: textures[0], transparent: true });
+        }
+
+        return {
+          textures,
+          material,
+          play(mesh) {
+            currentIndex = 0;
+            elapsed = 0;
+            if (material && textures[0]) material.map = textures[0];
+          },
+          update(delta) {
+            elapsed += delta;
+            const frameDuration = 1 / (anim.fps || 12);
+            while (elapsed >= frameDuration) {
+              elapsed -= frameDuration;
+              currentIndex++;
+              if (currentIndex >= textures.length) {
+                if (anim.loop) {
+                  currentIndex = 0;
+                } else {
+                  currentIndex = textures.length - 1;
+                  return false; // done
+                }
+              }
+              if (textures[currentIndex]) material.map = textures[currentIndex];
+            }
+            return true; // still playing
+          },
+          dispose() {
+            textures.forEach(t => t.dispose());
+            if (material) material.dispose();
+          }
+        };
+      }
+    }
+
+    // ── AnimationPreview (independent Three.js preview) ──────────
+
+    class AnimationPreview {
+      constructor(containerEl) {
+        this.container = containerEl;
+        this.renderer = null;
+        this.scene = null;
+        this.camera = null;
+        this.mixer = null;
+        this.clock = null;
+        this.animPlayer = null; // frame-sequence player
+        this.isPlaying = false;
+        this.animId = null;
+        this.previewMesh = null;
+        this._raf = null;
+      }
+
+      init() {
+        if (this.renderer) return;
+        const w = this.container.clientWidth || 280;
+        const h = this.container.clientHeight || 180;
+
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer.setSize(w, h);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setClearColor(0x0d1117, 1);
+        this.container.appendChild(this.renderer.domElement);
+
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+        this.camera.position.set(0, 1, 3);
+        this.camera.lookAt(0, 0.5, 0);
+
+        // Add a simple preview mesh (a plane that shows frame textures)
+        const geo = new THREE.PlaneGeometry(1.5, 1.5);
+        const mat = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+        this.previewMesh = new THREE.Mesh(geo, mat);
+        this.previewMesh.position.y = 0.5;
+        this.scene.add(this.previewMesh);
+
+        // Add grid
+        const grid = new THREE.GridHelper(4, 8, 0x222222, 0x151515);
+        this.scene.add(grid);
+
+        // Lights
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(2, 3, 2);
+        this.scene.add(dirLight);
+
+        this.clock = new THREE.Clock();
+        this.animate();
+      }
+
+      loadAnimation(anim) {
+        this.stop();
+        this.animId = anim ? anim.id : null;
+
+        // Clean up old player
+        if (this.animPlayer) {
+          this.animPlayer.dispose();
+          this.animPlayer = null;
+        }
+        if (this.mixer) {
+          this.mixer.stopAllAction();
+          this.mixer = null;
+        }
+
+        if (!anim) {
+          this.previewMesh.material.map = null;
+          this.previewMesh.material.color.set(0x333333);
+          this.previewMesh.material.needsUpdate = true;
+          return;
+        }
+
+        if (anim.type === 'frame-sequence' && anim.frames.length) {
+          this.animPlayer = AnimationManager.createFramePlayer(anim);
+          if (this.animPlayer && this.animPlayer.material) {
+            this.previewMesh.material.dispose();
+            this.previewMesh.material = this.animPlayer.material;
+          }
+        } else if (anim.type === 'glb-clip') {
+          // GLB clip preview — show a generic animated mesh
+          const geo = new THREE.BoxGeometry(1, 1, 1);
+          const mat = new THREE.MeshStandardMaterial({ color: 0xff6b35 });
+          this.previewMesh.material.dispose();
+          this.previewMesh.material = mat;
+          this.previewMesh.geometry.dispose();
+          this.previewMesh.geometry = geo;
+        }
+      }
+
+      play() {
+        if (!this.animId) return;
+        this.isPlaying = true;
+        if (this.animPlayer) {
+          this.animPlayer.play(this.previewMesh);
+        }
+      }
+
+      stop() {
+        this.isPlaying = false;
+        if (this._raf) {
+          cancelAnimationFrame(this._raf);
+          this._raf = null;
+        }
+      }
+
+      animate() {
+        if (!this.renderer) return;
+        this._raf = requestAnimationFrame(() => this.animate());
+        if (!this.isPlaying) {
+          // Still render but don't advance animation
+          if (this.renderer && this.scene && this.camera) {
+            this.renderer.render(this.scene, this.camera);
+          }
+          return;
+        }
+        const delta = this.clock.getDelta();
+
+        if (this.animPlayer) {
+          this.animPlayer.update(delta);
+        }
+        if (this.mixer) {
+          this.mixer.update(delta);
+        }
+
+        this.renderer.render(this.scene, this.camera);
+      }
+
+      dispose() {
+        this.stop();
+        if (this.animPlayer) { this.animPlayer.dispose(); this.animPlayer = null; }
+        if (this.renderer) { this.renderer.dispose(); this.renderer = null; }
+      }
+    }
+
+    // ── AnimationPanelManager — renders the Animation panel UI ───
+
+    class AnimationPanelManager {
+      static preview = null;
+
+      static render() {
+        const panel = document.getElementById('as-animationPanel');
+        if (!panel) return;
+
+        const anims = ANIMATION_STATE.animations;
+        const selected = ANIMATION_STATE.selectedId
+          ? ANIMATION_STATE.animations.find(a => a.id === ANIMATION_STATE.selectedId)
+          : null;
+
+        let html = '';
+
+        // Header
+        html += '<div class="anim-header">';
+        html += '<button class="anim-header-btn primary" id="anim-import-btn">+ Import Frames</button>';
+        html += '<button class="anim-header-btn" id="anim-import-glb-btn">Import from GLB</button>';
+        html += '</div>';
+
+        // Preview area
+        html += '<div class="anim-content">';
+
+        if (selected) {
+          html += '<div class="anim-preview-container" id="anim-preview-container"></div>';
+          html += '<div class="anim-controls">';
+          html += '<button id="anim-play-btn" class="' + (this.preview && this.preview.isPlaying ? 'active' : '') + '">▶ Play</button>';
+          html += '<button id="anim-stop-btn">⏹ Stop</button>';
+          html += '<label>FPS: <input type="number" id="anim-fps-input" value="' + (selected.fps || 12) + '" min="1" max="120"></label>';
+          html += '<label><input type="checkbox" id="anim-loop-check" ' + (selected.loop ? 'checked' : '') + '> Loop</label>';
+          html += '</div>';
+
+          // API hint
+          html += '<div class="anim-api-box">';
+          html += '<div class="label">📜 Use in Script:</div>';
+          html += '<code>self.animation.play("' + (selected.name || '').replace(/"/g, '\\"') + '");</code>';
+          html += '<div class="hint">Copy this into your object\'s script to play this animation at runtime.</div>';
+          html += '<code style="margin-top:4px;display:block">self.animation.stop();</code>';
+          html += '<div class="hint">Use this to stop the current animation.</div>';
+          html += '</div>';
+
+          // Assign section
+          html += '<div class="anim-assign-section">';
+          html += '<button id="anim-assign-btn" ' + (!window.CodeHotScene ? 'disabled' : '') + '>Assign to Selected Object</button>';
+          const boundObjects = selected.linkedObjectIds || [];
+          if (boundObjects.length) {
+            const names = boundObjects.map(oid => {
+              const obj = (typeof window.CodeHotScene !== 'undefined' && window.CodeHotScene.getSceneData)
+                ? window.CodeHotScene.getSceneData().objects.find(o => o.id === oid) : null;
+              return obj ? obj.name : oid;
+            });
+            html += '<div class="anim-bound-info">Bound to: ' + names.join(', ') + '</div>';
+          }
+          html += '</div>';
+
+          // Delete
+          html += '<div style="margin-top:10px;text-align:center;">';
+          html += '<button id="anim-delete-btn" style="background:#3a1515;border:1px solid #5a2020;color:#ff6666;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">Delete Animation</button>';
+          html += '</div>';
+        }
+
+        // Animation list
+        if (anims.length === 0) {
+          html += '<div class="anim-empty">';
+          html += 'No animations yet.<br><br>';
+          html += 'Import image frames (e.g. walk_01.png to walk_12.png) to create a frame-sequence animation.';
+          html += '</div>';
+        } else {
+          html += '<div style="margin-top:10px;">';
+          for (const anim of anims) {
+            const sel = ANIMATION_STATE.selectedId === anim.id ? ' selected' : '';
+            html += '<div class="anim-item' + sel + '" data-anim-id="' + anim.id + '">';
+            html += '<div class="anim-item-name">' + (anim.name || '').replace(/</g, '&lt;') + '</div>';
+            html += '<div class="anim-item-meta">';
+            html += '<span>' + anim.type + '</span>';
+            html += '<span>' + (anim.frameCount || 0) + ' frames</span>';
+            html += '<span>' + (anim.fps || 12) + ' fps</span>';
+            html += '<span>' + (anim.duration || 0).toFixed(2) + 's</span>';
+            html += '<span>' + (anim.loop ? 'Loop' : 'Once') + '</span>';
+            html += '</div>';
+            html += '</div>';
+          }
+          html += '</div>';
+        }
+
+        html += '</div>';
+        panel.innerHTML = html;
+
+        // Bind events
+        this.bindEvents(panel, selected);
+      }
+
+      static bindEvents(panel, selected) {
+        // Import frames button
+        const importBtn = panel.querySelector('#anim-import-btn');
+        if (importBtn) {
+          importBtn.addEventListener('click', () => this.promptImportFrames());
+        }
+
+        // Import from GLB
+        const importGlbBtn = panel.querySelector('#anim-import-glb-btn');
+        if (importGlbBtn) {
+          importGlbBtn.addEventListener('click', () => this.importFromSelectedGLB());
+        }
+
+        // Preview container
+        if (selected) {
+          const container = panel.querySelector('#anim-preview-container');
+          if (container) {
+            this.preview = new AnimationPreview(container);
+            this.preview.init();
+            this.preview.loadAnimation(selected);
+          }
+
+          // Play / Stop
+          const playBtn = panel.querySelector('#anim-play-btn');
+          const stopBtn = panel.querySelector('#anim-stop-btn');
+          if (playBtn) playBtn.addEventListener('click', () => {
+            if (this.preview) this.preview.play();
+            this.render();
+          });
+          if (stopBtn) stopBtn.addEventListener('click', () => {
+            if (this.preview) this.preview.stop();
+            this.render();
+          });
+
+          // FPS change
+          const fpsInput = panel.querySelector('#anim-fps-input');
+          if (fpsInput) fpsInput.addEventListener('change', (e) => {
+            AnimationManager.updateSettings(selected.id, { fps: parseInt(e.target.value) || 12 });
+            this.render();
+          });
+
+          // Loop change
+          const loopCheck = panel.querySelector('#anim-loop-check');
+          if (loopCheck) loopCheck.addEventListener('change', (e) => {
+            AnimationManager.updateSettings(selected.id, { loop: e.target.checked });
+          });
+
+          // Assign to selected
+          const assignBtn = panel.querySelector('#anim-assign-btn');
+          if (assignBtn) {
+            assignBtn.addEventListener('click', () => {
+              const selectedObjId = window.CodeHotScene && window.CodeHotScene.getSceneData
+                ? window.CodeHotScene.getSceneData().selectedId : null;
+              if (!selectedObjId) {
+                UIManager.showToast('Select an object in Scene first');
+                return;
+              }
+              const success = AnimationManager.assignToObject(selected.id, selectedObjId);
+              if (success) {
+                UIManager.showToast('Animation "' + selected.name + '" assigned!');
+                this.render();
+              } else {
+                UIManager.showToast('Failed to assign animation');
+              }
+            });
+          }
+
+          // Delete
+          const deleteBtn = panel.querySelector('#anim-delete-btn');
+          if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+              if (confirm('Delete animation "' + selected.name + '"?')) {
+                AnimationManager.delete(selected.id);
+                if (this.preview) { this.preview.dispose(); this.preview = null; }
+                this.render();
+              }
+            });
+          }
+        }
+
+        // Select animation item
+        panel.querySelectorAll('.anim-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const id = item.dataset.animId;
+            ANIMATION_STATE.selectedId = id;
+            if (this.preview) { this.preview.dispose(); this.preview = null; }
+            this.render();
+          });
+        });
+      }
+
+      static promptImportFrames() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.multiple = true;
+
+        // Create simple prompt for name
+        const animName = prompt('Animation name:', 'Animation_' + (ANIMATION_STATE.animations.length + 1));
+        if (animName === null) return;
+
+        const fpsStr = prompt('Frames per second (FPS):', '12');
+        if (fpsStr === null) return;
+        const fps = parseInt(fpsStr) || 12;
+
+        const loopStr = prompt('Loop? (true/false):', 'true');
+        const loop = loopStr !== 'false';
+
+        input.addEventListener('change', async (e) => {
+          const files = Array.from(e.target.files || []);
+          if (!files.length) return;
+          UIManager.showToast('Importing ' + files.length + ' frames...');
+          const anim = await AnimationManager.importFrameSequence(files, animName || 'Animation', fps, loop);
+          if (anim) {
+            ANIMATION_STATE.selectedId = anim.id;
+            UIManager.showToast('Animation "' + anim.name + '" created with ' + anim.frames.length + ' frames');
+            this.render();
+          } else {
+            UIManager.showToast('Failed to import animation');
+          }
+        });
+        input.click();
+      }
+
+      static importFromSelectedGLB() {
+        // Try to get the selected scene object and its GLB animations
+        if (!window.CodeHotScene) {
+          UIManager.showToast('Scene not available');
+          return;
+        }
+        const data = window.CodeHotScene.getSceneData();
+        if (!data || !data.selectedId) {
+          UIManager.showToast('Select a model object first');
+          return;
+        }
+        const obj = data.objects.find(o => o.id === data.selectedId);
+        if (!obj || obj.type !== 'model') {
+          UIManager.showToast('Selected object must be a model');
+          return;
+        }
+
+        // Find the live Three.js object and check for GLB animations
+        const liveObj = window.CodeHotScene.scene.children.find(
+          child => child.userData && child.userData.id === obj.id
+        );
+        if (!liveObj || !liveObj.userData || !liveObj.userData.animations || !liveObj.userData.animations.length) {
+          UIManager.showToast('No animations found in this model');
+          return;
+        }
+
+        const results = AnimationManager.importFromGLB(liveObj.userData.animations, obj.name, liveObj);
+        if (results.length) {
+          UIManager.showToast('Imported ' + results.length + ' animation(s) from ' + obj.name);
+          ANIMATION_STATE.selectedId = results[0].id;
+          this.render();
+        } else {
+          UIManager.showToast('No animations imported');
+        }
+      }
+
+      static destroy() {
+        if (this.preview) { this.preview.dispose(); this.preview = null; }
+      }
+    }
+
+    // ── Animation Runtime API ─────────────────────────────────────
+    // Provides self.animation.play("Walk"), self.animation.stop(), etc.
+
+    class AnimationRuntimeAPI {
+      constructor(objectId, runtime) {
+        this._objectId = objectId;
+        this._runtime = runtime;
+        this._currentAnim = null;
+        this._currentPlayer = null; // frame-sequence player
+        this._mixer = null;        // GLB AnimationMixer
+        this._action = null;       // GLB AnimationAction
+        this._isPlaying = false;
+        this._clock = new THREE.Clock(false);
+      }
+
+      play(name) {
+        const rt = window.CodeHotScene.getRuntimeState();
+        if (!rt.isPlaying) return false;
+
+        // Find the animation
+        const anims = AnimationManager.getForObject(this._objectId);
+        const anim = anims.find(a => a.name === name);
+        if (!anim) {
+          console.warn('[Animation] "' + name + '" not found for object ' + this._objectId);
+          return false;
+        }
+
+        // Stop current
+        this.stop();
+
+        this._currentAnim = anim;
+        this._isPlaying = true;
+
+        if (anim.type === 'frame-sequence') {
+          // Create frame player
+          this._currentPlayer = AnimationManager.createFramePlayer(anim);
+          if (this._currentPlayer) {
+            this._currentPlayer.play();
+            this._clock.start();
+          }
+        } else if (anim.type === 'glb-clip') {
+          // Find the live mesh and set up AnimationMixer
+          const mesh = this._runtime.manager.scene.children.find(
+            child => child.userData && child.userData.id === this._objectId
+          );
+          if (mesh) {
+            const animations = mesh.userData.animations || [];
+            const clip = animations.find(c => c.name === anim.clipName);
+            if (clip) {
+              this._mixer = new THREE.AnimationMixer(mesh);
+              this._action = this._mixer.clipAction(clip);
+              this._action.setLoop(anim.loop ? THREE.LoopRepeat : THREE.LoopOnce);
+              this._action.clampWhenFinished = !anim.loop;
+              this._action.play();
+            }
+          }
+        }
+
+        return true;
+      }
+
+      stop() {
+        this._isPlaying = false;
+        if (this._currentPlayer) {
+          this._currentPlayer.dispose();
+          this._currentPlayer = null;
+        }
+        if (this._mixer) {
+          this._mixer.stopAllAction();
+          this._mixer = null;
+          this._action = null;
+        }
+        this._currentAnim = null;
+        this._clock.stop();
+        return true;
+      }
+
+      pause() {
+        if (this._currentPlayer) {
+          // Frame player doesn't have native pause; just stop isPlaying flag
+          this._isPlaying = false;
+        }
+        if (this._action) {
+          this._action.paused = true;
+        }
+        return true;
+      }
+
+      resume() {
+        this._isPlaying = true;
+        if (this._action) {
+          this._action.paused = false;
+        }
+        return true;
+      }
+
+      // Called every frame by the runtime update loop
+      _update(delta) {
+        if (!this._isPlaying) return;
+
+        if (this._currentPlayer && this._currentAnim) {
+          const stillPlaying = this._currentPlayer.update(delta);
+          if (!stillPlaying) {
+            this._isPlaying = false;
+          }
+        }
+        if (this._mixer) {
+          this._mixer.update(delta);
+        }
+      }
+
+      dispose() {
+        this.stop();
+      }
+
+      get isPlaying() { return this._isPlaying; }
+      get currentAnimation() { return this._currentAnim ? this._currentAnim.name : null; }
+    }
+
+
+
     document.addEventListener('DOMContentLoaded', async () => {
+        // ── Inject animation API into createObjectApi ────────────────
+        // We monkey-patch RuntimeEngine to add animation support
+
+        // Animation API cache — stored on RuntimeEngine instance so APIs persist across
+        // multiple getObject() calls (which return fresh API objects each time).
+        const RuntimeEngine = window.CodeHotScene.getRuntimeEngine();
+        const RUNTIME_STATE = window.CodeHotScene.getRuntimeState();
+        const _origCreateObjectApi = RuntimeEngine.prototype.createObjectApi;
+        RuntimeEngine.prototype.createObjectApi = function(object) {
+          const api = _origCreateObjectApi.call(this, object);
+          const runtimeRef = this;
+
+          // Use cached animation API if available, otherwise create one
+          if (!runtimeRef._animAPICache) runtimeRef._animAPICache = {};
+          if (!runtimeRef._animAPICache[object.id]) {
+            runtimeRef._animAPICache[object.id] = new AnimationRuntimeAPI(object.id, runtimeRef);
+          }
+          const cachedAnim = runtimeRef._animAPICache[object.id];
+
+          Object.defineProperty(api, 'animation', {
+            get() { return cachedAnim; },
+            configurable: true
+          });
+
+          return api;
+        };
+
+        // ── Hook into runtime update loop to update animation players ──
+        const _origRuntimeUpdate = RuntimeEngine.prototype.update;
+        RuntimeEngine.prototype.update = function(timestamp) {
+          // Call original update (which calls behavior.update for all objects)
+          _origRuntimeUpdate.call(this, timestamp);
+
+          // Now update all animation players for each behavior object
+          if (RUNTIME_STATE.isPlaying) {
+            if (this._animAPICache) {
+              Object.values(this._animAPICache).forEach(animApi => {
+                if (animApi && typeof animApi._update === 'function') {
+                  animApi._update(RUNTIME_STATE.deltaTime);
+                }
+              });
+            }
+          }
+        };
+
+        // Store runtime reference globally for animation API access
+        // (will be set when SceneEditorManager is constructed)
+        window._codeHotRuntime = null;
+
+        // ── Hook into runtime start to set reference ──────────────────
+        const _origStart = RuntimeEngine.prototype.start;
+        RuntimeEngine.prototype.start = function(options) {
+          window._codeHotRuntime = this;
+
+          // Clean up old animation APIs
+          if (this._animAPICache) {
+            Object.values(this._animAPICache).forEach(a => { try { a.dispose(); } catch(e) {} });
+            this._animAPICache = {};
+          }
+
+          const result = _origStart.call(this, options);
+
+          // After start, auto-play animations bound to active objects
+          if (result !== false && this._animAPICache) {
+            Object.entries(this._animAPICache).forEach(([id, animApi]) => {
+              if (RUNTIME_STATE.behaviors.has(id)) {
+                const boundAnims = AnimationManager.getForObject(id);
+                if (boundAnims.length) {
+                  animApi.play(boundAnims[0].name);
+                }
+              }
+            });
+          }
+          return result;
+        };
+
+        // ── Hook into runtime stop to clean up animation players ──────
+        const _origStop = RuntimeEngine.prototype.stop;
+        RuntimeEngine.prototype.stop = function() {
+          if (this._animAPICache) {
+            Object.values(this._animAPICache).forEach(a => {
+              try { a.stop(); a.dispose(); } catch(e) {}
+            });
+            this._animAPICache = {};
+          }
+          return _origStop.call(this);
+        };
+
       window.addEventListener('sceneeditor:modelLoadFailed', (event) => {
         const detail = event.detail || {};
         UIManager.showToast('Model failed: ' + (detail.error || 'unsupported or invalid model'));
@@ -10485,6 +11438,9 @@ Rules:
           if (tab === 'assets') {
             document.getElementById('as-assetsPanel').classList.add('as-active');
             UIManager.renderAssets();
+          } else if (tab === 'animation') {
+            document.getElementById('as-animationPanel').classList.add('as-active');
+            AnimationPanelManager.render();
           } else {
             document.getElementById('as-hierarchyPanel').classList.add('as-active');
             HierarchyManager.loadFromScene();
