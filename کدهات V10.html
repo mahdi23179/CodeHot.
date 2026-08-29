@@ -5933,7 +5933,7 @@
           if (loaded && loaded.animations && loaded.animations.length) {
             const animBridge = window.CodeHotAnimationStore;
             if (animBridge && typeof animBridge.importFromGLB === 'function') {
-              animBridge.importFromGLB(loaded.animations, objData.name, loadedRoot);
+              animBridge.importFromGLB(loaded.animations, objData.name, loadedRoot, objData.id);
             }
           }
           this.emitEvent('sceneeditor:modelLoaded', { id: objData.id, name: objData.name, assetId: objData.assetId, format: format });
@@ -10681,6 +10681,7 @@ Rules:
             type: 'glb-clip',
             clipName: clip.name,
             sourceObjectId: sourceObjectId || null,
+            linkedObjectIds: sourceObjectId ? [sourceObjectId] : [],
             duration: clip.duration || 1,
             fps: Math.round((clip.tracks ? clip.tracks.length : 1) / (clip.duration || 1)) || 24,
             loop: true,
@@ -11552,23 +11553,7 @@ Rules:
         const detail = event.detail || {};
         UIManager.showToast('Model failed: ' + (detail.error || 'unsupported or invalid model'));
       });
-      window.addEventListener('sceneeditor:modelLoaded', (event) => {
-        UIManager.showToast('Model loaded into Scene');
-        // Auto-register GLB animations
-        try {
-          const detail = (event && event.detail) || {};
-          const objectId = detail.id || detail.objectId;
-          const root = detail.root || detail.loadedRoot;
-          if (objectId && root && root.animations && root.animations.length) {
-            const animResults = window.CodeHotAnimationStore.importFromGLB(root.animations, detail.name || 'Model', root, objectId);
-            if (animResults.length) {
-              UIManager.showToast(animResults.length + ' animation(s) registered from ' + (detail.name || 'model'));
-            }
-          }
-        } catch (e) {
-          console.warn('[Animation] Auto GLB animation registration failed:', e);
-        }
-      });
+      window.addEventListener('sceneeditor:modelLoaded', () => UIManager.showToast('Model loaded into Scene'));
       window.addEventListener('sceneeditor:textureApplyFailed', () => UIManager.showToast('Texture could not be applied'));
       ASSET_STATE.assets = AssetManager.loadFromStorage();
       try {
