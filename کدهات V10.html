@@ -2290,8 +2290,7 @@
 .anim-item-name { font-size: 12px; color: #eee; font-weight: 600; margin-bottom: 4px; }
 .anim-item-meta { font-size: 10px; color: #888; display: flex; gap: 8px; flex-wrap: wrap; }
 .anim-item-meta span { background: #0d1117; padding: 1px 5px; border-radius: 3px; }
-.anim-preview-container { width: 100%; height: 180px; background: #0d1117; border: 1px solid #1a1a2e; border-radius: 6px; margin-bottom: 8px; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
-.anim-preview-container canvas { width: 100% !important; height: 100% !important; }
+
 .anim-controls { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 .anim-controls button { background: #1a1a2e; border: 1px solid #2a2a3e; color: #ccc; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
 .anim-controls button:hover { background: #2a2a3e; color: #fff; }
@@ -3388,6 +3387,8 @@
           data: {
             'codehot-scene': localStorage.getItem(CONFIG.SCENE_KEY),
             'codehot-assets': localStorage.getItem(CONFIG.ASSETS_KEY),
+            'codehot-script-bindings': localStorage.getItem('codehot-script-bindings'),
+            'codehot-animation-state': localStorage.getItem('codehot-animation-state'),
             'codehot-console-logs': localStorage.getItem(CONFIG.CONSOLE_LOGS_KEY),
             'codehot-settings': localStorage.getItem(CONFIG.SETTINGS_KEY),
             'codehot-ai-conversation': localStorage.getItem('codehot-ai-conversation')
@@ -10873,167 +10874,6 @@ Rules:
       getAll: () => AnimationManager.getAll()
     };
 
-    // ── AnimationPreview (independent Three.js preview) ──────────
-
-    class AnimationPreview {
-      constructor(containerEl) {
-        this.container = containerEl;
-        this.renderer = null;
-        this.scene = null;
-        this.camera = null;
-        this.mixer = null;
-        this.clock = null;
-        this.animPlayer = null; // frame-sequence player
-        this.isPlaying = false;
-        this.animId = null;
-        this.previewMesh = null;
-        this._raf = null;
-      }
-
-      init() {
-        if (this.renderer) return;
-        const w = this.container.clientWidth || 280;
-        const h = this.container.clientHeight || 180;
-
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        this.renderer.setSize(w, h);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.setClearColor(0x0d1117, 1);
-        this.container.appendChild(this.renderer.domElement);
-
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
-        this.camera.position.set(0, 1, 3);
-        this.camera.lookAt(0, 0.5, 0);
-
-        // Add a simple preview mesh (a plane that shows frame textures)
-        const geo = new THREE.PlaneGeometry(1.5, 1.5);
-        const mat = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
-        this.previewMesh = new THREE.Mesh(geo, mat);
-        this.previewMesh.position.y = 0.5;
-        this.scene.add(this.previewMesh);
-
-        // Add grid
-        const grid = new THREE.GridHelper(4, 8, 0x222222, 0x151515);
-        this.scene.add(grid);
-
-        // Lights
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(2, 3, 2);
-        this.scene.add(dirLight);
-
-        this.clock = new THREE.Clock();
-        this.animate();
-      }
-
-      loadAnimation(anim) {
-        this.stop();
-        this.animId = anim ? anim.id : null;
-
-        // Clean up old player
-        if (this.animPlayer) {
-          this.animPlayer.dispose();
-          this.animPlayer = null;
-        }
-        if (this.mixer) {
-          this.mixer.stopAllAction();
-          this.mixer = null;
-        }
-
-        if (!anim) {
-          this.previewMesh.material.map = null;
-          this.previewMesh.material.color.set(0x333333);
-          this.previewMesh.material.needsUpdate = true;
-          return;
-        }
-
-        if (anim.type === 'frame-sequence' && anim.frames.length) {
-          this.animPlayer = AnimationManager.createFramePlayer(anim);
-          if (this.animPlayer && this.animPlayer.material) {
-            this.previewMesh.material.dispose();
-            this.previewMesh.material = this.animPlayer.material;
-          }
-        } else if (anim.type === 'glb-clip') {
-          // GLB clip preview — try to find and play the actual clip
-          const geo = new THREE.BoxGeometry(1, 1, 1);
-          const mat = new THREE.MeshStandardMaterial({ color: 0xff6b35 });
-          this.previewMesh.material.dispose();
-          this.previewMesh.material = mat;
-          this.previewMesh.geometry.dispose();
-          this.previewMesh.geometry = geo;
-
-          // Try to find the clip from the source model in the scene
-          try {
-            const scene = window.CodeHotScene && window.CodeHotScene.scene;
-            if (scene && anim.clipName) {
-              scene.traverse(child => {
-                if (child.userData && child.userData.animations) {
-                  const clip = child.userData.animations.find(c => c.name === anim.clipName);
-                  if (clip && !this.mixer) {
-                    this.mixer = new THREE.AnimationMixer(this.previewMesh);
-                    const action = this.mixer.clipAction(clip.clone());
-                    action.setLoop(anim.loop ? THREE.LoopRepeat : THREE.LoopOnce);
-                    action.clampWhenFinished = !anim.loop;
-                    action.play();
-                  }
-                }
-              });
-            }
-          } catch (e) {
-            console.warn('[AnimPreview] GLB clip preview failed:', e);
-          }
-        }
-      }
-
-      play() {
-        if (!this.animId) return;
-        this.isPlaying = true;
-        if (this.animPlayer) {
-          this.animPlayer.play(this.previewMesh);
-        }
-      }
-
-      stop() {
-        this.isPlaying = false;
-        if (this._raf) {
-          cancelAnimationFrame(this._raf);
-          this._raf = null;
-        }
-        if (this.mixer) {
-          this.mixer.stopAllAction();
-        }
-      }
-
-      animate() {
-        if (!this.renderer) return;
-        this._raf = requestAnimationFrame(() => this.animate());
-        if (!this.isPlaying) {
-          // Still render but don't advance animation
-          if (this.renderer && this.scene && this.camera) {
-            this.renderer.render(this.scene, this.camera);
-          }
-          return;
-        }
-        const delta = this.clock.getDelta();
-
-        if (this.animPlayer) {
-          this.animPlayer.update(delta);
-        }
-        if (this.mixer) {
-          this.mixer.update(delta);
-        }
-
-        this.renderer.render(this.scene, this.camera);
-      }
-
-      dispose() {
-        this.stop();
-        if (this.animPlayer) { this.animPlayer.dispose(); this.animPlayer = null; }
-        if (this.renderer) { this.renderer.dispose(); this.renderer = null; }
-      }
-    }
-
     // ── AnimationPanelManager — renders the Animation panel UI ───
 
     class AnimationPanelManager {
@@ -11121,10 +10961,10 @@ Rules:
             html += '</div>';
 
             // Preview
-            html += '<div class="anim-preview-container" id="anim-preview-container"></div>';
+            // [V10] Animation preview removed per user request
             html += '<div class="anim-controls">';
-            html += '<button id="anim-play-btn" class="' + (this.preview && this.preview.isPlaying ? 'active' : '') + '">&#9654; Play</button>';
-            html += '<button id="anim-stop-btn">&#9209; Stop</button>';
+            /* [V10] Preview play button removed */
+            /* [V10] Preview stop button removed */
             html += '<label><input type="checkbox" id="anim-loop-check" ' + (selected.loop ? 'checked' : '') + '> Loop</label>';
             html += '</div>';
 
@@ -11171,26 +11011,11 @@ Rules:
       }
 
       static bindEvents(panel, selected) {
-        // Preview container
+        // [V10] Animation preview removed per user request
         if (selected) {
-          const container = panel.querySelector('#anim-preview-container');
-          if (container) {
-            this.preview = new AnimationPreview(container);
-            this.preview.init();
-            this.preview.loadAnimation(selected);
-          }
 
-          // Play / Stop
-          const playBtn = panel.querySelector('#anim-play-btn');
-          const stopBtn = panel.querySelector('#anim-stop-btn');
-          if (playBtn) playBtn.addEventListener('click', () => {
-            if (this.preview) this.preview.play();
-            this.render();
-          });
-          if (stopBtn) stopBtn.addEventListener('click', () => {
-            if (this.preview) this.preview.stop();
-            this.render();
-          });
+          // [V10] Preview play/stop removed per user request
+          
 
           // FPS change
           const fpsInput = panel.querySelector('#anim-fps-input');
