@@ -11625,6 +11625,7 @@ Rules:
             AnimationPanelManager.render();
           } else if (tab === 'ui') {
             document.getElementById('ui-panel').classList.add('as-active');
+            if (window.uiPanelManager) { window.uiPanelManager.render(); }
           } else {
             document.getElementById('as-hierarchyPanel').classList.add('as-active');
             HierarchyManager.loadFromScene();
@@ -13260,6 +13261,7 @@ Rules:
       window.uiTemplateManager = new UITemplateManager(window.CodeHotUI);
       window.uiTemplateManager.viewMode = 'collections';
       const uiPanelManager = new UIPanelManager();
+      window.uiPanelManager = uiPanelManager;
       window.CodeHotUIOverlay = new UIRuntimeOverlay();
       window.CodeHotUI.inputEngine = window.CodeHotUIOverlay.inputEngine;
       window.CodeHotUI.scriptAPI = createUIScriptAPI(window.CodeHotUIOverlay.inputEngine);
