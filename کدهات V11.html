@@ -2767,194 +2767,68 @@
     }
   
 
-    /* V11: UI System CSS */
-    .anim-panel { padding: 0; }
-    
-    #ui-panel { display: none; flex-direction: column; height: 100%; overflow: hidden; }
-    #ui-panel.as-active { display: flex; }
-    
-    #ui-pages-header {
-      display: flex; align-items: center; gap: 6px; padding: 8px 10px;
-      border-bottom: 1px solid #2a2a2a; background: #1a1e24;
+    /* V11 Theme Tokens - defaults for dark theme */
+    :root, [data-theme="dark"] {
+      --ch-bg: #1e1e1e;
+      --ch-panelBg: #252526;
+      --ch-panelBorder: #3c3c3c;
+      --ch-buttonBg: #0e639c;
+      --ch-buttonText: #ffffff;
+      --ch-buttonHover: #1177bb;
+      --ch-accent: #007acc;
+      --ch-accentHover: #1a8ad4;
+      --ch-text: #cccccc;
+      --ch-textMuted: #858585;
+      --ch-textBright: #e0e0e0;
+      --ch-inputBg: #3c3c3c;
+      --ch-inputBorder: #555;
+      --ch-inputText: #e0e0e0;
+      --ch-selected: #264f78;
+      --ch-hover: #2a2d2e;
+      --ch-error: #f44336;
+      --ch-warning: #ff9800;
+      --ch-success: #4caf50;
+      --ch-info: #2196f3;
+      --ch-consoleBg: #1e1e1e;
+      --ch-tabBg: #2d2d2d;
+      --ch-tabActive: #1e1e1e;
+      --ch-scrollThumb: #424242;
+      --ch-scrollTrack: #1e1e1e;
     }
-    #ui-pages-header button {
-      padding: 5px 10px; background: #2a2a2a; border: 1px solid #333;
-      border-radius: 4px; color: #e0e0e0; font-size: 11px; cursor: pointer;
+    [data-theme="light"] {
+      --ch-bg: #ffffff;
+      --ch-panelBg: #f3f3f3;
+      --ch-panelBorder: #d4d4d4;
+      --ch-buttonBg: #007acc;
+      --ch-buttonText: #ffffff;
+      --ch-buttonHover: #005fa3;
+      --ch-accent: #007acc;
+      --ch-accentHover: #005fa3;
+      --ch-text: #333333;
+      --ch-textMuted: #888888;
+      --ch-textBright: #000000;
+      --ch-inputBg: #ffffff;
+      --ch-inputBorder: #cccccc;
+      --ch-inputText: #333333;
+      --ch-selected: #cde4f7;
+      --ch-hover: #e8e8e8;
+      --ch-error: #d32f2f;
+      --ch-warning: #f57c00;
+      --ch-success: #388e3c;
+      --ch-info: #1976d2;
+      --ch-consoleBg: #ffffff;
+      --ch-tabBg: #e0e0e0;
+      --ch-tabActive: #ffffff;
+      --ch-scrollThumb: #c1c1c1;
+      --ch-scrollTrack: #f0f0f0;
     }
-    #ui-pages-header button:hover { background: #333; }
-    #ui-pages-header button.ui-active-page { background: #ff6b35; border-color: #ff6b35; color: #fff; }
-    
-    #ui-canvas-wrap {
-      position: relative; flex: 1; background: #1a1a2e; overflow: hidden;
-      display: flex; align-items: center; justify-content: center;
-    }
-    #ui-canvas {
-      position: relative; background: #fff; border: 1px solid #444;
-      overflow: hidden; transition: width 0.3s, height 0.3s;
-    }
-    #ui-canvas.ui-editing { border: 2px solid #ff6b35; }
-    
-    .ui-element {
-      position: absolute; cursor: move; user-select: none;
-      display: flex; align-items: center; justify-content: center;
-      border: 2px solid transparent; transition: border-color 0.15s;
-    }
-    .ui-element:hover { border-color: rgba(255,107,53,0.4); }
-    .ui-element.ui-selected { border-color: #ff6b35; }
-    .ui-element.ui-btn-el {
-      background: #4a9eff; color: #fff; border-radius: 8px;
-      font-weight: 600; font-size: 14px;
-    }
-    .ui-element.ui-joystick-el {
-      background: rgba(74,158,255,0.15); border: 2px solid rgba(74,158,255,0.4);
-      border-radius: 50%;
-    }
-    .ui-element.ui-joystick-el::after {
-      content: ''; width: 40%; height: 40%; border-radius: 50%;
-      background: rgba(74,158,255,0.6);
-    }
-    .ui-element.ui-panel-el { background: rgba(255,255,255,0.1); border-radius: 8px; }
-    .ui-element.ui-text-el { color: #000; font-size: 14px; font-weight: 600; }
-    .ui-element.ui-image-el { background: #ddd; border-radius: 4px; overflow: hidden; }
-    .ui-element.ui-image-el img { width: 100%; height: 100%; object-fit: cover; }
-    
-    .ui-element .ui-resize-handle {
-      position: absolute; bottom: -4px; right: -4px; width: 10px; height: 10px;
-      background: #ff6b35; border-radius: 2px; cursor: se-resize; display: none;
-    }
-    .ui-element.ui-selected .ui-resize-handle { display: block; }
-    
-    #ui-add-bar {
-      display: flex; gap: 4px; padding: 8px 10px; border-top: 1px solid #2a2a2a;
-      background: #1a1e24; flex-wrap: wrap;
-    }
-    #ui-add-bar button {
-      padding: 5px 8px; background: #2a2a2a; border: 1px solid #333;
-      border-radius: 4px; color: #e0e0e0; font-size: 11px; cursor: pointer;
-    }
-    #ui-add-bar button:hover { background: #333; }
-    
-    #ui-props {
-      border-top: 1px solid #2a2a2a; background: #1a1e24; padding: 8px 10px;
-      max-height: 250px; overflow-y: auto;
-    }
-    #ui-props .ui-prop-row {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-    }
-    #ui-props .ui-prop-label {
-      font-size: 11px; color: #888; min-width: 55px; flex-shrink: 0;
-    }
-    #ui-props input, #ui-props select {
-      flex: 1; padding: 4px 6px; background: #0f0f0f; border: 1px solid #2a2a2a;
-      border-radius: 3px; color: #e0e0e0; font-size: 11px;
-    }
-    #ui-props input[type="number"] { width: 60px; flex: none; }
-    #ui-props input[type="color"] { width: 30px; height: 24px; padding: 2px; }
-    
-    #ui-orientation-bar {
-      display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-      border-bottom: 1px solid #2a2a2a; background: #1a1e24;
-    }
-    #ui-orientation-bar button {
-      padding: 4px 10px; background: #2a2a2a; border: 1px solid #333;
-      border-radius: 4px; color: #e0e0e0; font-size: 11px; cursor: pointer;
-    }
-    #ui-orientation-bar button.ui-active-orient { background: #ff6b35; border-color: #ff6b35; color: #fff; }
-    #ui-orientation-bar span { font-size: 11px; color: #888; }
-    
-    /* UI Runtime Overlay */
-    #ui-runtime-overlay {
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      pointer-events: none; z-index: 100; display: none;
-    }
-    #ui-runtime-overlay.ui-overlay-active { display: block; pointer-events: auto; }
-    
-    /* UI Element runtime styles */
-    #ui-runtime-overlay .ui-runtime-btn {
-      position: absolute; display: flex; align-items: center; justify-content: center;
-      background: #4a9eff; color: #fff; border-radius: 8px; font-weight: 600;
-      cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
-    }
-    #ui-runtime-overlay .ui-runtime-joystick {
-      position: absolute; display: flex; align-items: center; justify-content: center;
-      border-radius: 50%; pointer-events: auto;
-    }
-    #ui-runtime-overlay .ui-runtime-joystick-base {
-      width: 100%; height: 100%; background: rgba(255,255,255,0.12);
-      border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;
-      position: relative;
-    }
-    #ui-runtime-overlay .ui-runtime-joystick-stick {
-      width: 40%; height: 40%; border-radius: 50%;
-      background: rgba(255,255,255,0.5); position: absolute;
-      top: 30%; left: 30%; transition: none; pointer-events: none;
-    }
-    #ui-runtime-overlay .ui-runtime-text {
-      position: absolute; color: #fff; font-weight: 600;
-      text-shadow: 1px 1px 2px rgba(0,0,0,0.5); white-space: nowrap;
-    }
-    #ui-runtime-overlay .ui-runtime-panel {
-      position: absolute; background: rgba(0,0,0,0.4); border-radius: 8px;
-    }
-    #ui-runtime-overlay .ui-runtime-image {
-      position: absolute; border-radius: 4px; overflow: hidden;
-    }
-    #ui-runtime-overlay .ui-runtime-image img { width: 100%; height: 100%; object-fit: cover; }
-    
-    /* Scene Manager Panel */
-    #ui-scene-manager {
-      display: flex; gap: 4px; padding: 6px 10px;
-      border-bottom: 1px solid #2a2a2a; background: #1a1e24;
-      align-items: center; flex-wrap: wrap;
-    }
-    #ui-scene-manager span { font-size: 11px; color: #888; margin-right: 4px; }
-    #ui-scene-manager button {
-      padding: 4px 8px; background: #2a2a2a; border: 1px solid #333;
-      border-radius: 4px; color: #e0e0e0; font-size: 11px; cursor: pointer;
-    }
-    #ui-scene-manager button:hover { background: #333; }
-    #ui-scene-manager button.ui-active-scene { background: #ff6b35; border-color: #ff6b35; color: #fff; }
-  
-    /* V11 UI Templates */
-    #ui-mode-bar { display:flex; gap:2px; padding:4px 8px; border-bottom:1px solid #1a1a2e; }
-    #ui-mode-bar button { flex:1; background:#1a1a2e; color:#888; border:1px solid #2a2a40; padding:4px 8px; border-radius:4px; font-size:10px; cursor:pointer; transition:all 0.15s; }
-    #ui-mode-bar button:hover { color:#fff; border-color:#ff6b35; }
-    #ui-mode-bar button.ui-active-mode { background:#ff6b35; color:#fff; border-color:#ff6b35; }
-    #ui-templates-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
-    #ui-tpl-header { display:flex; align-items:center; gap:6px; padding:6px 8px; border-bottom:1px solid #1a1a2e; }
-    #ui-tpl-search { flex:1; background:#0d0d1a; border:1px solid #2a2a40; color:#ccc; padding:4px 8px; border-radius:4px; font-size:11px; }
-    #ui-tpl-view-toggle { display:flex; gap:2px; }
-    #ui-tpl-view-toggle button { background:#1a1a2e; color:#888; border:1px solid #2a2a40; padding:3px 8px; font-size:10px; border-radius:3px; cursor:pointer; }
-    #ui-tpl-view-toggle button.active { background:#ff6b35; color:#fff; border-color:#ff6b35; }
-    #ui-tpl-list { flex:1; overflow-y:auto; padding:6px; }
-    .ui-tpl-category { margin-bottom:8px; }
-    .ui-tpl-cat-header { display:flex; align-items:center; justify-content:space-between; padding:4px 6px; background:#151528; border-radius:4px; cursor:pointer; color:#ff6b35; font-size:11px; font-weight:600; margin-bottom:4px; }
-    .ui-tpl-cat-header:hover { background:#1a1a35; }
-    .ui-tpl-cat-count { color:#666; font-size:10px; }
-    .ui-tpl-cat-pages { display:none; }
-    .ui-tpl-cat-pages.open { display:block; }
-    .ui-tpl-page-item { display:flex; align-items:center; justify-content:space-between; padding:5px 8px; margin:2px 0; background:#0d0d1a; border:1px solid #1a1a2e; border-radius:4px; cursor:pointer; color:#aaa; font-size:11px; transition:all 0.15s; }
-    .ui-tpl-page-item:hover { background:#1a1a35; border-color:#ff6b35; color:#fff; }
-    .ui-tpl-page-item .tpl-type { font-size:9px; color:#666; background:#1a1a2e; padding:1px 4px; border-radius:2px; }
-    .ui-tpl-collection-header { display:flex; align-items:center; gap:6px; padding:6px 8px; background:#151528; border-radius:6px; margin-bottom:6px; cursor:pointer; border:1px solid #2a2a40; }
-    .ui-tpl-collection-header:hover { border-color:#ff6b35; }
-    .ui-tpl-coll-icon { width:36px; height:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:18px; background:#1a1a35; flex-shrink:0; }
-    .ui-tpl-coll-info { flex:1; }
-    .ui-tpl-coll-name { font-size:12px; font-weight:600; color:#eee; }
-    .ui-tpl-coll-desc { font-size:10px; color:#777; margin-top:1px; }
-    .ui-tpl-coll-count { font-size:10px; color:#ff6b35; }
-    .ui-tpl-import-btn { background:#ff6b35; color:#fff; border:none; padding:3px 8px; border-radius:3px; font-size:10px; cursor:pointer; flex-shrink:0; }
-    .ui-tpl-import-btn:hover { background:#e55a2b; }
-    .ui-tpl-pages-list { padding:4px 0 4px 20px; }
-    .ui-tpl-back-btn { background:#1a1a2e; color:#aaa; border:1px solid #2a2a40; padding:3px 8px; border-radius:3px; font-size:10px; cursor:pointer; margin-right:4px; }
-    .ui-tpl-back-btn:hover { color:#fff; border-color:#ff6b35; }
-    .ui-tpl-filter-bar { display:flex; gap:3px; padding:4px 8px; flex-wrap:wrap; }
-    .ui-tpl-filter-chip { background:#1a1a2e; color:#888; border:1px solid #2a2a40; padding:2px 6px; border-radius:10px; font-size:9px; cursor:pointer; }
-    .ui-tpl-filter-chip.active { background:#ff6b35; color:#fff; border-color:#ff6b35; }
-    .ui-tpl-empty { text-align:center; padding:20px; color:#666; font-size:11px; }
-    .ui-tpl-preview-mini { background:#0d0d1a; border:1px solid #1a1a2e; border-radius:4px; padding:8px; margin-bottom:6px; }
+    /* V11 RTL support */
+    [dir="rtl"] { text-align: right; }
+    [dir="rtl"] .sc-footer-row { flex-direction: row-reverse; }
+    [dir="rtl"] .st-settings-row { flex-direction: row-reverse; }
+    [dir="rtl"] .as-toolbar { flex-direction: row-reverse; }
 
-</style>
+    </style>
 </head>
 <body>
   <div id="splash">
@@ -3134,7 +3008,6 @@
   <div id="sc-contextMenu"></div>
   <div id="sc-recoveryOverlay"></div>
   <div class="sc-saving-indicator" id="sc-savingIndicator">Saving...</div>
-  <div id="ui-runtime-overlay"></div>
   <div class="sc-stats" id="sc-statsPanel"></div>
       </div>
       <div class="tab-panel" data-tab="ai">
@@ -3176,7 +3049,6 @@
     <button class="as-tab-button as-active" data-tab="assets">Assets</button>
     <button class="as-tab-button" data-tab="hierarchy">Hierarchy</button>
     <button class="as-tab-button" data-tab="animation">Animation</button>
-    <button class="as-tab-button" data-tab="ui">UI</button>
     <div class="as-tab-indicator"></div>
   </div>
 
@@ -3184,7 +3056,6 @@
     <div id="as-assetsPanel" class="as-content-panel as-active as-drop-zone"></div>
     <div id="as-hierarchyPanel" class="as-content-panel"></div>
     <div id="as-animationPanel" class="as-content-panel anim-panel"></div>
-    <div id="ui-panel" class="as-content-panel"></div>
   </div>
 
   <div id="as-footer">
@@ -3286,6 +3157,7 @@
         const language = readLanguage();
         showSplashTagline(language);
         buildTabBar(language);
+        ThemeManager.load();
         switchTab('scene'); // default landing tab
 
         const splash = document.getElementById('splash');
@@ -3501,6 +3373,484 @@
       collapsedSections: new Set()
     };
 
+    // ══════════════════════════════════════════════════════════════
+    // V11 INFRASTRUCTURE: EventBus, SelectionBus, CommandManager,
+    // ThemeManager, Localization, ProjectState
+    // ══════════════════════════════════════════════════════════════
+
+    // ── EventBus ──────────────────────────────────────────────
+    // Central event bus for all inter-module communication.
+    // Panels subscribe/unsubscribe; events auto-cleanup on destroy.
+    const EventBus = {
+      _listeners: {},
+      on(event, fn) {
+        (this._listeners[event] = this._listeners[event] || []).push(fn);
+        return () => this.off(event, fn);
+      },
+      off(event, fn) {
+        const arr = this._listeners[event];
+        if (!arr) return;
+        const idx = arr.indexOf(fn);
+        if (idx >= 0) arr.splice(idx, 1);
+      },
+      emit(event, data) {
+        const arr = this._listeners[event];
+        if (!arr) return;
+        for (let i = 0; i < arr.length; i++) {
+          try { arr[i](data); } catch (e) { console.error(`[EventBus] Error in "${event}":`, e); }
+        }
+      },
+      // Also dispatch to DOM for backward compat
+      emitDOM(event, detail) {
+        this.emit(event, detail);
+        try { window.dispatchEvent(new CustomEvent(event, { detail: detail || {} })); } catch(e) {}
+      }
+    };
+
+    // ── SelectionBus ──────────────────────────────────────────
+    // Single source of truth for which object/asset/animation is selected.
+    // All panels read from here; changes propagate via EventBus.
+    const SelectionBus = {
+      _state: {
+        sceneObjectId: null,  // selected 3D object in scene
+        assetId: null,        // selected asset in asset panel
+        animationId: null,    // selected animation
+        scriptObjectId: null, // object whose script is being edited
+      },
+      get(key) { return this._state[key]; },
+      set(key, value) {
+        const old = this._state[key];
+        if (old === value) return;
+        this._state[key] = value;
+        EventBus.emit('selection:changed', { key, value, oldValue: old });
+        EventBus.emit('selection:' + key, { value, oldValue: old });
+      },
+      clear() {
+        const prev = { ...this._state };
+        this._state.sceneObjectId = null;
+        this._state.assetId = null;
+        this._state.animationId = null;
+        this._state.scriptObjectId = null;
+        EventBus.emit('selection:cleared', { previous: prev });
+      },
+      invalidateObject(id) {
+        if (this._state.sceneObjectId === id) this.set('sceneObjectId', null);
+        if (this._state.scriptObjectId === id) this.set('scriptObjectId', null);
+      }
+    };
+
+    // ── CommandManager (Undo/Redo) ────────────────────────────
+    // Command pattern: each action is a { execute, undo } pair.
+    // Max history capped to prevent memory bloat.
+    const CommandManager = {
+      _undoStack: [],
+      _redoStack: [],
+      _maxHistory: 100,
+      _batchMode: false,
+      _batchCommands: [],
+
+      execute(cmd) {
+        // cmd = { type, execute(), undo(), description }
+        if (this._batchMode) {
+          cmd.execute();
+          this._batchCommands.push(cmd);
+          return;
+        }
+        cmd.execute();
+        this._undoStack.push(cmd);
+        if (this._undoStack.length > this._maxHistory) {
+          this._undoStack.shift();
+        }
+        this._redoStack = [];
+        EventBus.emit('command:executed', { type: cmd.type, description: cmd.description });
+        EventBus.emit('state:changed');
+      },
+
+      undo() {
+        if (this._undoStack.length === 0) return false;
+        const cmd = this._undoStack.pop();
+        cmd.undo();
+        this._redoStack.push(cmd);
+        EventBus.emit('command:undone', { type: cmd.type, description: cmd.description });
+        EventBus.emit('state:changed');
+        return true;
+      },
+
+      redo() {
+        if (this._redoStack.length === 0) return false;
+        const cmd = this._redoStack.pop();
+        cmd.execute();
+        this._undoStack.push(cmd);
+        EventBus.emit('command:redone', { type: cmd.type, description: cmd.description });
+        EventBus.emit('state:changed');
+        return true;
+      },
+
+      startBatch() { this._batchMode = true; this._batchCommands = []; },
+      endBatch(description) {
+        this._batchMode = false;
+        const cmds = this._batchCommands;
+        this._batchCommands = [];
+        if (cmds.length === 0) return;
+        this._undoStack.push({
+          type: 'batch',
+          description: description || 'Batch operation',
+          execute() { cmds.forEach(c => c.execute()); },
+          undo() { for (let i = cmds.length - 1; i >= 0; i--) cmds[i].undo(); }
+        });
+        if (this._undoStack.length > this._maxHistory) this._undoStack.shift();
+        this._redoStack = [];
+        EventBus.emit('state:changed');
+      },
+
+      canUndo() { return this._undoStack.length > 0; },
+      canRedo() { return this._redoStack.length > 0; },
+      clear() { this._undoStack = []; this._redoStack = []; }
+    };
+
+    // ── Runtime State Machine ─────────────────────────────────
+    // Proper lifecycle: Editor → Starting → Running → Paused → Stopping → Editor
+    const RUNTIME_LIFECYCLE = Object.freeze({
+      EDITOR: 'editor',
+      STARTING: 'starting',
+      RUNNING: 'running',
+      PAUSED: 'paused',
+      STOPPING: 'stopping'
+    });
+
+    const RuntimeLifecycle = {
+      _state: RUNTIME_LIFECYCLE.EDITOR,
+      get state() { return this._state; },
+      get isPlaying() { return this._state === RUNTIME_LIFECYCLE.RUNNING || this._state === RUNTIME_LIFECYCLE.PAUSED; },
+      get isPaused() { return this._state === RUNTIME_LIFECYCLE.PAUSED; },
+      get canEdit() { return this._state === RUNTIME_LIFECYCLE.EDITOR; },
+
+      transition(newState) {
+        const old = this._state;
+        // Validate transition
+        const validTransitions = {
+          [RUNTIME_LIFECYCLE.EDITOR]: [RUNTIME_LIFECYCLE.STARTING],
+          [RUNTIME_LIFECYCLE.STARTING]: [RUNTIME_LIFECYCLE.RUNNING, RUNTIME_LIFECYCLE.EDITOR],
+          [RUNTIME_LIFECYCLE.RUNNING]: [RUNTIME_LIFECYCLE.PAUSED, RUNTIME_LIFECYCLE.STOPPING],
+          [RUNTIME_LIFECYCLE.PAUSED]: [RUNTIME_LIFECYCLE.RUNNING, RUNTIME_LIFECYCLE.STOPPING],
+          [RUNTIME_LIFECYCLE.STOPPING]: [RUNTIME_LIFECYCLE.EDITOR]
+        };
+        if (!validTransitions[old] || !validTransitions[old].includes(newState)) {
+          console.warn(`[RuntimeLifecycle] Invalid transition: ${old} → ${newState}`);
+          return false;
+        }
+        this._state = newState;
+        EventBus.emit('runtime:stateChanged', { from: old, to: newState });
+        return true;
+      },
+
+      reset() {
+        this._state = RUNTIME_LIFECYCLE.EDITOR;
+      }
+    };
+
+    // ── Theme Manager ─────────────────────────────────────────
+    // Centralized theme tokens with CSS custom properties.
+    const ThemeManager = {
+      _current: 'dark',
+      _themes: {
+        dark: {
+          bg: '#1e1e1e', panelBg: '#252526', panelBorder: '#3c3c3c',
+          buttonBg: '#0e639c', buttonText: '#ffffff', buttonHover: '#1177bb',
+          accent: '#007acc', accentHover: '#1a8ad4',
+          text: '#cccccc', textMuted: '#858585', textBright: '#e0e0e0',
+          inputBg: '#3c3c3c', inputBorder: '#555', inputText: '#e0e0e0',
+          selected: '#264f78', hover: '#2a2d2e',
+          error: '#f44336', warning: '#ff9800', success: '#4caf50', info: '#2196f3',
+          consoleBg: '#1e1e1e', tabBg: '#2d2d2d', tabActive: '#1e1e1e',
+          scrollThumb: '#424242', scrollTrack: '#1e1e1e',
+        },
+        light: {
+          bg: '#ffffff', panelBg: '#f3f3f3', panelBorder: '#d4d4d4',
+          buttonBg: '#007acc', buttonText: '#ffffff', buttonHover: '#005fa3',
+          accent: '#007acc', accentHover: '#005fa3',
+          text: '#333333', textMuted: '#888888', textBright: '#000000',
+          inputBg: '#ffffff', inputBorder: '#cccccc', inputText: '#333333',
+          selected: '#cde4f7', hover: '#e8e8e8',
+          error: '#d32f2f', warning: '#f57c00', success: '#388e3c', info: '#1976d2',
+          consoleBg: '#ffffff', tabBg: '#e0e0e0', tabActive: '#ffffff',
+          scrollThumb: '#c1c1c1', scrollTrack: '#f0f0f0',
+        }
+      },
+
+      apply(name) {
+        const t = this._themes[name] || this._themes.dark;
+        this._current = name;
+        const root = document.documentElement;
+        Object.entries(t).forEach(([key, val]) => {
+          root.style.setProperty('--ch-' + key, val);
+        });
+        root.setAttribute('data-theme', name);
+        EventBus.emit('theme:changed', { theme: name });
+        try { localStorage.setItem('codehot-theme', name); } catch(e) {}
+      },
+
+      get(key) {
+        return (this._themes[this._current] || this._themes.dark)[key];
+      },
+
+      getCurrent() { return this._current; },
+
+      load() {
+        try {
+          const saved = localStorage.getItem('codehot-theme');
+          if (saved && this._themes[saved]) this.apply(saved);
+          else this.apply('dark');
+        } catch(e) { this.apply('dark'); }
+      }
+    };
+
+    // ── ProjectState (Unified Save/Load) ──────────────────────
+    // Single source of truth for all project data.
+    // Replaces scattered localStorage reads/writes.
+    const STORAGE_KEYS = {
+      project: 'codehot-project-v11',
+      legacy_scene: 'codehot-scene',
+      legacy_assets: 'codehot-assets',
+      legacy_scripts: 'codehot-script-bindings',
+      legacy_animation: 'codehot-animation-state',
+      legacy_console: 'codehot-console-logs',
+      legacy_settings: 'codehot-settings',
+      legacy_ai: 'codehot-ai-conversation',
+      legacy_ai_queue: 'codehot-ai-queue',
+      legacy_asset_groups: 'codehot-asset-groups',
+      theme: 'codehot-theme',
+    };
+
+    const ProjectState = {
+      _data: null,
+
+      getDefault() {
+        return {
+          version: 11,
+          timestamp: Date.now(),
+          cleanExit: true,
+          settings: { language: 'fa', theme: 'dark' },
+          scenes: [{ id: 'default', name: 'Scene 1', objects: [], camera: null }],
+          activeSceneId: 'default',
+          assets: [],
+          assetGroups: [],
+          scripts: {},       // objectId → script code
+          animations: [],    // animation records
+          consoleLogs: [],
+          aiConversation: null,
+          uiState: null,     // future UI pages
+        };
+      },
+
+      init() {
+        // Try loading V11 format first
+        let data = null;
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.project);
+          if (raw) data = JSON.parse(raw);
+        } catch(e) {}
+
+        if (!data || data.version !== 11) {
+          // Migrate from legacy keys
+          data = this.migrateFromLegacy();
+        }
+
+        this._data = data;
+        return this._data;
+      },
+
+      migrateFromLegacy() {
+        const data = this.getDefault();
+        try {
+          // Scene
+          const sceneRaw = localStorage.getItem(STORAGE_KEYS.legacy_scene);
+          if (sceneRaw) {
+            const scene = JSON.parse(sceneRaw);
+            if (scene.objects) data.scenes[0].objects = scene.objects;
+            if (scene.camera) data.scenes[0].camera = scene.camera;
+          }
+          // Assets
+          const assetsRaw = localStorage.getItem(STORAGE_KEYS.legacy_assets);
+          if (assetsRaw) {
+            const assets = JSON.parse(assetsRaw);
+            if (Array.isArray(assets)) data.assets = assets;
+          }
+          // Scripts
+          const scriptsRaw = localStorage.getItem(STORAGE_KEYS.legacy_scripts);
+          if (scriptsRaw) {
+            const scripts = JSON.parse(scriptsRaw);
+            if (typeof scripts === 'object' && scripts !== null) data.scripts = scripts;
+          }
+          // Animations
+          const animRaw = localStorage.getItem(STORAGE_KEYS.legacy_animation);
+          if (animRaw) {
+            const anims = JSON.parse(animRaw);
+            if (Array.isArray(anims)) data.animations = anims;
+          }
+          // Settings
+          const settingsRaw = localStorage.getItem(STORAGE_KEYS.legacy_settings);
+          if (settingsRaw) {
+            const settings = JSON.parse(settingsRaw);
+            if (settings) Object.assign(data.settings, settings);
+          }
+          // Asset groups
+          const groupsRaw = localStorage.getItem(STORAGE_KEYS.legacy_asset_groups);
+          if (groupsRaw) {
+            const groups = JSON.parse(groupsRaw);
+            if (Array.isArray(groups)) data.assetGroups = groups;
+          }
+        } catch(e) {
+          console.warn('[ProjectState] Migration error:', e);
+        }
+        return data;
+      },
+
+      get() { return this._data || this.getDefault(); },
+
+      getScene(id) {
+        const sid = id || this._data.activeSceneId;
+        return this._data.scenes.find(s => s.id === sid) || this._data.scenes[0];
+      },
+
+      getActiveScene() { return this.getScene(); },
+
+      save() {
+        if (!this._data) return;
+        this._data.timestamp = Date.now();
+        this._data.cleanExit = false;
+        try {
+          localStorage.setItem(STORAGE_KEYS.project, JSON.stringify(this._data));
+          // Also save to legacy keys for backward compatibility
+          this.syncToLegacy();
+        } catch(e) {
+          console.error('[ProjectState] Save error:', e);
+        }
+      },
+
+      syncToLegacy() {
+        const scene = this.getActiveScene();
+        try {
+          localStorage.setItem(STORAGE_KEYS.legacy_scene, JSON.stringify({
+            version: 2, timestamp: Date.now(), cleanExit: true,
+            objects: scene.objects, camera: scene.camera
+          }));
+          localStorage.setItem(STORAGE_KEYS.legacy_assets, JSON.stringify(this._data.assets));
+          localStorage.setItem(STORAGE_KEYS.legacy_scripts, JSON.stringify(this._data.scripts));
+          localStorage.setItem(STORAGE_KEYS.legacy_animation, JSON.stringify(this._data.animations));
+        } catch(e) {}
+      },
+
+      markClean() {
+        if (!this._data) return;
+        this._data.cleanExit = true;
+        this.save();
+      },
+
+      // Object operations (all go through CommandManager for undo/redo)
+      addObject(objData) {
+        const scene = this.getActiveScene();
+        const cmd = {
+          type: 'addObject',
+          description: 'Add ' + (objData.name || objData.type),
+          execute: () => {
+            scene.objects.push(objData);
+            EventBus.emit('scene:objectAdded', { object: objData });
+            EventBus.emit('state:changed');
+          },
+          undo: () => {
+            const idx = scene.objects.findIndex(o => o.id === objData.id);
+            if (idx >= 0) scene.objects.splice(idx, 1);
+            SelectionBus.invalidateObject(objData.id);
+            EventBus.emit('scene:objectRemoved', { id: objData.id });
+            EventBus.emit('state:changed');
+          }
+        };
+        CommandManager.execute(cmd);
+      },
+
+      removeObject(id) {
+        const scene = this.getActiveScene();
+        const obj = scene.objects.find(o => o.id === id);
+        if (!obj) return;
+        const objCopy = JSON.parse(JSON.stringify(obj));
+        const cmd = {
+          type: 'removeObject',
+          description: 'Delete ' + obj.name,
+          execute: () => {
+            const idx = scene.objects.findIndex(o => o.id === id);
+            if (idx >= 0) scene.objects.splice(idx, 1);
+            SelectionBus.invalidateObject(id);
+            EventBus.emit('scene:objectRemoved', { id });
+            EventBus.emit('state:changed');
+          },
+          undo: () => {
+            scene.objects.push(objCopy);
+            EventBus.emit('scene:objectAdded', { object: objCopy });
+            EventBus.emit('state:changed');
+          }
+        };
+        CommandManager.execute(cmd);
+      },
+
+      renameObject(id, newName) {
+        const scene = this.getActiveScene();
+        const obj = scene.objects.find(o => o.id === id);
+        if (!obj) return;
+        const oldName = obj.name;
+        const cmd = {
+          type: 'renameObject',
+          description: 'Rename ' + oldName + ' → ' + newName,
+          execute: () => {
+            obj.name = newName;
+            EventBus.emit('scene:objectRenamed', { id, name: newName });
+            EventBus.emit('state:changed');
+          },
+          undo: () => {
+            obj.name = oldName;
+            EventBus.emit('scene:objectRenamed', { id, name: oldName });
+            EventBus.emit('state:changed');
+          }
+        };
+        CommandManager.execute(cmd);
+      },
+
+      updateObjectTransform(id, prop, value) {
+        const scene = this.getActiveScene();
+        const obj = scene.objects.find(o => o.id === id);
+        if (!obj) return;
+        const parts = prop.split('.');
+        let target = obj;
+        for (let i = 0; i < parts.length - 1; i++) target = target[parts[i]];
+        const key = parts[parts.length - 1];
+        const oldValue = target[key];
+        const cmd = {
+          type: 'transform',
+          description: 'Transform ' + obj.name,
+          execute: () => { target[key] = value; EventBus.emit('scene:objectTransformed', { id }); EventBus.emit('state:changed'); },
+          undo: () => { target[key] = oldValue; EventBus.emit('scene:objectTransformed', { id }); EventBus.emit('state:changed'); }
+        };
+        CommandManager.execute(cmd);
+      },
+
+      // Script operations
+      setScript(objectId, code) {
+        const scripts = this._data.scripts;
+        const oldCode = scripts[objectId] || '';
+        const cmd = {
+          type: 'setScript',
+          description: 'Edit script for ' + objectId,
+          execute: () => { scripts[objectId] = code; EventBus.emit('script:changed', { objectId, code }); EventBus.emit('state:changed'); },
+          undo: () => { if (oldCode) scripts[objectId] = oldCode; else delete scripts[objectId]; EventBus.emit('script:changed', { objectId, code: oldCode }); EventBus.emit('state:changed'); }
+        };
+        CommandManager.execute(cmd);
+      },
+
+      getScript(objectId) {
+        return this._data.scripts[objectId] || '';
+      }
+    };
+
     class SettingsManager {
       static load() {
         try {
@@ -3574,8 +3924,9 @@
       static exportBackup() {
         const backup = {
           exportedAt: Date.now(),
-          codehotVersion: 1,
+          codehotVersion: 11,
           data: {
+            'codehot-project-v11': (typeof ProjectState !== 'undefined' && ProjectState._data) ? JSON.stringify(ProjectState._data) : null,
             'codehot-scene': localStorage.getItem(CONFIG.SCENE_KEY),
             'codehot-assets': localStorage.getItem(CONFIG.ASSETS_KEY),
             'codehot-script-bindings': localStorage.getItem('codehot-script-bindings'),
@@ -3618,6 +3969,10 @@
             }
           });
 
+          // V11: restore ProjectState if present
+          if (parsed.data['codehot-project-v11'] && typeof ProjectState !== 'undefined') {
+            try { ProjectState._data = JSON.parse(parsed.data['codehot-project-v11']); } catch(e) {}
+          }
           SettingsManager.load();
           onDone(true, null);
         };
@@ -4018,15 +4373,15 @@
         e.target.value = '';
         if (!file) return;
 
-        SettingsUIManager.showConfirmDialog(SettingsUIManager.t('importBackupConfirm'), () => {
+        SettingsAssetsUIManager.showConfirmDialog(SettingsUIManager.t('importBackupConfirm'), () => {
           SettingsManager.importBackup(file, (success, errorType) => {
             if (success) {
               SettingsUIManager.applyTheme();
               SettingsUIManager.applyLanguage();
               SettingsUIManager.render();
-              SettingsUIManager.showToast(SettingsUIManager.t('importSuccess'));
+              SettingsAssetsUIManager.showToast(SettingsUIManager.t('importSuccess'));
             } else {
-              SettingsUIManager.showToast(SettingsUIManager.t('importInvalid'));
+              SettingsAssetsUIManager.showToast(SettingsUIManager.t('importInvalid'));
             }
           });
         });
@@ -4098,7 +4453,12 @@
     class ScriptStore {
       static load() {
         try {
-          const raw = localStorage.getItem(SCRIPT_STORAGE_KEY);
+          // V11: prefer ProjectState, fallback to localStorage
+        let raw = null;
+        if (typeof ProjectState !== 'undefined' && ProjectState._data && Object.keys(ProjectState._data.scripts || {}).length > 0) {
+          return JSON.parse(JSON.stringify(ProjectState._data.scripts));
+        }
+        raw = localStorage.getItem(SCRIPT_STORAGE_KEY);
           const parsed = raw ? JSON.parse(raw) : {};
           return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
         } catch (e) {
@@ -4108,7 +4468,11 @@
 
       static saveAll(bindings) {
         try {
-          localStorage.setItem(SCRIPT_STORAGE_KEY, JSON.stringify(bindings));
+          // V11: delegate to ProjectState for unified save
+        if (typeof ProjectState !== 'undefined' && ProjectState._data) {
+          ProjectState._data.scripts = bindings;
+        }
+        try { localStorage.setItem(SCRIPT_STORAGE_KEY, JSON.stringify(bindings)); } catch(e) {}
           return true;
         } catch (e) {
           return false;
@@ -4433,13 +4797,13 @@
         else ok = ScriptStore.set(this.state.selectedId, { objectName: object.name, code }, this.getSceneObjects());
         if (!ok) {
           this.updateStatus('Save failed');
-          if (showToast) ConsoleUIManager.showToast('ذخیره اسکریپت انجام نشد');
+          if (showToast) ConsoleAssetsUIManager.showToast('ذخیره اسکریپت انجام نشد');
           return false;
         }
         this.state.lastSavedCode = code;
         this.updateStatus(code.trim() ? 'Saved' : 'No script');
         this.renderObjectList(this.state.selectedId);
-        if (showToast) ConsoleUIManager.showToast(code.trim() ? 'Script saved' : 'Script cleared');
+        if (showToast) ConsoleAssetsUIManager.showToast(code.trim() ? 'Script saved' : 'Script cleared');
         return true;
       }
 
@@ -4455,7 +4819,7 @@
         const runtime = window.CodeHotRuntime;
         if (!runtime || typeof runtime.start !== 'function') {
           this.updateStatus('Runtime unavailable');
-          ConsoleUIManager.showToast('Runtime آماده نیست');
+          ConsoleAssetsUIManager.showToast('Runtime آماده نیست');
           return;
         }
         try {
@@ -4468,7 +4832,7 @@
           this.updateStatus('Running · ' + (object ? object.name : 'Object'));
         } catch (error) {
           this.updateStatus('Runtime error');
-          ConsoleUIManager.showToast(error && error.message ? error.message : String(error));
+          ConsoleAssetsUIManager.showToast(error && error.message ? error.message : String(error));
         }
       }
 
@@ -4480,7 +4844,7 @@
         if (runtime && typeof runtime.normalizeScriptSource === 'function') {
           try { canonicalCode = runtime.normalizeScriptSource(canonicalCode); } catch (e) {
             this.updateStatus('AI code rejected');
-            ConsoleUIManager.showToast(e && e.message ? e.message : 'Invalid JavaScript');
+            ConsoleAssetsUIManager.showToast(e && e.message ? e.message : 'Invalid JavaScript');
             return false;
           }
         }
@@ -4488,7 +4852,7 @@
           const validation = runtime.validateScript(canonicalCode);
           if (!validation.ok) {
             this.updateStatus('AI code rejected');
-            ConsoleUIManager.showToast(validation.error || 'Invalid JavaScript');
+            ConsoleAssetsUIManager.showToast(validation.error || 'Invalid JavaScript');
             return false;
           }
         }
@@ -4520,7 +4884,7 @@
             ConsoleManager.addLog('success', 'runtime', 'Script running: ' + object.name, { objectId: id });
           } catch (error) {
             this.updateStatus('Runtime error');
-            ConsoleUIManager.showToast(error && error.message ? error.message : String(error));
+            ConsoleAssetsUIManager.showToast(error && error.message ? error.message : String(error));
             ConsoleManager.addLog('error', 'runtime', 'Script failed to run: ' + object.name, { objectId: id, message: error && error.message ? error.message : String(error) });
             return false;
           }
@@ -4614,7 +4978,7 @@
         window.addEventListener('runtime:error', event => {
           const detail = event.detail || {};
           this.updateStatus('Runtime error');
-          if (detail.message) ConsoleUIManager.showToast(detail.message);
+          if (detail.message) ConsoleAssetsUIManager.showToast(detail.message);
         });
         setTimeout(() => {
           this.setView('logs');
@@ -5089,7 +5453,7 @@
 
       document.getElementById('cn-exportBtn').addEventListener('click', () => {
         if (CONSOLE_STATE.logs.length === 0) {
-          ConsoleUIManager.showToast('Nothing to export');
+          ConsoleAssetsUIManager.showToast('Nothing to export');
           return;
         }
         ConsoleManager.exportLogs();
@@ -5520,7 +5884,8 @@
         }
 
         SCENE_STATE.objects = SCENE_STATE.objects.filter(o => o.id !== id);
-        if (SCENE_STATE.selectedId === id) {
+        // V11: Undo/Redo - save snapshot before delete
+        const _deletedObjects = SCENE_STATE.objects.filter(o => o.id === id).map(o => JSON.parse(JSON.stringify(o)));        if (SCENE_STATE.selectedId === id) {
           SCENE_STATE.selectedId = null;
           this.updateFooter();
         }
@@ -6911,7 +7276,14 @@
           objects: SCENE_STATE.objects,
           camera: this.getCameraSaveData()
         };
-        localStorage.setItem('codehot-scene', JSON.stringify(saveData));
+        // V11: also save to ProjectState
+        if (typeof ProjectState !== 'undefined' && ProjectState._data) {
+          const scene = ProjectState.getActiveScene();
+          scene.objects = SCENE_STATE.objects;
+          scene.camera = this.getCameraSaveData();
+          ProjectState._data.scenes[0] = scene;
+        }
+        try { localStorage.setItem('codehot-scene', JSON.stringify(saveData)); } catch(e) {}
         this.showSavingIndicator();
         this.emitEvent('sceneeditor:sceneSaved', {});
       }
@@ -7587,12 +7959,14 @@
 
       start(options = {}) {
         if (RUNTIME_STATE.isPlaying) return false;
+        RuntimeLifecycle.transition('starting');
         const onlyId = options && options.onlyId ? options.onlyId : null;
 
         RUNTIME_STATE.sceneSnapshot = this.cloneEditorScene();
         RUNTIME_STATE.cameraSnapshot = this.cloneEditorCamera();
         RUNTIME_STATE.selectedIdSnapshot = SCENE_STATE.selectedId;
         RUNTIME_STATE.isPlaying = true;
+        RuntimeLifecycle.transition('running');
         RUNTIME_STATE.elapsedTime = 0;
         RUNTIME_STATE.deltaTime = 0;
         RUNTIME_STATE.frame = 0;
@@ -7638,9 +8012,11 @@
 
       stop() {
         if (!RUNTIME_STATE.isPlaying) return false;
+        RuntimeLifecycle.transition('stopping');
 
         this.runLifecycle('stop');
         RUNTIME_STATE.isPlaying = false;
+        RuntimeLifecycle.transition('editor');
         RUNTIME_STATE.elapsedTime = 0;
         RUNTIME_STATE.deltaTime = 0;
         RUNTIME_STATE.frame = 0;
@@ -9860,7 +10236,7 @@ Rules:
         } catch (e) {
           // Large OBJ/GLB files can exceed localStorage quota. Keep the current
           // in-memory asset list usable and surface a truthful, actionable error.
-          try { UIManager.showToast('Asset storage is full; current files are available until reload'); } catch (err) {}
+          try { AssetsUIManager.showToast('Asset storage is full; current files are available until reload'); } catch (err) {}
           return false;
         }
       }
@@ -9894,13 +10270,13 @@ Rules:
             this.emitEvent('assetsmanager:fileImported', { name: asset.name, type: asset.type, size: asset.size });
           } catch (error) {
             console.error('[Assets] import failed for ' + file.name + ':', error);
-            UIManager.showToast('Import failed: ' + file.name);
+            AssetsUIManager.showToast('Import failed: ' + file.name);
           }
         }
 
         if (imported.length) {
           this.saveToStorage(ASSET_STATE.assets);
-          UIManager.renderAssets();
+          AssetsUIManager.renderAssets();
 
           // Models become Scene objects automatically. No second button is required.
           for (const asset of imported) {
@@ -9908,7 +10284,7 @@ Rules:
             try {
               const added = window.CodeHotAssets && window.CodeHotAssets.addModelToScene
                 ? window.CodeHotAssets.addModelToScene(asset.id) : false;
-              if (!added) UIManager.showToast('Model imported, but Scene instance was not created');
+              if (!added) AssetsUIManager.showToast('Model imported, but Scene instance was not created');
               else if (group) {
                 const obj = window.CodeHotScene && window.CodeHotScene.getSelectedObject ? window.CodeHotScene.getSelectedObject() : null;
                 if (obj) { group.objectIds.push(obj.id); asset.linkedObjectIds.push(obj.id); }
@@ -9916,7 +10292,7 @@ Rules:
             } catch (e) { console.error('[Assets] scene instance failed:', e); }
           }
 
-          UIManager.showToast(`Imported ${imported.length} file${imported.length > 1 ? 's' : ''}`);
+          AssetsUIManager.showToast(`Imported ${imported.length} file${imported.length > 1 ? 's' : ''}`);
         }
         return imported;
       }
@@ -9967,7 +10343,7 @@ Rules:
         ASSET_STATE.assets.push(asset);
         AssetManager.saveToStorage(ASSET_STATE.assets);
         UIManager.openEditModal(asset);
-        UIManager.renderAssets();
+        AssetsUIManager.renderAssets();
       }
 
       static createSceneReference(name) {
@@ -9984,7 +10360,7 @@ Rules:
         ASSET_STATE.assets.push(asset);
         AssetManager.saveToStorage(ASSET_STATE.assets);
         AssetManager.emitEvent('assetsmanager:sceneReferenceCreated', { name: asset.name });
-        UIManager.renderAssets();
+        AssetsUIManager.renderAssets();
       }
 
       static renameAsset(id, newName) {
@@ -9995,7 +10371,7 @@ Rules:
         asset.modifiedAt = Date.now();
         AssetManager.saveToStorage(ASSET_STATE.assets);
         AssetManager.emitEvent('assetsmanager:fileRenamed', { oldName: oldName, newName: newName });
-        UIManager.renderAssets();
+        AssetsUIManager.renderAssets();
       }
 
       static duplicateAsset(id) {
@@ -10005,7 +10381,7 @@ Rules:
         newAsset.name = this.getUniqueName(asset.name);
         ASSET_STATE.assets.push(newAsset);
         AssetManager.saveToStorage(ASSET_STATE.assets);
-        UIManager.renderAssets();
+        AssetsUIManager.renderAssets();
       }
 
       static deleteAsset(id) {
@@ -10023,8 +10399,8 @@ Rules:
         }
         AssetManager.saveToStorage(ASSET_STATE.assets);
         if (asset) AssetManager.emitEvent('assetsmanager:fileDeleted', { name: asset.name });
-        UIManager.renderAssets();
-        UIManager.updateFooter();
+        AssetsUIManager.renderAssets();
+        AssetsUIManager.updateFooter();
       }
 
       static async createObjectGroup(name, files) {
@@ -10058,8 +10434,8 @@ Rules:
       select: (id) => {
         if (!ASSET_STATE.assets.some(a => a.id === id)) return false;
         ASSET_STATE.selectedId = id;
-        UIManager.renderAssets();
-        UIManager.updateFooter();
+        AssetsUIManager.renderAssets();
+        AssetsUIManager.updateFooter();
         return true;
       },
       addModelToScene: (assetId) => {
@@ -10115,7 +10491,7 @@ Rules:
         if (!obj) return;
         obj.visible = !obj.visible;
         this.saveToScene();
-        UIManager.renderHierarchy();
+        AssetsUIManager.renderHierarchy();
       }
 
       static renameObject(id, newName) {
@@ -10123,7 +10499,7 @@ Rules:
         if (!obj) return;
         obj.name = newName;
         this.saveToScene();
-        UIManager.renderHierarchy();
+        AssetsUIManager.renderHierarchy();
       }
 
       static duplicateObject(id) {
@@ -10136,7 +10512,7 @@ Rules:
         };
         HIERARCHY_STATE.objects.push(newObj);
         this.saveToScene();
-        UIManager.renderHierarchy();
+        AssetsUIManager.renderHierarchy();
       }
 
       static deleteObject(id) {
@@ -10152,8 +10528,8 @@ Rules:
           this.saveToScene();
         }
         if (HIERARCHY_STATE.selectedId === id) HIERARCHY_STATE.selectedId = null;
-        UIManager.renderHierarchy();
-        UIManager.updateFooter();
+        AssetsUIManager.renderHierarchy();
+        AssetsUIManager.updateFooter();
       }
 
       static seedDemoData() {
@@ -10163,11 +10539,11 @@ Rules:
           { id: 'obj_demo3', name: 'Cylinder', type: 'cylinder', position: { x: -2, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, color: '#6fb934', visible: true }
         ];
         this.saveToScene();
-        UIManager.renderHierarchy();
+        AssetsUIManager.renderHierarchy();
       }
     }
 
-    class UIManager {
+    class AssetsUIManager {
       static renderAssets() {
         const panel = document.getElementById('as-assetsPanel');
         const assets = this.getFilteredAssets();
@@ -10239,8 +10615,8 @@ Rules:
 
           item.addEventListener('click', () => {
             ASSET_STATE.selectedId = id;
-            UIManager.renderAssets();
-            UIManager.updateFooter();
+            AssetsUIManager.renderAssets();
+            AssetsUIManager.updateFooter();
           });
 
           item.addEventListener('dblclick', () => {
@@ -10251,7 +10627,7 @@ Rules:
             } else if (asset.type === ASSET_TYPES.TEXTURE) {
               UIManager.openPreviewModal(asset);
             } else if (asset.type === ASSET_TYPES.MODEL) {
-              if (!window.CodeHotAssets || !window.CodeHotAssets.addModelToScene(asset.id)) UIManager.showToast('Unable to add model to Scene');
+              if (!window.CodeHotAssets || !window.CodeHotAssets.addModelToScene(asset.id)) AssetsUIManager.showToast('Unable to add model to Scene');
             } else {
               UIManager.openMetadataModal(asset);
             }
@@ -10259,12 +10635,12 @@ Rules:
 
           item.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            UIManager.showContextMenu(id, e.clientX, e.clientY, 'asset');
+            AssetsUIManager.showContextMenu(id, e.clientX, e.clientY, 'asset');
           });
 
           item.addEventListener('mousedown', () => {
             longPressTimer = setTimeout(() => {
-              UIManager.showContextMenu(id, event.clientX, event.clientY, 'asset');
+              AssetsUIManager.showContextMenu(id, event.clientX, event.clientY, 'asset');
             }, CONFIG.LONG_PRESS_DURATION);
           });
 
@@ -10311,7 +10687,7 @@ Rules:
 
         document.getElementById('as-refreshBtn').addEventListener('click', () => {
           HierarchyManager.loadFromScene();
-          UIManager.renderHierarchy();
+          AssetsUIManager.renderHierarchy();
         });
 
         document.querySelectorAll('.as-hierarchy-item').forEach(item => {
@@ -10320,8 +10696,8 @@ Rules:
           item.addEventListener('click', (e) => {
             if (!e.target.classList.contains('as-hierarchy-eye')) {
               HIERARCHY_STATE.selectedId = id;
-              UIManager.renderHierarchy();
-              UIManager.updateFooter();
+              AssetsUIManager.renderHierarchy();
+              AssetsUIManager.updateFooter();
             }
           });
 
@@ -10332,12 +10708,12 @@ Rules:
 
           item.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            UIManager.showContextMenu(id, e.clientX, e.clientY, 'hierarchy');
+            AssetsUIManager.showContextMenu(id, e.clientX, e.clientY, 'hierarchy');
           });
 
           item.addEventListener('mousedown', function() {
             let longPressTimer = setTimeout(() => {
-              UIManager.showContextMenu(id, event.clientX, event.clientY, 'hierarchy');
+              AssetsUIManager.showContextMenu(id, event.clientX, event.clientY, 'hierarchy');
             }, CONFIG.LONG_PRESS_DURATION);
             this.addEventListener('mouseup', () => clearTimeout(longPressTimer), { once: true });
             this.addEventListener('mouseleave', () => clearTimeout(longPressTimer), { once: true });
@@ -10418,7 +10794,7 @@ Rules:
               action: () => {
                 const a = assetNow();
                 if (!a || !window.CodeHotAssets || !window.CodeHotAssets.addModelToScene(a.id)) {
-                  UIManager.showToast('Unable to add model to Scene');
+                  AssetsUIManager.showToast('Unable to add model to Scene');
                 }
               }
             });
@@ -10438,9 +10814,9 @@ Rules:
               action: () => {
                 const a = assetNow();
                 if (!a || !window.CodeHotAssets || !window.CodeHotAssets.applyTextureToSelected(a.id)) {
-                  UIManager.showToast('Select a Scene object first');
+                  AssetsUIManager.showToast('Select a Scene object first');
                 } else {
-                  UIManager.showToast('Texture assigned to selected object');
+                  AssetsUIManager.showToast('Texture assigned to selected object');
                 }
               }
             });
@@ -10554,7 +10930,7 @@ Rules:
           asset.modifiedAt = Date.now();
           AssetManager.saveToStorage(ASSET_STATE.assets);
           overlay.classList.remove('as-visible');
-          UIManager.renderAssets();
+          AssetsUIManager.renderAssets();
         });
 
         overlay.addEventListener('click', (e) => {
@@ -11228,15 +11604,15 @@ Rules:
               const selectedObjId = window.CodeHotScene && window.CodeHotScene.getSceneData
                 ? window.CodeHotScene.getSceneData().selectedId : null;
               if (!selectedObjId) {
-                UIManager.showToast('Select an object in Scene first');
+                AssetsUIManager.showToast('Select an object in Scene first');
                 return;
               }
               const success = AnimationManager.assignToObject(selected.id, selectedObjId);
               if (success) {
-                UIManager.showToast('Animation "' + selected.name + '" assigned!');
+                AssetsUIManager.showToast('Animation "' + selected.name + '" assigned!');
                 this.render();
               } else {
-                UIManager.showToast('Failed to assign animation');
+                AssetsUIManager.showToast('Failed to assign animation');
               }
             });
           }
@@ -11296,14 +11672,14 @@ Rules:
         input.addEventListener('change', async (e) => {
           const files = Array.from(e.target.files || []);
           if (!files.length) return;
-          UIManager.showToast('Importing ' + files.length + ' frames...');
+          AssetsUIManager.showToast('Importing ' + files.length + ' frames...');
           const anim = await AnimationManager.importFrameSequence(files, animName || 'Animation', fps, loop);
           if (anim) {
             ANIMATION_STATE.selectedId = anim.id;
-            UIManager.showToast('Animation "' + anim.name + '" created with ' + anim.frames.length + ' frames');
+            AssetsUIManager.showToast('Animation "' + anim.name + '" created with ' + anim.frames.length + ' frames');
             this.render();
           } else {
-            UIManager.showToast('Failed to import animation');
+            AssetsUIManager.showToast('Failed to import animation');
           }
         });
         input.click();
@@ -11313,17 +11689,17 @@ Rules:
         // Try to get the selected scene object and its GLB animations
         try {
         if (!window.CodeHotScene) {
-          UIManager.showToast('Scene not available');
+          AssetsUIManager.showToast('Scene not available');
           return;
         }
         const data = window.CodeHotScene.getSceneData();
         if (!data || !data.selectedId) {
-          UIManager.showToast('Select a model object first');
+          AssetsUIManager.showToast('Select a model object first');
           return;
         }
         const obj = data.objects.find(o => o.id === data.selectedId);
         if (!obj || obj.type !== 'model') {
-          UIManager.showToast('Selected object must be a model');
+          AssetsUIManager.showToast('Selected object must be a model');
           return;
         }
 
@@ -11332,21 +11708,21 @@ Rules:
           child => child.userData && child.userData.id === obj.id
         );
         if (!liveObj || !liveObj.userData || !liveObj.userData.animations || !liveObj.userData.animations.length) {
-          UIManager.showToast('No animations found in this model');
+          AssetsUIManager.showToast('No animations found in this model');
           return;
         }
 
         const results = AnimationManager.importFromGLB(liveObj.userData.animations, obj.name, liveObj);
         if (results.length) {
-          UIManager.showToast('Imported ' + results.length + ' animation(s) from ' + obj.name);
+          AssetsUIManager.showToast('Imported ' + results.length + ' animation(s) from ' + obj.name);
           ANIMATION_STATE.selectedId = results[0].id;
           this.render();
         } else {
-          UIManager.showToast('No animations imported');
+          AssetsUIManager.showToast('No animations imported');
         }
         } catch (e) {
           console.error('[Animation] Import from GLB failed:', e);
-          UIManager.showToast('Import from GLB failed: ' + (e && e.message ? e.message : e));
+          AssetsUIManager.showToast('Import from GLB failed: ' + (e && e.message ? e.message : e));
         }
       }
 
@@ -11489,11 +11865,6 @@ Rules:
           const api = _origCreateObjectApi.call(this, object);
           const runtimeRef = this;
 
-          // V11: Add UI input/event API to script objects
-          if (window.CodeHotUI && window.CodeHotUI.scriptAPI) {
-            api.ui = window.CodeHotUI.scriptAPI;
-          }
-
           // Use cached animation API if available, otherwise create one
           if (!runtimeRef._animAPICache) runtimeRef._animAPICache = {};
           if (!runtimeRef._animAPICache[object.id]) {
@@ -11534,8 +11905,6 @@ Rules:
         // ── Hook into runtime start to set reference ──────────────────
         const _origStart = RuntimeEngine.prototype.start;
         RuntimeEngine.prototype.start = function(options) {
-          // V11: Show UI overlay
-          if (window.CodeHotUIOverlay) window.CodeHotUIOverlay.show();
           window._codeHotRuntime = this;
 
           // Clean up old animation APIs
@@ -11563,8 +11932,6 @@ Rules:
         // ── Hook into runtime stop to clean up animation players ──────
         const _origStop = RuntimeEngine.prototype.stop;
         RuntimeEngine.prototype.stop = function() {
-          // V11: Hide UI overlay
-          if (window.CodeHotUIOverlay) window.CodeHotUIOverlay.hide();
           if (this._animAPICache) {
             Object.values(this._animAPICache).forEach(a => {
               try { a.stop(); a.dispose(); } catch(e) {}
@@ -11576,10 +11943,10 @@ Rules:
 
       window.addEventListener('sceneeditor:modelLoadFailed', (event) => {
         const detail = event.detail || {};
-        UIManager.showToast('Model failed: ' + (detail.error || 'unsupported or invalid model'));
+        AssetsUIManager.showToast('Model failed: ' + (detail.error || 'unsupported or invalid model'));
       });
-      window.addEventListener('sceneeditor:modelLoaded', () => UIManager.showToast('Model loaded into Scene'));
-      window.addEventListener('sceneeditor:textureApplyFailed', () => UIManager.showToast('Texture could not be applied'));
+      window.addEventListener('sceneeditor:modelLoaded', () => AssetsUIManager.showToast('Model loaded into Scene'));
+      window.addEventListener('sceneeditor:textureApplyFailed', () => AssetsUIManager.showToast('Texture could not be applied'));
       ASSET_STATE.assets = AssetManager.loadFromStorage();
       try {
         await window.CodeHotAssetStore.open();
@@ -11599,8 +11966,8 @@ Rules:
         ASSET_STATE.assets = [];
         ASSET_STATE.selectedId = null;
         HierarchyManager.loadFromScene();
-        UIManager.renderAssets();
-        UIManager.updateFooter();
+        AssetsUIManager.renderAssets();
+        AssetsUIManager.updateFooter();
       });
 
       document.querySelectorAll('.as-tab-button').forEach(btn => {
@@ -11619,20 +11986,17 @@ Rules:
 
           if (tab === 'assets') {
             document.getElementById('as-assetsPanel').classList.add('as-active');
-            UIManager.renderAssets();
+            AssetsUIManager.renderAssets();
           } else if (tab === 'animation') {
             document.getElementById('as-animationPanel').classList.add('as-active');
             AnimationPanelManager.render();
-          } else if (tab === 'ui') {
-            document.getElementById('ui-panel').classList.add('as-active');
-            if (window.uiPanelManager) { window.uiPanelManager.render(); }
           } else {
             document.getElementById('as-hierarchyPanel').classList.add('as-active');
             HierarchyManager.loadFromScene();
-            UIManager.renderHierarchy();
+            AssetsUIManager.renderHierarchy();
           }
 
-          UIManager.updateFooter();
+          AssetsUIManager.updateFooter();
         });
       });
 
@@ -11643,27 +12007,27 @@ Rules:
       searchInput.addEventListener('input', (e) => {
         ASSET_STATE.searchQuery = e.target.value;
         clearSearchBtn.classList.toggle('as-visible', e.target.value.length > 0);
-        UIManager.renderAssets();
+        AssetsUIManager.renderAssets();
       });
 
       clearSearchBtn.addEventListener('click', () => {
         searchInput.value = '';
         ASSET_STATE.searchQuery = '';
         clearSearchBtn.classList.remove('as-visible');
-        UIManager.renderAssets();
+        AssetsUIManager.renderAssets();
         searchInput.focus();
       });
 
       document.getElementById('as-filterSelect').addEventListener('change', (e) => {
         ASSET_STATE.filter = e.target.value;
-        UIManager.renderAssets();
+        AssetsUIManager.renderAssets();
       });
 
       document.getElementById('as-sortBtn').addEventListener('click', () => {
         const sorts = ['name', 'type', 'date'];
         const idx = sorts.indexOf(ASSET_STATE.sortBy);
         ASSET_STATE.sortBy = sorts[(idx + 1) % sorts.length];
-        UIManager.renderAssets();
+        AssetsUIManager.renderAssets();
       });
 
       document.getElementById('as-importBtn')?.remove();
@@ -11722,1556 +12086,58 @@ Rules:
         AssetManager.importFiles(e.dataTransfer.files);
       });
 
-
-    // ═══════════════════════════════════════════════════
-    // V11: UI SYSTEM — Pages, Elements, Input/Event, Multi-Scene
-    // ═══════════════════════════════════════════════════
-
-    const UI_STORAGE_KEY = 'codehot-ui';
-
-    let UI_STATE = {
-      orientation: 'portrait',
-      pages: [],
-      activePageId: null,
-      selectedElementId: null,
-      isEditing: false,
-      scenes: ['Scene 1'],
-      activeScene: 'Scene 1'
-    };
-
-    function getUICanvasSize() {
-      return UI_STATE.orientation === 'landscape'
-        ? { width: 480, height: 320 }
-        : { width: 320, height: 480 };
-    }
-
-    function generateUIId() {
-      return 'ui_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    }
-
-    function createDefaultUIPage(name) {
-      return {
-        id: generateUIId(),
-        name: name || 'Page ' + (UI_STATE.pages.length + 1),
-        elements: [],
-        visible: true,
-        targetScene: UI_STATE.activeScene
-      };
-    }
-
-    function getActiveUIPage() {
-      return UI_STATE.pages.find(p => p.id === UI_STATE.activePageId) || null;
-    }
-
-    function getSelectedUIElement() {
-      const page = getActiveUIPage();
-      if (!page) return null;
-      return page.elements.find(e => e.id === UI_STATE.selectedElementId) || null;
-    }
-
-    function saveUIState() {
-      try { localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(UI_STATE)); } catch (e) {}
-    }
-
-    function loadUIState() {
-      try {
-        const data = JSON.parse(localStorage.getItem(UI_STORAGE_KEY));
-        if (data) {
-          UI_STATE.orientation = data.orientation || 'portrait';
-          UI_STATE.pages = data.pages || [];
-          UI_STATE.activePageId = data.activePageId || (UI_STATE.pages.length ? UI_STATE.pages[0].id : null);
-          UI_STATE.scenes = data.scenes || ['Scene 1'];
-          UI_STATE.activeScene = data.activeScene || 'Scene 1';
-        }
-      } catch (e) {}
-      if (!UI_STATE.pages.length) {
-        const p = createDefaultUIPage('MainMenu');
-        UI_STATE.pages.push(p);
-        UI_STATE.activePageId = p.id;
-      }
-    }
-
-    // UIInputEngine
-    class UIInputEngine {
-      constructor() { this._listeners = {}; this._joystickState = {}; this._buttonState = {}; }
-      on(key, cb) { if (!this._listeners[key]) this._listeners[key] = []; this._listeners[key].push(cb); }
-      off(key, cb) { if (this._listeners[key]) this._listeners[key] = this._listeners[key].filter(c => c !== cb); }
-      emit(key, data) { (this._listeners[key] || []).forEach(cb => { try { cb(data); } catch (e) { console.error('[UI]', key, e); } }); }
-      setButtonState(key, pressed) { this._buttonState[key] = pressed; this.emit(key, { pressed, type: 'button' }); this.emit('input', { key, pressed, type: 'button' }); }
-      setJoystickInput(key, x, y) { this._joystickState[key] = { x, y }; this.emit(key, { x, y, type: 'joystick' }); this.emit('input', { key, x, y, type: 'joystick' }); }
-      getButtonState(key) { return !!this._buttonState[key]; }
-      getJoystickInput(key) { return this._joystickState[key] || { x: 0, y: 0 }; }
-    }
-
-    // UIRuntimeOverlay
-    class UIRuntimeOverlay {
-      constructor() {
-        this.overlay = document.getElementById('ui-runtime-overlay');
-        this.inputEngine = new UIInputEngine();
-      }
-      show() { if (!this.overlay) return; this.overlay.innerHTML = ''; this.overlay.classList.add('ui-overlay-active'); this.renderActivePages(); }
-      hide() { if (!this.overlay) return; this.overlay.classList.remove('ui-overlay-active'); this.overlay.innerHTML = ''; }
-      renderActivePages() {
-        if (!this.overlay) return;
-        this.overlay.innerHTML = '';
-        const pages = UI_STATE.pages.filter(p => p.visible);
-        pages.forEach(page => {
-          const pageDiv = document.createElement('div');
-          pageDiv.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;';
-          page.elements.forEach(el => {
-            if (!el.visible) return;
-            if (el.type === 'button') {
-              const btn = document.createElement('div');
-              btn.className = 'ui-runtime-btn';
-              btn.textContent = el.eventLabel || el.name;
-              btn.style.cssText = 'left:' + el.x + 'px;top:' + el.y + 'px;width:' + el.width + 'px;height:' + el.height + 'px;background:' + (el.bgColor || el.color) + ';font-size:' + Math.min(el.height * 0.4, 16) + 'px;';
-              const down = (e) => { e.preventDefault(); this.inputEngine.setButtonState(el.eventKey, true); btn.style.opacity = '0.7'; };
-              const up = (e) => { e.preventDefault(); this.inputEngine.setButtonState(el.eventKey, false); btn.style.opacity = '1'; };
-              btn.addEventListener('pointerdown', down);
-              btn.addEventListener('pointerup', up);
-              btn.addEventListener('pointerleave', up);
-              pageDiv.appendChild(btn);
-            } else if (el.type === 'joystick') {
-              const joy = document.createElement('div');
-              joy.className = 'ui-runtime-joystick';
-              joy.style.cssText = 'left:' + el.x + 'px;top:' + el.y + 'px;width:' + el.width + 'px;height:' + el.height + 'px;';
-              const base = document.createElement('div');
-              base.className = 'ui-runtime-joystick-base';
-              const stick = document.createElement('div');
-              stick.className = 'ui-runtime-joystick-stick';
-              base.appendChild(stick);
-              joy.appendChild(base);
-              const cx = el.width / 2, cy = el.height / 2, mr = el.width / 2 - 10;
-              joy.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                const move = (ev) => {
-                  const r = joy.getBoundingClientRect();
-                  let dx = ev.clientX - r.left - cx, dy = ev.clientY - r.top - cy;
-                  const d = Math.sqrt(dx*dx + dy*dy);
-                  if (d > mr) { dx = dx/d*mr; dy = dy/d*mr; }
-                  stick.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-                  this.inputEngine.setJoystickInput(el.eventKey, dx/mr, dy/mr);
-                };
-                const end = () => { stick.style.transform = ''; this.inputEngine.setJoystickInput(el.eventKey, 0, 0); document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); };
-                document.addEventListener('pointermove', move);
-                document.addEventListener('pointerup', end);
-                move(e);
-              });
-              pageDiv.appendChild(joy);
-            } else if (el.type === 'text') {
-              const t = document.createElement('div');
-              t.className = 'ui-runtime-text';
-              t.textContent = el.text || el.name;
-              t.style.cssText = 'left:' + el.x + 'px;top:' + el.y + 'px;font-size:' + (el.fontSize || 14) + 'px;color:' + el.color + ';';
-              pageDiv.appendChild(t);
-            } else if (el.type === 'panel') {
-              const p = document.createElement('div');
-              p.className = 'ui-runtime-panel';
-              p.style.cssText = 'left:' + el.x + 'px;top:' + el.y + 'px;width:' + el.width + 'px;height:' + el.height + 'px;background:' + el.bgColor + ';';
-              pageDiv.appendChild(p);
-            }
-          });
-          this.overlay.appendChild(pageDiv);
-        });
-      }
-      switchPage(pageName) { const p = UI_STATE.pages.find(pg => pg.name === pageName); if (p) { UI_STATE.pages.forEach(pg => pg.visible = false); p.visible = true; saveUIState(); this.renderActivePages(); } }
-      showPage(pageName) { const p = UI_STATE.pages.find(pg => pg.name === pageName); if (p) { p.visible = true; saveUIState(); this.renderActivePages(); } }
-      hidePage(pageName) { const p = UI_STATE.pages.find(pg => pg.name === pageName); if (p) { p.visible = false; saveUIState(); this.renderActivePages(); } }
-      switchScene(sceneName) { UI_STATE.activeScene = sceneName; saveUIState(); this.renderActivePages(); }
-    }
-
-    function createUIScriptAPI(inputEngine) {
-      return {
-        on: (key, cb) => inputEngine.on(key, cb),
-        off: (key, cb) => inputEngine.off(key, cb),
-        getButton: (key) => inputEngine.getButtonState(key),
-        getJoystick: (key) => inputEngine.getJoystickInput(key),
-        switchPage: (name) => { const p = UI_STATE.pages.find(pg => pg.name === name); if (p && window.CodeHotUIOverlay) window.CodeHotUIOverlay.switchPage(name); },
-        hidePage: (name) => { if (window.CodeHotUIOverlay) window.CodeHotUIOverlay.hidePage(name); },
-        showPage: (name) => { if (window.CodeHotUIOverlay) window.CodeHotUIOverlay.showPage(name); },
-        switchScene: (name) => { if (window.CodeHotUIOverlay) window.CodeHotUIOverlay.switchScene(name); }
-      };
-    }
-
-
-    // ===== V11 UI TEMPLATE SYSTEM =====
-    
-    const UI_TEMPLATES = {
-      collections: [
-        { id: 'racing', name: 'Racing Game', icon: '🏎️', desc: 'Complete racing game UI pack', genre: 'racing', pages: [
-          { name: 'Splash', type: 'splash', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#1a1a2e', fullScreen: true },
-            { type: 'text', x: 50, y: 35, w: 60, h: 8, text: 'RACING FURY', fontSize: 28, color: '#ff6b35', align: 'center' },
-            { type: 'text', x: 50, y: 48, w: 40, h: 5, text: 'Tap to Start', fontSize: 16, color: '#ffffff88', align: 'center' },
-            { type: 'button', x: 30, y: 60, w: 40, h: 8, eventKey: 'start', eventLabel: 'START', bgColor: '#ff6b35' }
-          ]},
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 10, w: 80, h: 10, text: 'RACING FURY', fontSize: 24, color: '#ff6b35', align: 'center' },
-            { type: 'button', x: 30, y: 30, w: 40, h: 8, eventKey: 'play', eventLabel: '▶  PLAY', bgColor: '#ff6b35' },
-            { type: 'button', x: 30, y: 42, w: 40, h: 8, eventKey: 'garage', eventLabel: '🚗  GARAGE', bgColor: '#2a2a40' },
-            { type: 'button', x: 30, y: 54, w: 40, h: 8, eventKey: 'leaderboard', eventLabel: '🏆  LEADERBOARD', bgColor: '#2a2a40' },
-            { type: 'button', x: 30, y: 66, w: 40, h: 8, eventKey: 'settings', eventLabel: '⚙  SETTINGS', bgColor: '#2a2a40' },
-            { type: 'text', x: 50, y: 85, w: 60, h: 5, text: 'v1.0.0', fontSize: 10, color: '#ffffff44', align: 'center' }
-          ]},
-          { name: 'Garage', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 8, text: 'GARAGE', fontSize: 20, color: '#ff6b35', align: 'center' },
-            { type: 'panel', x: 5, y: 18, w: 90, h: 50, bgColor: '#151528' },
-            { type: 'text', x: 50, y: 40, w: 60, h: 6, text: 'Select Your Car', fontSize: 14, color: '#aaa', align: 'center' },
-            { type: 'button', x: 10, y: 72, w: 25, h: 7, eventKey: 'prev_car', eventLabel: '◀', bgColor: '#2a2a40' },
-            { type: 'button', x: 65, y: 72, w: 25, h: 7, eventKey: 'next_car', eventLabel: '▶', bgColor: '#2a2a40' },
-            { type: 'button', x: 30, y: 82, w: 40, h: 8, eventKey: 'select_car', eventLabel: 'SELECT', bgColor: '#ff6b35' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Car Select', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 8, text: 'CHOOSE YOUR RIDE', fontSize: 18, color: '#ff6b35', align: 'center' },
-            { type: 'panel', x: 5, y: 16, w: 42, h: 35, bgColor: '#1a1a35' },
-            { type: 'text', x: 26, y: 30, w: 30, h: 5, text: 'Speedster GT', fontSize: 12, color: '#fff', align: 'center' },
-            { type: 'panel', x: 53, y: 16, w: 42, h: 35, bgColor: '#1a1a35' },
-            { type: 'text', x: 74, y: 30, w: 30, h: 5, text: 'Thunder X', fontSize: 12, color: '#fff', align: 'center' },
-            { type: 'button', x: 30, y: 58, w: 40, h: 8, eventKey: 'buy_car', eventLabel: 'BUY - 5000💰', bgColor: '#ff6b35' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Car Customization', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 7, text: 'CUSTOMIZE', fontSize: 18, color: '#ff6b35', align: 'center' },
-            { type: 'panel', x: 5, y: 15, w: 90, h: 45, bgColor: '#151528' },
-            { type: 'button', x: 8, y: 63, w: 18, h: 7, eventKey: 'paint', eventLabel: '🎨 Paint', bgColor: '#2a2a40' },
-            { type: 'button', x: 28, y: 63, w: 18, h: 7, eventKey: 'wheels', eventLabel: '🛞 Wheels', bgColor: '#2a2a40' },
-            { type: 'button', x: 48, y: 63, w: 18, h: 7, eventKey: 'decal', eventLabel: '✏️ Decals', bgColor: '#2a2a40' },
-            { type: 'button', x: 68, y: 63, w: 24, h: 7, eventKey: 'engine', eventLabel: '🔧 Engine', bgColor: '#2a2a40' },
-            { type: 'button', x: 30, y: 75, w: 40, h: 8, eventKey: 'save_custom', eventLabel: 'SAVE', bgColor: '#ff6b35' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Paint', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 7, text: 'PAINT SHOP', fontSize: 18, color: '#ff6b35', align: 'center' },
-            { type: 'panel', x: 5, y: 15, w: 90, h: 40, bgColor: '#151528' },
-            { type: 'button', x: 10, y: 60, w: 12, h: 8, eventKey: 'color_red', eventLabel: '', bgColor: '#ff3333' },
-            { type: 'button', x: 25, y: 60, w: 12, h: 8, eventKey: 'color_blue', eventLabel: '', bgColor: '#3366ff' },
-            { type: 'button', x: 40, y: 60, w: 12, h: 8, eventKey: 'color_green', eventLabel: '', bgColor: '#33cc33' },
-            { type: 'button', x: 55, y: 60, w: 12, h: 8, eventKey: 'color_yellow', eventLabel: '', bgColor: '#ffcc00' },
-            { type: 'button', x: 70, y: 60, w: 12, h: 8, eventKey: 'color_white', eventLabel: '', bgColor: '#ffffff' },
-            { type: 'button', x: 30, y: 73, w: 40, h: 8, eventKey: 'apply_paint', eventLabel: 'APPLY', bgColor: '#ff6b35' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Wheel Customization', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 7, text: 'WHEELS', fontSize: 18, color: '#ff6b35', align: 'center' },
-            { type: 'panel', x: 5, y: 15, w: 42, h: 30, bgColor: '#1a1a35' },
-            { type: 'panel', x: 53, y: 15, w: 42, h: 30, bgColor: '#1a1a35' },
-            { type: 'panel', x: 5, y: 48, w: 42, h: 30, bgColor: '#1a1a35' },
-            { type: 'panel', x: 53, y: 48, w: 42, h: 30, bgColor: '#1a1a35' },
-            { type: 'button', x: 30, y: 82, w: 40, h: 8, eventKey: 'equip_wheel', eventLabel: 'EQUIP', bgColor: '#ff6b35' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Performance', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 7, text: 'PERFORMANCE', fontSize: 18, color: '#ff6b35', align: 'center' },
-            { type: 'text', x: 10, y: 18, w: 30, h: 5, text: 'Speed', fontSize: 12, color: '#aaa' },
-            { type: 'panel', x: 42, y: 18, w: 50, h: 4, bgColor: '#1a1a35' },
-            { type: 'panel', x: 42, y: 18, w: 35, h: 4, bgColor: '#ff6b35' },
-            { type: 'text', x: 10, y: 28, w: 30, h: 5, text: 'Acceleration', fontSize: 12, color: '#aaa' },
-            { type: 'panel', x: 42, y: 28, w: 50, h: 4, bgColor: '#1a1a35' },
-            { type: 'panel', x: 42, y: 28, w: 25, h: 4, bgColor: '#ff6b35' },
-            { type: 'text', x: 10, y: 38, w: 30, h: 5, text: 'Handling', fontSize: 12, color: '#aaa' },
-            { type: 'panel', x: 42, y: 38, w: 50, h: 4, bgColor: '#1a1a35' },
-            { type: 'panel', x: 42, y: 38, w: 40, h: 4, bgColor: '#ff6b35' },
-            { type: 'button', x: 15, y: 52, w: 30, h: 8, eventKey: 'upgrade_speed', eventLabel: 'Speed +100💰', bgColor: '#2a2a40' },
-            { type: 'button', x: 55, y: 52, w: 30, h: 8, eventKey: 'upgrade_accel', eventLabel: 'Accel +100💰', bgColor: '#2a2a40' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Race HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 30, h: 5, text: '01:23.45', fontSize: 20, color: '#fff', align: 'center' },
-            { type: 'text', x: 90, y: 3, w: 15, h: 5, text: '3/5', fontSize: 14, color: '#ff6b35', align: 'right' },
-            { type: 'panel', x: 3, y: 85, w: 30, h: 12, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 87, w: 26, h: 4, text: 'SPEED', fontSize: 9, color: '#aaa' },
-            { type: 'text', x: 5, y: 91, w: 26, h: 5, text: '180 km/h', fontSize: 16, color: '#ff6b35' },
-            { type: 'joystick', x: 5, y: 55, w: 18, h: 18, eventKey: 'steer', bgColor: 'rgba(255,255,255,0.15)' },
-            { type: 'button', x: 80, y: 75, w: 15, h: 15, eventKey: 'nitro', eventLabel: 'N', bgColor: '#ff6b35', bgColor: 'rgba(255,107,53,0.6)' },
-            { type: 'button', x: 80, y: 55, w: 15, h: 15, eventKey: 'brake', eventLabel: 'B', bgColor: 'rgba(255,60,60,0.4)' }
-          ]},
-          { name: 'Pause Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.7)', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 60, h: 8, text: 'PAUSED', fontSize: 24, color: '#fff', align: 'center' },
-            { type: 'button', x: 30, y: 40, w: 40, h: 8, eventKey: 'resume', eventLabel: '▶  RESUME', bgColor: '#ff6b35' },
-            { type: 'button', x: 30, y: 52, w: 40, h: 8, eventKey: 'settings', eventLabel: '⚙  SETTINGS', bgColor: '#2a2a40' },
-            { type: 'button', x: 30, y: 64, w: 40, h: 8, eventKey: 'restart', eventLabel: '🔄  RESTART', bgColor: '#2a2a40' },
-            { type: 'button', x: 30, y: 76, w: 40, h: 8, eventKey: 'quit', eventLabel: '🏠  QUIT', bgColor: '#3a1515' }
-          ]},
-          { name: 'Race Results', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 10, w: 60, h: 8, text: '🏆 RACE COMPLETE', fontSize: 18, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 50, y: 22, w: 40, h: 6, text: '1st Place!', fontSize: 22, color: '#ff6b35', align: 'center' },
-            { type: 'text', x: 50, y: 32, w: 40, h: 5, text: 'Time: 02:15.33', fontSize: 14, color: '#aaa', align: 'center' },
-            { type: 'text', x: 50, y: 38, w: 40, h: 5, text: 'Coins: +500', fontSize: 14, color: '#ffcc00', align: 'center' },
-            { type: 'button', x: 30, y: 55, w: 40, h: 8, eventKey: 'next_race', eventLabel: 'NEXT RACE', bgColor: '#ff6b35' },
-            { type: 'button', x: 30, y: 67, w: 40, h: 8, eventKey: 'main_menu', eventLabel: 'MAIN MENU', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Leaderboard', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 8, text: '🏆 LEADERBOARD', fontSize: 18, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 10, y: 18, w: 10, h: 5, text: '#', fontSize: 12, color: '#666' },
-            { type: 'text', x: 25, y: 18, w: 40, h: 5, text: 'Player', fontSize: 12, color: '#666' },
-            { type: 'text', x: 75, y: 18, w: 20, h: 5, text: 'Score', fontSize: 12, color: '#666', align: 'right' },
-            { type: 'text', x: 10, y: 25, w: 10, h: 5, text: '1', fontSize: 14, color: '#ffcc00' },
-            { type: 'text', x: 25, y: 25, w: 40, h: 5, text: 'SpeedKing', fontSize: 14, color: '#fff' },
-            { type: 'text', x: 75, y: 25, w: 20, h: 5, text: '98,500', fontSize: 14, color: '#ffcc00', align: 'right' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Settings', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 8, text: '⚙ SETTINGS', fontSize: 18, color: '#ff6b35', align: 'center' },
-            { type: 'button', x: 15, y: 20, w: 70, h: 8, eventKey: 'audio', eventLabel: '🔊 Audio Settings', bgColor: '#1a1a35' },
-            { type: 'button', x: 15, y: 32, w: 70, h: 8, eventKey: 'graphics', eventLabel: '🖥️ Graphics', bgColor: '#1a1a35' },
-            { type: 'button', x: 15, y: 44, w: 70, h: 8, eventKey: 'controls', eventLabel: '🎮 Controls', bgColor: '#1a1a35' },
-            { type: 'button', x: 15, y: 56, w: 70, h: 8, eventKey: 'language', eventLabel: '🌐 Language', bgColor: '#1a1a35' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Audio Settings', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 8, text: '🔊 AUDIO', fontSize: 18, color: '#ff6b35', align: 'center' },
-            { type: 'text', x: 10, y: 20, w: 30, h: 5, text: 'Music', fontSize: 12, color: '#aaa' },
-            { type: 'panel', x: 42, y: 21, w: 50, h: 3, bgColor: '#1a1a35' },
-            { type: 'panel', x: 42, y: 21, w: 35, h: 3, bgColor: '#ff6b35' },
-            { type: 'text', x: 10, y: 30, w: 30, h: 5, text: 'SFX', fontSize: 12, color: '#aaa' },
-            { type: 'panel', x: 42, y: 31, w: 50, h: 3, bgColor: '#1a1a35' },
-            { type: 'panel', x: 42, y: 31, w: 45, h: 3, bgColor: '#ff6b35' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Loading', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d1117', fullScreen: true },
-            { type: 'text', x: 50, y: 40, w: 60, h: 6, text: 'Loading...', fontSize: 16, color: '#aaa', align: 'center' },
-            { type: 'panel', x: 20, y: 50, w: 60, h: 3, bgColor: '#1a1a35' },
-            { type: 'panel', x: 20, y: 50, w: 40, h: 3, bgColor: '#ff6b35' },
-            { type: 'text', x: 50, y: 58, w: 60, h: 5, text: 'Tip: Use nitro on straight roads!', fontSize: 10, color: '#ffffff66', align: 'center' }
-          ]},
-          { name: 'Game Over', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.85)', fullScreen: true },
-            { type: 'text', x: 50, y: 25, w: 60, h: 8, text: 'GAME OVER', fontSize: 28, color: '#ff3333', align: 'center' },
-            { type: 'text', x: 50, y: 38, w: 40, h: 5, text: 'Position: 4th', fontSize: 14, color: '#aaa', align: 'center' },
-            { type: 'button', x: 30, y: 55, w: 40, h: 8, eventKey: 'retry', eventLabel: '🔄  RETRY', bgColor: '#ff6b35' },
-            { type: 'button', x: 30, y: 67, w: 40, h: 8, eventKey: 'main_menu', eventLabel: '🏠  MENU', bgColor: '#2a2a40' }
-          ]}
-        ]},
-        { id: 'shooter', name: 'Shooter / FPS', icon: '🔫', desc: 'First/third person shooter UI', genre: 'shooter', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#1a0a0a', fullScreen: true },
-            { type: 'text', x: 50, y: 15, w: 80, h: 10, text: 'COMBAT ZONE', fontSize: 24, color: '#ff3333', align: 'center' },
-            { type: 'button', x: 30, y: 35, w: 40, h: 8, eventKey: 'play', eventLabel: '⚔  BATTLE', bgColor: '#cc2222' },
-            { type: 'button', x: 30, y: 47, w: 40, h: 8, eventKey: 'loadout', eventLabel: '🔫 LOADOUT', bgColor: '#2a1a1a' },
-            { type: 'button', x: 30, y: 59, w: 40, h: 8, eventKey: 'shop', eventLabel: '🛒 SHOP', bgColor: '#2a1a1a' },
-            { type: 'button', x: 30, y: 71, w: 40, h: 8, eventKey: 'settings', eventLabel: '⚙ SETTINGS', bgColor: '#2a1a1a' }
-          ]},
-          { name: 'Shooter HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 35, y: 45, w: 30, h: 10, bgColor: 'rgba(0,0,0,0.0)' },
-            { type: 'text', x: 50, y: 3, w: 30, h: 5, text: '03:45', fontSize: 16, color: '#fff', align: 'center' },
-            { type: 'text', x: 10, y: 3, w: 20, h: 5, text: '⚔ 12-5', fontSize: 14, color: '#ff3333' },
-            { type: 'panel', x: 3, y: 82, w: 28, h: 15, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 84, w: 24, h: 4, text: '❤ 100', fontSize: 12, color: '#ff3333' },
-            { type: 'text', x: 5, y: 89, w: 24, h: 4, text: '🛡 80', fontSize: 12, color: '#4a9eff' },
-            { type: 'text', x: 85, y: 90, w: 12, h: 5, text: '30/90', fontSize: 12, color: '#aaa', align: 'right' },
-            { type: 'joystick', x: 5, y: 55, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(255,255,255,0.1)' },
-            { type: 'button', x: 80, y: 65, w: 16, h: 16, eventKey: 'fire', eventLabel: '🔥', bgColor: 'rgba(255,60,60,0.5)' },
-            { type: 'button', x: 80, y: 45, w: 12, h: 12, eventKey: 'reload', eventLabel: 'R', bgColor: 'rgba(255,255,255,0.2)' },
-            { type: 'button', x: 65, y: 80, w: 12, h: 12, eventKey: 'jump', eventLabel: '⬆', bgColor: 'rgba(255,255,255,0.2)' },
-            { type: 'button', x: 50, y: 80, w: 12, h: 12, eventKey: 'crouch', eventLabel: '⬇', bgColor: 'rgba(255,255,255,0.2)' },
-            { type: 'button', x: 85, y: 50, w: 12, h: 12, eventKey: 'scope', eventLabel: '◎', bgColor: 'rgba(255,255,255,0.2)' }
-          ]},
-          { name: 'Loadout', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d0d17', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 8, text: '🔫 LOADOUT', fontSize: 18, color: '#ff3333', align: 'center' },
-            { type: 'text', x: 10, y: 18, w: 30, h: 5, text: 'PRIMARY', fontSize: 11, color: '#666' },
-            { type: 'panel', x: 10, y: 24, w: 35, h: 20, bgColor: '#1a1a2e' },
-            { type: 'text', x: 27, y: 32, w: 20, h: 5, text: 'AK-47', fontSize: 12, color: '#fff', align: 'center' },
-            { type: 'text', x: 60, y: 18, w: 30, h: 5, text: 'SECONDARY', fontSize: 11, color: '#666' },
-            { type: 'panel', x: 55, y: 24, w: 35, h: 20, bgColor: '#1a1a2e' },
-            { type: 'text', x: 72, y: 32, w: 20, h: 5, text: 'Pistol', fontSize: 12, color: '#fff', align: 'center' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Scoreboard', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.85)', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 60, h: 8, text: 'SCOREBOARD', fontSize: 18, color: '#ff3333', align: 'center' },
-            { type: 'panel', x: 10, y: 18, w: 38, h: 6, bgColor: '#3a1515' },
-            { type: 'text', x: 29, y: 18, w: 30, h: 6, text: 'TEAM A: 45', fontSize: 12, color: '#ff6b35', align: 'center' },
-            { type: 'panel', x: 52, y: 18, w: 38, h: 6, bgColor: '#151535' },
-            { type: 'text', x: 71, y: 18, w: 30, h: 6, text: 'TEAM B: 38', fontSize: 12, color: '#4a9eff', align: 'center' }
-          ]},
-          { name: 'Respawn', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.8)', fullScreen: true },
-            { type: 'text', x: 50, y: 30, w: 60, h: 8, text: 'YOU DIED', fontSize: 28, color: '#ff3333', align: 'center' },
-            { type: 'text', x: 50, y: 42, w: 40, h: 5, text: 'Respawning in 3...', fontSize: 14, color: '#aaa', align: 'center' },
-            { type: 'button', x: 30, y: 55, w: 40, h: 8, eventKey: 'skip_respawn', eventLabel: 'SKIP', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Pause Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.75)', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 60, h: 8, text: 'PAUSED', fontSize: 24, color: '#fff', align: 'center' },
-            { type: 'button', x: 30, y: 40, w: 40, h: 8, eventKey: 'resume', eventLabel: '▶ RESUME', bgColor: '#cc2222' },
-            { type: 'button', x: 30, y: 52, w: 40, h: 8, eventKey: 'settings', eventLabel: '⚙ SETTINGS', bgColor: '#2a1a1a' },
-            { type: 'button', x: 30, y: 64, w: 40, h: 8, eventKey: 'quit', eventLabel: '🏠 QUIT', bgColor: '#3a1515' }
-          ]},
-          { name: 'Game Over', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.9)', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 60, h: 8, text: 'DEFEAT', fontSize: 28, color: '#ff3333', align: 'center' },
-            { type: 'text', x: 50, y: 32, w: 40, h: 5, text: 'Final Score: 12-5', fontSize: 14, color: '#aaa', align: 'center' },
-            { type: 'button', x: 30, y: 50, w: 40, h: 8, eventKey: 'rematch', eventLabel: '⚔ REMATCH', bgColor: '#cc2222' },
-            { type: 'button', x: 30, y: 62, w: 40, h: 8, eventKey: 'main_menu', eventLabel: '🏠 MENU', bgColor: '#2a1a1a' }
-          ]}
-        ]},
-        { id: 'battle_royale', name: 'Battle Royale', icon: '🪂', desc: 'BR lobby, HUD, squad UI', genre: 'battle_royale', pages: [
-          { name: 'Lobby', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0a1628', fullScreen: true },
-            { type: 'text', x: 50, y: 10, w: 80, h: 8, text: 'LAST STANDING', fontSize: 22, color: '#ff6b35', align: 'center' },
-            { type: 'panel', x: 10, y: 22, w: 80, h: 30, bgColor: '#151528' },
-            { type: 'text', x: 50, y: 32, w: 60, h: 5, text: 'Searching for match...', fontSize: 12, color: '#aaa', align: 'center' },
-            { type: 'button', x: 30, y: 58, w: 40, h: 10, eventKey: 'play', eventLabel: '🪂 DEPLOY', bgColor: '#ff6b35' },
-            { type: 'button', x: 10, y: 72, w: 25, h: 8, eventKey: 'loadout', eventLabel: '🔫 Loadout', bgColor: '#1a1a35' },
-            { type: 'button', x: 65, y: 72, w: 25, h: 8, eventKey: 'friends', eventLabel: '👥 Friends', bgColor: '#1a1a35' }
-          ]},
-          { name: 'BR HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 35, y: 2, w: 30, h: 6, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 50, y: 2, w: 30, h: 6, text: '42 alive', fontSize: 12, color: '#fff', align: 'center' },
-            { type: 'panel', x: 3, y: 80, w: 25, h: 18, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 82, w: 21, h: 4, text: '❤ 100', fontSize: 11, color: '#ff3333' },
-            { type: 'text', x: 5, y: 87, w: 21, h: 4, text: '🛡 75', fontSize: 11, color: '#4a9eff' },
-            { type: 'text', x: 5, y: 92, w: 21, h: 4, text: '💊 3', fontSize: 11, color: '#33cc33' },
-            { type: 'text', x: 90, y: 90, w: 8, h: 5, text: '30', fontSize: 12, color: '#aaa', align: 'right' },
-            { type: 'joystick', x: 5, y: 55, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(255,255,255,0.1)' },
-            { type: 'button', x: 80, y: 65, w: 16, h: 16, eventKey: 'fire', eventLabel: '🔥', bgColor: 'rgba(255,60,60,0.5)' },
-            { type: 'button', x: 65, y: 80, w: 12, h: 12, eventKey: 'jump', eventLabel: '⬆', bgColor: 'rgba(255,255,255,0.2)' },
-            { type: 'button', x: 80, y: 45, w: 12, h: 12, eventKey: 'reload', eventLabel: 'R', bgColor: 'rgba(255,255,255,0.2)' },
-            { type: 'button', x: 50, y: 80, w: 12, h: 12, eventKey: 'crouch', eventLabel: '⬇', bgColor: 'rgba(255,255,255,0.2)' }
-          ]},
-          { name: 'Squad', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 25, bgColor: 'rgba(0,0,0,0.6)' },
-            { type: 'text', x: 5, y: 2, w: 20, h: 5, text: 'SQUAD', fontSize: 11, color: '#ff6b35' },
-            { type: 'panel', x: 5, y: 8, w: 42, h: 4, bgColor: '#ff333344' },
-            { type: 'text', x: 7, y: 8, w: 38, h: 4, text: 'Player1 ❤ 85', fontSize: 10, color: '#fff' },
-            { type: 'panel', x: 53, y: 8, w: 42, h: 4, bgColor: '#33cc3344' },
-            { type: 'text', x: 55, y: 8, w: 38, h: 4, text: 'Player2 ❤ 100', fontSize: 10, color: '#fff' },
-            { type: 'panel', x: 5, y: 14, w: 42, h: 4, bgColor: '#ff333344' },
-            { type: 'text', x: 7, y: 14, w: 38, h: 4, text: 'Player3 ❤ 45', fontSize: 10, color: '#fff' },
-            { type: 'button', x: 60, y: 14, w: 35, h: 4, eventKey: 'ping', eventLabel: '📍 Ping', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Victory', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.85)', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 80, h: 10, text: '#1 WINNER!', fontSize: 28, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 50, y: 35, w: 60, h: 5, text: 'Kills: 15  |  Damage: 2450', fontSize: 12, color: '#aaa', align: 'center' },
-            { type: 'button', x: 30, y: 55, w: 40, h: 8, eventKey: 'play_again', eventLabel: '🪂 PLAY AGAIN', bgColor: '#ff6b35' },
-            { type: 'button', x: 30, y: 67, w: 40, h: 8, eventKey: 'main_menu', eventLabel: '🏠 MENU', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Game Over', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.9)', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 60, h: 8, text: 'ELIMINATED', fontSize: 24, color: '#ff3333', align: 'center' },
-            { type: 'text', x: 50, y: 32, w: 40, h: 5, text: 'Rank: #14', fontSize: 14, color: '#aaa', align: 'center' },
-            { type: 'button', x: 30, y: 50, w: 40, h: 8, eventKey: 'spectate', eventLabel: '👁 SPECTATE', bgColor: '#2a2a40' },
-            { type: 'button', x: 30, y: 62, w: 40, h: 8, eventKey: 'main_menu', eventLabel: '🏠 MENU', bgColor: '#2a2a40' }
-          ]}
-        ]},
-        { id: 'rpg', name: 'RPG', icon: '⚔️', desc: 'RPG inventory, stats, quests', genre: 'rpg', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#1a0f0a', fullScreen: true },
-            { type: 'text', x: 50, y: 12, w: 80, h: 10, text: 'REALM OF LIGHT', fontSize: 22, color: '#ff9933', align: 'center' },
-            { type: 'button', x: 30, y: 35, w: 40, h: 8, eventKey: 'play', eventLabel: '⚔  NEW GAME', bgColor: '#8B4513' },
-            { type: 'button', x: 30, y: 47, w: 40, h: 8, eventKey: 'continue', eventLabel: '📖  CONTINUE', bgColor: '#2a1a0a' },
-            { type: 'button', x: 30, y: 59, w: 40, h: 8, eventKey: 'settings', eventLabel: '⚙  SETTINGS', bgColor: '#2a1a0a' }
-          ]},
-          { name: 'RPG HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 25, h: 18, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 4, w: 21, h: 4, text: 'Hero Lv.12', fontSize: 10, color: '#ffcc00' },
-            { type: 'panel', x: 5, y: 9, w: 21, h: 3, bgColor: '#3a1515' },
-            { type: 'panel', x: 5, y: 9, w: 16, h: 3, bgColor: '#ff3333' },
-            { type: 'text', x: 5, y: 13, w: 21, h: 3, text: 'MP', fontSize: 8, color: '#4a9eff' },
-            { type: 'panel', x: 5, y: 17, w: 21, h: 2, bgColor: '#151535' },
-            { type: 'panel', x: 5, y: 17, w: 12, h: 2, bgColor: '#4a9eff' },
-            { type: 'joystick', x: 5, y: 60, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(255,255,255,0.1)' },
-            { type: 'button', x: 80, y: 70, w: 14, h: 14, eventKey: 'attack', eventLabel: '⚔', bgColor: '#8B451366' },
-            { type: 'button', x: 65, y: 75, w: 10, h: 10, eventKey: 'skill1', eventLabel: '1', bgColor: '#3366ff44' },
-            { type: 'button', x: 88, y: 55, w: 10, h: 10, eventKey: 'skill2', eventLabel: '2', bgColor: '#ff333344' },
-            { type: 'button', x: 75, y: 55, w: 10, h: 10, eventKey: 'dodge', eventLabel: '💫', bgColor: 'rgba(255,255,255,0.15)' }
-          ]},
-          { name: 'Inventory', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d0a06', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 80, h: 7, text: '🎒 INVENTORY', fontSize: 16, color: '#ff9933', align: 'center' },
-            { type: 'panel', x: 5, y: 13, w: 60, h: 70, bgColor: '#1a1510' },
-            { type: 'panel', x: 68, y: 13, w: 28, h: 70, bgColor: '#1a1510' },
-            { type: 'text', x: 82, y: 15, w: 20, h: 5, text: 'Sword +3', fontSize: 11, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 82, y: 22, w: 20, h: 4, text: 'ATK: 45', fontSize: 9, color: '#aaa', align: 'center' },
-            { type: 'button', x: 70, y: 70, w: 24, h: 8, eventKey: 'equip', eventLabel: 'EQUIP', bgColor: '#8B4513' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Character Stats', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d0a06', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 80, h: 7, text: '📊 CHARACTER', fontSize: 16, color: '#ff9933', align: 'center' },
-            { type: 'panel', x: 5, y: 13, w: 42, h: 40, bgColor: '#1a1510' },
-            { type: 'text', x: 26, y: 15, w: 30, h: 5, text: 'Hero', fontSize: 14, color: '#fff', align: 'center' },
-            { type: 'text', x: 26, y: 22, w: 30, h: 4, text: 'Level 12', fontSize: 11, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 26, y: 28, w: 30, h: 4, text: 'Warrior', fontSize: 11, color: '#aaa', align: 'center' },
-            { type: 'text', x: 10, y: 40, w: 20, h: 4, text: 'HP: 450', fontSize: 10, color: '#ff3333' },
-            { type: 'text', x: 10, y: 46, w: 20, h: 4, text: 'MP: 120', fontSize: 10, color: '#4a9eff' },
-            { type: 'panel', x: 55, y: 13, w: 40, h: 40, bgColor: '#1a1510' },
-            { type: 'text', x: 75, y: 15, w: 30, h: 4, text: 'STR: 25', fontSize: 10, color: '#ff6b35', align: 'center' },
-            { type: 'text', x: 75, y: 21, w: 30, h: 4, text: 'DEX: 18', fontSize: 10, color: '#33cc33', align: 'center' },
-            { type: 'text', x: 75, y: 27, w: 30, h: 4, text: 'INT: 12', fontSize: 10, color: '#4a9eff', align: 'center' },
-            { type: 'text', x: 75, y: 33, w: 30, h: 4, text: 'DEF: 20', fontSize: 10, color: '#aaa', align: 'center' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Quest Log', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d0a06', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 80, h: 7, text: '📜 QUEST LOG', fontSize: 16, color: '#ff9933', align: 'center' },
-            { type: 'panel', x: 5, y: 13, w: 90, h: 12, bgColor: '#1a1510' },
-            { type: 'text', x: 10, y: 14, w: 50, h: 4, text: '⚔ Defeat the Dragon', fontSize: 12, color: '#ffcc00' },
-            { type: 'text', x: 10, y: 19, w: 70, h: 4, text: 'Kill 0/1 Dragon', fontSize: 10, color: '#aaa' },
-            { type: 'panel', x: 5, y: 28, w: 90, h: 12, bgColor: '#1a1510' },
-            { type: 'text', x: 10, y: 29, w: 50, h: 4, text: '📦 Collect Herbs', fontSize: 12, color: '#ff9933' },
-            { type: 'text', x: 10, y: 34, w: 70, h: 4, text: 'Herbs: 5/10', fontSize: 10, color: '#aaa' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Skill Tree', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d0a06', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 80, h: 7, text: '🌟 SKILL TREE', fontSize: 16, color: '#ff9933', align: 'center' },
-            { type: 'text', x: 50, y: 11, w: 40, h: 4, text: 'Points: 5', fontSize: 11, color: '#ffcc00', align: 'center' },
-            { type: 'panel', x: 40, y: 18, w: 20, h: 12, bgColor: '#8B4513' },
-            { type: 'text', x: 50, y: 21, w: 18, h: 4, text: 'Strike', fontSize: 10, color: '#fff', align: 'center' },
-            { type: 'panel', x: 15, y: 38, w: 20, h: 12, bgColor: '#3366ff' },
-            { type: 'text', x: 25, y: 41, w: 18, h: 4, text: 'Fireball', fontSize: 10, color: '#fff', align: 'center' },
-            { type: 'panel', x: 65, y: 38, w: 20, h: 12, bgColor: '#33cc33' },
-            { type: 'text', x: 75, y: 41, w: 18, h: 4, text: 'Heal', fontSize: 10, color: '#fff', align: 'center' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Shop', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d0a06', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 80, h: 7, text: '🛒 SHOP', fontSize: 16, color: '#ff9933', align: 'center' },
-            { type: 'text', x: 90, y: 3, w: 15, h: 5, text: '💰 2500', fontSize: 11, color: '#ffcc00', align: 'right' },
-            { type: 'panel', x: 5, y: 13, w: 42, h: 20, bgColor: '#1a1510' },
-            { type: 'text', x: 26, y: 16, w: 30, h: 4, text: 'Iron Sword', fontSize: 11, color: '#fff', align: 'center' },
-            { type: 'text', x: 26, y: 22, w: 30, h: 4, text: '💰 100', fontSize: 10, color: '#ffcc00', align: 'center' },
-            { type: 'button', x: 15, y: 29, w: 20, h: 5, eventKey: 'buy_sword', eventLabel: 'BUY', bgColor: '#8B4513' },
-            { type: 'panel', x: 53, y: 13, w: 42, h: 20, bgColor: '#1a1510' },
-            { type: 'text', x: 74, y: 16, w: 30, h: 4, text: 'Health Potion', fontSize: 11, color: '#fff', align: 'center' },
-            { type: 'text', x: 74, y: 22, w: 30, h: 4, text: '💰 50', fontSize: 10, color: '#ffcc00', align: 'center' },
-            { type: 'button', x: 63, y: 29, w: 20, h: 5, eventKey: 'buy_potion', eventLabel: 'BUY', bgColor: '#8B4513' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Crafting', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0d0a06', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 80, h: 7, text: '🔨 CRAFTING', fontSize: 16, color: '#ff9933', align: 'center' },
-            { type: 'panel', x: 5, y: 13, w: 40, h: 40, bgColor: '#1a1510' },
-            { type: 'text', x: 25, y: 15, w: 30, h: 4, text: 'Materials', fontSize: 11, color: '#aaa', align: 'center' },
-            { type: 'panel', x: 55, y: 13, w: 40, h: 40, bgColor: '#1a1510' },
-            { type: 'text', x: 75, y: 15, w: 30, h: 4, text: 'Recipe', fontSize: 11, color: '#aaa', align: 'center' },
-            { type: 'button', x: 30, y: 60, w: 40, h: 8, eventKey: 'craft', eventLabel: '🔨 CRAFT', bgColor: '#8B4513' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Dialogue', type: 'menu', elements: [
-            { type: 'panel', x: 5, y: 60, w: 90, h: 35, bgColor: 'rgba(0,0,0,0.8)' },
-            { type: 'text', x: 10, y: 62, w: 30, h: 5, text: 'Elder:', fontSize: 11, color: '#ffcc00' },
-            { type: 'text', x: 10, y: 68, w: 80, h: 12, text: 'Brave hero, the dragon lurks in the northern mountains. Will you accept this quest?', fontSize: 11, color: '#ddd' },
-            { type: 'button', x: 10, y: 83, w: 20, h: 8, eventKey: 'dialogue_yes', eventLabel: 'Accept', bgColor: '#33cc33' },
-            { type: 'button', x: 35, y: 83, w: 20, h: 8, eventKey: 'dialogue_no', eventLabel: 'Decline', bgColor: '#ff3333' }
-          ]}
-        ]},
-        { id: 'platformer', name: 'Platformer', icon: '🏃', desc: '2D platformer game UI', genre: 'platformer', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#1a2a1a', fullScreen: true },
-            { type: 'text', x: 50, y: 15, w: 80, h: 10, text: 'JUMP HERO', fontSize: 24, color: '#33cc33', align: 'center' },
-            { type: 'button', x: 30, y: 38, w: 40, h: 8, eventKey: 'play', eventLabel: '▶ PLAY', bgColor: '#33cc33' },
-            { type: 'button', x: 30, y: 50, w: 40, h: 8, eventKey: 'levels', eventLabel: '🗺 LEVELS', bgColor: '#1a3a1a' },
-            { type: 'button', x: 30, y: 62, w: 40, h: 8, eventKey: 'settings', eventLabel: '⚙ SETTINGS', bgColor: '#1a3a1a' }
-          ]},
-          { name: 'Platformer HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 25, h: 6, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'panel', x: 5, y: 4, w: 18, h: 4, bgColor: '#ff3333' },
-            { type: 'text', x: 5, y: 8, w: 12, h: 4, text: '⭐ 0', fontSize: 10, color: '#ffcc00' },
-            { type: 'text', x: 90, y: 3, w: 10, h: 5, text: 'L1', fontSize: 12, color: '#aaa', align: 'right' },
-            { type: 'text', x: 50, y: 3, w: 30, h: 5, text: 'Time: 02:30', fontSize: 11, color: '#fff', align: 'center' },
-            { type: 'button', x: 5, y: 75, w: 14, h: 14, eventKey: 'left', eventLabel: '◀', bgColor: 'rgba(255,255,255,0.2)' },
-            { type: 'button', x: 22, y: 75, w: 14, h: 14, eventKey: 'right', eventLabel: '▶', bgColor: 'rgba(255,255,255,0.2)' },
-            { type: 'button', x: 80, y: 75, w: 14, h: 14, eventKey: 'jump', eventLabel: '⬆', bgColor: '#33cc3366' }
-          ]},
-          { name: 'Level Select', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#1a2a1a', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 80, h: 8, text: '🗺 SELECT LEVEL', fontSize: 18, color: '#33cc33', align: 'center' },
-            { type: 'button', x: 10, y: 20, w: 22, h: 18, eventKey: 'level_1', eventLabel: '1⭐', bgColor: '#33cc33' },
-            { type: 'button', x: 39, y: 20, w: 22, h: 18, eventKey: 'level_2', eventLabel: '2⭐', bgColor: '#33cc33' },
-            { type: 'button', x: 68, y: 20, w: 22, h: 18, eventKey: 'level_3', eventLabel: '3🔒', bgColor: '#2a3a2a' },
-            { type: 'button', x: 10, y: 45, w: 22, h: 18, eventKey: 'level_4', eventLabel: '4🔒', bgColor: '#2a3a2a' },
-            { type: 'button', x: 39, y: 45, w: 22, h: 18, eventKey: 'level_5', eventLabel: '5🔒', bgColor: '#2a3a2a' },
-            { type: 'button', x: 68, y: 45, w: 22, h: 18, eventKey: 'level_6', eventLabel: '6🔒', bgColor: '#2a3a2a' },
-            { type: 'button', x: 5, y: 3, w: 15, h: 5, eventKey: 'back', eventLabel: '←', bgColor: '#2a2a40' }
-          ]},
-          { name: 'Victory', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.8)', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 80, h: 10, text: '⭐ LEVEL COMPLETE!', fontSize: 22, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 50, y: 35, w: 40, h: 5, text: 'Time: 02:15', fontSize: 14, color: '#aaa', align: 'center' },
-            { type: 'text', x: 50, y: 42, w: 40, h: 5, text: 'Stars: ⭐⭐⭐', fontSize: 16, color: '#ffcc00', align: 'center' },
-            { type: 'button', x: 30, y: 55, w: 40, h: 8, eventKey: 'next_level', eventLabel: '▶ NEXT', bgColor: '#33cc33' },
-            { type: 'button', x: 30, y: 67, w: 40, h: 8, eventKey: 'main_menu', eventLabel: '🏠 MENU', bgColor: '#2a3a2a' }
-          ]}
-        ]},
-        { id: 'strategy', name: 'Strategy / RTS', icon: '🏰', desc: 'RTS and strategy game UI', genre: 'strategy', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0a1a0a', fullScreen: true },
-            { type: 'text', x: 50, y: 15, w: 80, h: 10, text: 'EMPIRE RISES', fontSize: 22, color: '#33cc33', align: 'center' },
-            { type: 'button', x: 30, y: 35, w: 40, h: 8, eventKey: 'play', eventLabel: '⚔ CONQUER', bgColor: '#33cc33' },
-            { type: 'button', x: 30, y: 47, w: 40, h: 8, eventKey: 'campaign', eventLabel: '📜 CAMPAIGN', bgColor: '#1a2a1a' },
-            { type: 'button', x: 30, y: 59, w: 40, h: 8, eventKey: 'multiplayer', eventLabel: '🌐 MULTIPLAYER', bgColor: '#1a2a1a' }
-          ]},
-          { name: 'Strategy HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 30, h: 15, bgColor: 'rgba(0,0,0,0.6)' },
-            { type: 'text', x: 5, y: 4, w: 12, h: 4, text: '🪙 5000', fontSize: 10, color: '#ffcc00' },
-            { type: 'text', x: 18, y: 4, w: 12, h: 4, text: '🪨 2000', fontSize: 10, color: '#aaa' },
-            { type: 'text', x: 5, y: 9, w: 12, h: 4, text: '👥 45/50', fontSize: 10, color: '#33cc33' },
-            { type: 'panel', x: 3, y: 82, w: 90, h: 16, bgColor: 'rgba(0,0,0,0.6)' },
-            { type: 'button', x: 5, y: 84, w: 14, h: 12, eventKey: 'build', eventLabel: '🏗', bgColor: '#2a3a2a' },
-            { type: 'button', x: 21, y: 84, w: 14, h: 12, eventKey: 'train', eventLabel: '⚔', bgColor: '#2a3a2a' },
-            { type: 'button', x: 37, y: 84, w: 14, h: 12, eventKey: 'research', eventLabel: '🔬', bgColor: '#2a3a2a' },
-            { type: 'button', x: 53, y: 84, w: 14, h: 12, eventKey: 'attack', eventLabel: '⚔️', bgColor: '#3a1515' }
-          ]},
-          { name: 'Build Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 55, w: 100, h: 45, bgColor: 'rgba(0,0,0,0.8)' },
-            { type: 'text', x: 50, y: 57, w: 40, h: 5, text: 'BUILD', fontSize: 14, color: '#33cc33', align: 'center' },
-            { type: 'button', x: 5, y: 64, w: 20, h: 15, eventKey: 'build_barracks', eventLabel: '🏰 Barracks', bgColor: '#1a2a1a' },
-            { type: 'button', x: 28, y: 64, w: 20, h: 15, eventKey: 'build_farm', eventLabel: '🌾 Farm', bgColor: '#1a2a1a' },
-            { type: 'button', x: 51, y: 64, w: 20, h: 15, eventKey: 'build_mine', eventLabel: '⛏ Mine', bgColor: '#1a2a1a' },
-            { type: 'button', x: 74, y: 64, w: 20, h: 15, eventKey: 'build_tower', eventLabel: '🗼 Tower', bgColor: '#1a2a1a' }
-          ]}
-        ]},
-        { id: 'puzzle', name: 'Puzzle', icon: '🧩', desc: 'Puzzle game UI pack', genre: 'puzzle', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#1a1a2e', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 80, h: 10, text: 'PUZZLE MANIA', fontSize: 24, color: '#ff6b9d', align: 'center' },
-            { type: 'button', x: 30, y: 40, w: 40, h: 8, eventKey: 'play', eventLabel: '▶ PLAY', bgColor: '#ff6b9d' },
-            { type: 'button', x: 30, y: 52, w: 40, h: 8, eventKey: 'puzzles', eventLabel: '🧩 PUZZLES', bgColor: '#1a1a35' },
-            { type: 'button', x: 30, y: 64, w: 40, h: 8, eventKey: 'settings', eventLabel: '⚙ SETTINGS', bgColor: '#1a1a35' }
-          ]},
-          { name: 'Puzzle HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 25, h: 10, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 15, y: 4, w: 20, h: 4, text: 'Score: 1250', fontSize: 11, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 15, y: 9, w: 20, h: 4, text: 'Moves: 23', fontSize: 10, color: '#aaa', align: 'center' },
-            { type: 'button', x: 82, y: 3, w: 15, h: 8, eventKey: 'hint', eventLabel: '💡', bgColor: '#ffcc0033' },
-            { type: 'button', x: 82, y: 14, w: 15, h: 8, eventKey: 'pause', eventLabel: '⏸', bgColor: 'rgba(255,255,255,0.15)' }
-          ]},
-          { name: 'Level Complete', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.85)', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 60, h: 8, text: '✨ LEVEL CLEAR!', fontSize: 22, color: '#ff6b9d', align: 'center' },
-            { type: 'text', x: 50, y: 33, w: 40, h: 5, text: '⭐⭐⭐', fontSize: 20, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 50, y: 42, w: 40, h: 5, text: 'Score: 1250', fontSize: 14, color: '#aaa', align: 'center' },
-            { type: 'button', x: 30, y: 55, w: 40, h: 8, eventKey: 'next', eventLabel: '▶ NEXT', bgColor: '#ff6b9d' },
-            { type: 'button', x: 30, y: 67, w: 40, h: 8, eventKey: 'menu', eventLabel: '🏠 MENU', bgColor: '#1a1a35' }
-          ]}
-        ]},
-        { id: 'arcade', name: 'Arcade', icon: '👾', desc: 'Classic arcade game UI', genre: 'arcade', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0a0a1a', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 80, h: 10, text: 'NEON BLAST', fontSize: 26, color: '#00ffcc', align: 'center' },
-            { type: 'button', x: 30, y: 42, w: 40, h: 8, eventKey: 'play', eventLabel: '▶ START', bgColor: '#00ffcc' },
-            { type: 'text', x: 50, y: 58, w: 40, h: 5, text: 'HIGH SCORE: 99999', fontSize: 11, color: '#ffcc00', align: 'center' }
-          ]},
-          { name: 'Arcade HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 40, h: 5, text: 'SCORE: 0', fontSize: 14, color: '#00ffcc', align: 'center' },
-            { type: 'text', x: 5, y: 3, w: 20, h: 5, text: '♥♥♥', fontSize: 12, color: '#ff3333' },
-            { type: 'text', x: 90, y: 3, w: 15, h: 5, text: 'HI:99999', fontSize: 10, color: '#ffcc00', align: 'right' },
-            { type: 'joystick', x: 5, y: 60, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(0,255,204,0.1)' },
-            { type: 'button', x: 80, y: 70, w: 14, h: 14, eventKey: 'fire', eventLabel: '🔥', bgColor: 'rgba(0,255,204,0.3)' }
-          ]}
-        ]},
-        { id: 'sports', name: 'Sports', icon: '⚽', desc: 'Sports game UI pack', genre: 'sports', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#0a1a0a', fullScreen: true },
-            { type: 'text', x: 50, y: 15, w: 80, h: 10, text: '⚽ GOAL FEVER', fontSize: 22, color: '#33cc33', align: 'center' },
-            { type: 'button', x: 30, y: 35, w: 40, h: 8, eventKey: 'play', eventLabel: '⚽ KICK OFF', bgColor: '#33cc33' },
-            { type: 'button', x: 30, y: 47, w: 40, h: 8, eventKey: 'tournament', eventLabel: '🏆 TOURNAMENT', bgColor: '#1a2a1a' },
-            { type: 'button', x: 30, y: 59, w: 40, h: 8, eventKey: 'team_select', eventLabel: '👥 TEAMS', bgColor: '#1a2a1a' }
-          ]},
-          { name: 'Sports HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 30, y: 2, w: 40, h: 8, bgColor: 'rgba(0,0,0,0.6)' },
-            { type: 'text', x: 50, y: 2, w: 40, h: 8, text: '0 - 0', fontSize: 20, color: '#fff', align: 'center' },
-            { type: 'text', x: 38, y: 5, w: 10, h: 4, text: '45:00', fontSize: 10, color: '#ffcc00', align: 'center' },
-            { type: 'joystick', x: 5, y: 60, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(255,255,255,0.1)' },
-            { type: 'button', x: 80, y: 65, w: 14, h: 14, eventKey: 'kick', eventLabel: '⚽', bgColor: 'rgba(51,204,51,0.4)' },
-            { type: 'button', x: 80, y: 45, w: 12, h: 12, eventKey: 'pass', eventLabel: '→', bgColor: 'rgba(255,255,255,0.15)' },
-            { type: 'button', x: 65, y: 80, w: 12, h: 12, eventKey: 'sprint', eventLabel: '🏃', bgColor: 'rgba(255,255,255,0.15)' }
-          ]},
-          { name: 'Scoreboard', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.85)', fullScreen: true },
-            { type: 'text', x: 50, y: 15, w: 60, h: 8, text: '🏆 FINAL SCORE', fontSize: 18, color: '#ffcc00', align: 'center' },
-            { type: 'text', x: 30, y: 30, w: 20, h: 10, text: '3', fontSize: 32, color: '#33cc33', align: 'center' },
-            { type: 'text', x: 70, y: 30, w: 20, h: 10, text: '1', fontSize: 32, color: '#ff3333', align: 'center' },
-            { type: 'button', x: 30, y: 55, w: 40, h: 8, eventKey: 'rematch', eventLabel: '🔄 REMATCH', bgColor: '#33cc33' },
-            { type: 'button', x: 30, y: 67, w: 40, h: 8, eventKey: 'menu', eventLabel: '🏠 MENU', bgColor: '#1a2a1a' }
-          ]}
-        ]},
-        { id: 'survival', name: 'Survival', icon: '🏝️', desc: 'Survival game UI pack', genre: 'survival', pages: [
-          { name: 'Survival HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 22, h: 20, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 4, w: 18, h: 4, text: '❤ 85', fontSize: 10, color: '#ff3333' },
-            { type: 'text', x: 5, y: 8, w: 18, h: 4, text: '🍖 60', fontSize: 10, color: '#ff9933' },
-            { type: 'text', x: 5, y: 12, w: 18, h: 4, text: '💧 45', fontSize: 10, color: '#4a9eff' },
-            { type: 'text', x: 5, y: 16, w: 18, h: 4, text: '🌡 72°F', fontSize: 10, color: '#aaa' },
-            { type: 'text', x: 90, y: 3, w: 15, h: 5, text: 'Day 12', fontSize: 12, color: '#ffcc00', align: 'right' },
-            { type: 'joystick', x: 5, y: 55, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(255,255,255,0.1)' },
-            { type: 'button', x: 80, y: 65, w: 14, h: 14, eventKey: 'attack', eventLabel: '⚔', bgColor: 'rgba(139,69,19,0.5)' },
-            { type: 'button', x: 80, y: 45, w: 12, h: 12, eventKey: 'use', eventLabel: '🤲', bgColor: 'rgba(255,255,255,0.15)' },
-            { type: 'button', x: 65, y: 80, w: 12, h: 12, eventKey: 'jump', eventLabel: '⬆', bgColor: 'rgba(255,255,255,0.15)' }
-          ]},
-          { name: 'Crafting Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 55, w: 100, h: 45, bgColor: 'rgba(0,0,0,0.8)' },
-            { type: 'text', x: 50, y: 57, w: 40, h: 5, text: '🔨 CRAFT', fontSize: 14, color: '#ff9933', align: 'center' },
-            { type: 'button', x: 5, y: 65, w: 28, h: 12, eventKey: 'craft_axe', eventLabel: '🪓 Axe', bgColor: '#2a1a0a' },
-            { type: 'button', x: 36, y: 65, w: 28, h: 12, eventKey: 'craft_shelter', eventLabel: '🏠 Shelter', bgColor: '#2a1a0a' },
-            { type: 'button', x: 67, y: 65, w: 28, h: 12, eventKey: 'craft_fire', eventLabel: '🔥 Fire', bgColor: '#2a1a0a' }
-          ]},
-          { name: 'Inventory', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.85)', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 60, h: 7, text: '🎒 INVENTORY', fontSize: 16, color: '#ff9933', align: 'center' },
-            { type: 'panel', x: 5, y: 15, w: 90, h: 65, bgColor: '#1a1510' },
-            { type: 'button', x: 5, y: 85, w: 15, h: 8, eventKey: 'close_inv', eventLabel: '✕', bgColor: '#3a1515' }
-          ]}
-        ]},
-        { id: 'horror', name: 'Horror', icon: '👻', desc: 'Horror game UI pack', genre: 'horror', pages: [
-          { name: 'Horror HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 82, w: 20, h: 15, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 84, w: 16, h: 4, text: '❤ 70', fontSize: 10, color: '#ff3333' },
-            { type: 'text', x: 5, y: 89, w: 16, h: 4, text: '🔦 85%', fontSize: 10, color: '#ffcc00' },
-            { type: 'joystick', x: 5, y: 55, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(255,255,255,0.05)' },
-            { type: 'button', x: 80, y: 65, w: 14, h: 14, eventKey: 'interact', eventLabel: '🤲', bgColor: 'rgba(255,255,255,0.05)' },
-            { type: 'button', x: 80, y: 45, w: 12, h: 12, eventKey: 'flashlight', eventLabel: '🔦', bgColor: 'rgba(255,204,0,0.1)' },
-            { type: 'button', x: 65, y: 80, w: 12, h: 12, eventKey: 'run', eventLabel: '🏃', bgColor: 'rgba(255,255,255,0.05)' }
-          ]}
-        ]},
-        { id: 'simulation', name: 'Simulation', icon: '🏗️', desc: 'Simulation game UI pack', genre: 'simulation', pages: [
-          { name: 'Sim HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 30, h: 12, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 4, w: 12, h: 4, text: '🪙 10000', fontSize: 10, color: '#ffcc00' },
-            { type: 'text', x: 18, y: 4, w: 12, h: 4, text: '👥 250', fontSize: 10, color: '#4a9eff' },
-            { type: 'text', x: 5, y: 9, w: 20, h: 4, text: '😊 85%', fontSize: 10, color: '#33cc33' },
-            { type: 'panel', x: 3, y: 82, w: 90, h: 16, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'button', x: 5, y: 84, w: 14, h: 12, eventKey: 'build', eventLabel: '🏗', bgColor: '#1a2a1a' },
-            { type: 'button', x: 22, y: 84, w: 14, h: 12, eventKey: 'demolish', eventLabel: '🗑', bgColor: '#3a1515' },
-            { type: 'button', x: 39, y: 84, w: 14, h: 12, eventKey: 'roads', eventLabel: '🛣', bgColor: '#1a2a1a' },
-            { type: 'button', x: 56, y: 84, w: 14, h: 12, eventKey: 'services', eventLabel: '🏥', bgColor: '#1a2a1a' },
-            { type: 'button', x: 73, y: 84, w: 14, h: 12, eventKey: 'zones', eventLabel: '📍', bgColor: '#1a2a1a' }
-          ]},
-          { name: 'Pause Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'rgba(0,0,0,0.7)', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 60, h: 8, text: 'PAUSED', fontSize: 24, color: '#fff', align: 'center' },
-            { type: 'button', x: 30, y: 40, w: 40, h: 8, eventKey: 'resume', eventLabel: '▶ RESUME', bgColor: '#33cc33' },
-            { type: 'button', x: 30, y: 52, w: 40, h: 8, eventKey: 'save', eventLabel: '💾 SAVE', bgColor: '#2a2a40' },
-            { type: 'button', x: 30, y: 64, w: 40, h: 8, eventKey: 'quit', eventLabel: '🏠 QUIT', bgColor: '#3a1515' }
-          ]}
-        ]},
-        { id: 'tower_defense', name: 'Tower Defense', icon: '🗼', desc: 'Tower defense game UI', genre: 'tower_defense', pages: [
-          { name: 'TD HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 25, h: 10, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 4, w: 10, h: 4, text: '❤ 20', fontSize: 10, color: '#ff3333' },
-            { type: 'text', x: 16, y: 4, w: 10, h: 4, text: '🪙 500', fontSize: 10, color: '#ffcc00' },
-            { type: 'text', x: 90, y: 3, w: 15, h: 5, text: 'Wave 5', fontSize: 12, color: '#ff6b35', align: 'right' },
-            { type: 'panel', x: 3, y: 82, w: 90, h: 16, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'button', x: 5, y: 84, w: 18, h: 12, eventKey: 'tower_arrow', eventLabel: '🏹 50🪙', bgColor: '#2a2a40' },
-            { type: 'button', x: 26, y: 84, w: 18, h: 12, eventKey: 'tower_cannon', eventLabel: '💣 100🪙', bgColor: '#2a2a40' },
-            { type: 'button', x: 47, y: 84, w: 18, h: 12, eventKey: 'tower_ice', eventLabel: '❄ 75🪙', bgColor: '#2a2a40' },
-            { type: 'button', x: 68, y: 84, w: 18, h: 12, eventKey: 'tower_fire', eventLabel: '🔥 120🪙', bgColor: '#2a2a40' }
-          ]}
-        ]},
-        { id: 'fighting', name: 'Fighting', icon: '🥊', desc: 'Fighting game UI pack', genre: 'fighting', pages: [
-          { name: 'Fight HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 40, h: 8, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 4, w: 15, h: 4, text: 'Player 1', fontSize: 9, color: '#4a9eff' },
-            { type: 'panel', x: 5, y: 8, w: 36, h: 3, bgColor: '#3a1515' },
-            { type: 'panel', x: 5, y: 8, w: 28, h: 3, bgColor: '#33cc33' },
-            { type: 'panel', x: 57, y: 3, w: 40, h: 8, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 88, y: 4, w: 15, h: 4, text: 'CPU', fontSize: 9, color: '#ff3333', align: 'right' },
-            { type: 'panel', x: 59, y: 8, w: 36, h: 3, bgColor: '#3a1515' },
-            { type: 'panel', x: 67, y: 8, w: 28, h: 3, bgColor: '#33cc33' },
-            { type: 'text', x: 50, y: 3, w: 15, h: 5, text: '99', fontSize: 16, color: '#ffcc00', align: 'center' },
-            { type: 'joystick', x: 5, y: 60, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(255,255,255,0.1)' },
-            { type: 'button', x: 80, y: 70, w: 14, h: 14, eventKey: 'punch', eventLabel: '👊', bgColor: '#ff333344' },
-            { type: 'button', x: 80, y: 50, w: 12, h: 12, eventKey: 'kick', eventLabel: '🦵', bgColor: '#ff6b3544' },
-            { type: 'button', x: 65, y: 80, w: 12, h: 12, eventKey: 'block', eventLabel: '🛡', bgColor: '#4a9eff44' }
-          ]}
-        ]},
-        { id: 'stealth', name: 'Stealth', icon: '🥷', desc: 'Stealth game UI pack', genre: 'stealth', pages: [
-          { name: 'Stealth HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 3, y: 3, w: 20, h: 8, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 4, w: 16, h: 4, text: '👁 HIDDEN', fontSize: 10, color: '#33cc33' },
-            { type: 'panel', x: 3, y: 82, w: 20, h: 15, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 5, y: 84, w: 16, h: 4, text: '❤ 100', fontSize: 10, color: '#ff3333' },
-            { type: 'text', x: 5, y: 89, w: 16, h: 4, text: '🔪 3', fontSize: 10, color: '#aaa' },
-            { type: 'joystick', x: 5, y: 55, w: 18, h: 18, eventKey: 'move', bgColor: 'rgba(255,255,255,0.05)' },
-            { type: 'button', x: 80, y: 65, w: 14, h: 14, eventKey: 'takedown', eventLabel: '🤫', bgColor: 'rgba(255,255,255,0.05)' },
-            { type: 'button', x: 80, y: 45, w: 12, h: 12, eventKey: 'crouch', eventLabel: '⬇', bgColor: 'rgba(255,255,255,0.05)' }
-          ]}
-        ]},
-        { id: 'card_game', name: 'Card Game', icon: '🃏', desc: 'Card game UI pack', genre: 'card_game', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#1a0a1a', fullScreen: true },
-            { type: 'text', x: 50, y: 15, w: 80, h: 10, text: '🃏 CARD DUEL', fontSize: 24, color: '#cc66ff', align: 'center' },
-            { type: 'button', x: 30, y: 38, w: 40, h: 8, eventKey: 'play', eventLabel: '⚔ DUEL', bgColor: '#cc66ff' },
-            { type: 'button', x: 30, y: 50, w: 40, h: 8, eventKey: 'deck', eventLabel: '🃏 MY DECK', bgColor: '#2a1a2a' },
-            { type: 'button', x: 30, y: 62, w: 40, h: 8, eventKey: 'shop', eventLabel: '🛒 SHOP', bgColor: '#2a1a2a' }
-          ]},
-          { name: 'Battle HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'panel', x: 35, y: 3, w: 30, h: 8, bgColor: 'rgba(0,0,0,0.5)' },
-            { type: 'text', x: 50, y: 4, w: 30, h: 6, text: 'Turn 5 | Mana: 3/5', fontSize: 10, color: '#4a9eff', align: 'center' },
-            { type: 'text', x: 50, y: 15, w: 40, h: 6, text: 'Enemy HP: 24', fontSize: 11, color: '#ff3333', align: 'center' },
-            { type: 'panel', x: 5, y: 70, w: 90, h: 25, bgColor: 'rgba(0,0,0,0.4)' },
-            { type: 'button', x: 8, y: 72, w: 16, h: 20, eventKey: 'card_1', eventLabel: '⚔ 3', bgColor: '#8B4513' },
-            { type: 'button', x: 27, y: 72, w: 16, h: 20, eventKey: 'card_2', eventLabel: '🛡 2', bgColor: '#4a9eff' },
-            { type: 'button', x: 46, y: 72, w: 16, h: 20, eventKey: 'card_3', eventLabel: '🔥 5', bgColor: '#ff3333' },
-            { type: 'button', x: 65, y: 72, w: 16, h: 20, eventKey: 'card_4', eventLabel: '💚 4', bgColor: '#33cc33' },
-            { type: 'text', x: 50, y: 97, w: 40, h: 4, text: 'My HP: 18', fontSize: 10, color: '#33cc33', align: 'center' }
-          ]}
-        ]},
-        { id: 'casual', name: 'Casual', icon: '🎯', desc: 'Casual game UI pack', genre: 'casual', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#ffecd2', fullScreen: true },
-            { type: 'text', x: 50, y: 20, w: 80, h: 10, text: '🍩 DONUT DASH', fontSize: 24, color: '#e76f51', align: 'center' },
-            { type: 'button', x: 30, y: 42, w: 40, h: 10, eventKey: 'play', eventLabel: '▶ PLAY!', bgColor: '#e76f51' },
-            { type: 'button', x: 30, y: 56, w: 40, h: 8, eventKey: 'shop', eventLabel: '🛒 SHOP', bgColor: '#f4a261' },
-            { type: 'button', x: 30, y: 68, w: 40, h: 8, eventKey: 'settings', eventLabel: '⚙ SETTINGS', bgColor: '#f4a261' }
-          ]},
-          { name: 'Casual HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'text', x: 50, y: 3, w: 40, h: 5, text: 'Score: 42', fontSize: 16, color: '#e76f51', align: 'center' },
-            { type: 'text', x: 5, y: 3, w: 20, h: 5, text: '❤❤❤', fontSize: 12, color: '#ff3333' },
-            { type: 'button', x: 82, y: 3, w: 15, h: 8, eventKey: 'pause', eventLabel: '⏸', bgColor: '#f4a26144' },
-            { type: 'button', x: 40, y: 50, w: 20, h: 20, eventKey: 'tap', eventLabel: '🎯', bgColor: '#e76f5144' }
-          ]}
-        ]},
-        { id: 'hyper_casual', name: 'Hyper Casual', icon: '⚡', desc: 'Hyper casual game UI pack', genre: 'hyper_casual', pages: [
-          { name: 'Main Menu', type: 'menu', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: '#6c5ce7', fullScreen: true },
-            { type: 'text', x: 50, y: 25, w: 80, h: 10, text: 'ZOOM!', fontSize: 32, color: '#fff', align: 'center' },
-            { type: 'text', x: 50, y: 40, w: 40, h: 5, text: 'TAP TO START', fontSize: 14, color: '#ffffffaa', align: 'center' },
-            { type: 'text', x: 50, y: 60, w: 40, h: 5, text: 'Best: 156', fontSize: 12, color: '#ffcc00', align: 'center' }
-          ]},
-          { name: 'Hyper HUD', type: 'hud', elements: [
-            { type: 'panel', x: 0, y: 0, w: 100, h: 100, bgColor: 'transparent', fullScreen: true },
-            { type: 'text', x: 50, y: 5, w: 40, h: 8, text: '42', fontSize: 28, color: '#fff', align: 'center' },
-            { type: 'button', x: 35, y: 40, w: 30, h: 30, eventKey: 'tap', eventLabel: '', bgColor: 'rgba(255,255,255,0.15)' }
-          ]}
-        ]},
-        { id: 'racing', name: 'Racing Game', icon: '🏎️', desc: 'Complete racing game UI pack', genre: 'racing', pages: [] }
-      ],
-      pages: [
-        { name: 'Main Menu', category: 'Common', tags: ['menu','main','home'] },
-        { name: 'Pause Menu', category: 'Common', tags: ['pause','menu','overlay'] },
-        { name: 'Settings', category: 'Common', tags: ['settings','options','config'] },
-        { name: 'Audio Settings', category: 'Common', tags: ['audio','sound','music','volume'] },
-        { name: 'Graphics Settings', category: 'Common', tags: ['graphics','video','display','quality'] },
-        { name: 'Controls', category: 'Common', tags: ['controls','input','keybinds'] },
-        { name: 'Game Over', category: 'Common', tags: ['gameover','end','lose','defeat'] },
-        { name: 'Victory', category: 'Common', tags: ['victory','win','complete'] },
-        { name: 'Loading', category: 'Common', tags: ['loading','progress','tips'] },
-        { name: 'Profile', category: 'Common', tags: ['profile','account','player'] },
-        { name: 'Splash', category: 'Common', tags: ['splash','intro','title','start'] },
-        { name: 'Exit Confirmation', category: 'Common', tags: ['exit','quit','confirm'] },
-        { name: 'Restart Confirmation', category: 'Common', tags: ['restart','confirm'] },
-        { name: 'Tutorial', category: 'Common', tags: ['tutorial','help','guide','howto'] },
-        { name: 'Help', category: 'Common', tags: ['help','faq','support'] },
-        { name: 'Credits', category: 'Common', tags: ['credits','about','team'] },
-        { name: 'Notifications', category: 'Common', tags: ['notifications','alerts','messages'] },
-        { name: 'News', category: 'Common', tags: ['news','updates','announcements'] },
-        { name: 'Mail', category: 'Common', tags: ['mail','inbox','messages'] },
-        { name: 'Store', category: 'Shop', tags: ['store','shop','market'] },
-        { name: 'Premium Store', category: 'Shop', tags: ['premium','vip','store'] },
-        { name: 'Item Shop', category: 'Shop', tags: ['item','shop','buy'] },
-        { name: 'Buy Confirmation', category: 'Shop', tags: ['buy','confirm','purchase'] },
-        { name: 'Sell Confirmation', category: 'Shop', tags: ['sell','confirm'] },
-        { name: 'Bundle', category: 'Shop', tags: ['bundle','pack','deal'] },
-        { name: 'Daily Rewards', category: 'Shop', tags: ['daily','rewards','login'] },
-        { name: 'Battle Pass', category: 'Shop', tags: ['battle','pass','season','tier'] },
-        { name: 'Currency', category: 'Shop', tags: ['currency','coins','gems','money'] },
-        { name: 'Inventory', category: 'RPG', tags: ['inventory','items','bag'] },
-        { name: 'Equipment', category: 'RPG', tags: ['equipment','gear','armor'] },
-        { name: 'Character Stats', category: 'RPG', tags: ['stats','character','attributes'] },
-        { name: 'Skill Tree', category: 'RPG', tags: ['skill','tree','abilities','talent'] },
-        { name: 'Quest Log', category: 'RPG', tags: ['quest','log','mission','task'] },
-        { name: 'Crafting', category: 'RPG', tags: ['craft','recipe','forge'] },
-        { name: 'Loot', category: 'RPG', tags: ['loot','reward','drop'] },
-        { name: 'Dialogue', category: 'RPG', tags: ['dialogue','npc','conversation'] },
-        { name: 'Shop', category: 'RPG', tags: ['shop','buy','merchant'] },
-        { name: 'Map', category: 'Navigation', tags: ['map','world','navigation'] },
-        { name: 'Mini Map', category: 'Navigation', tags: ['minimap','radar','hud'] },
-        { name: 'World Map', category: 'Navigation', tags: ['world','map','explore'] },
-        { name: 'Level Select', category: 'Navigation', tags: ['level','select','stage'] },
-        { name: 'World Select', category: 'Navigation', tags: ['world','select','chapter'] },
-        { name: 'Mission Select', category: 'Navigation', tags: ['mission','select','quest'] },
-        { name: 'Checkpoint', category: 'Navigation', tags: ['checkpoint','save','progress'] },
-        { name: 'HUD', category: 'HUD', tags: ['hud','heads','display'] },
-        { name: 'Game HUD', category: 'HUD', tags: ['game','hud','ingame'] },
-        { name: 'Vehicle HUD', category: 'HUD', tags: ['vehicle','car','hud','speed'] },
-        { name: 'Shooter HUD', category: 'HUD', tags: ['shooter','fps','crosshair','ammo'] },
-        { name: 'Battle Royale HUD', category: 'HUD', tags: ['br','royale','zone','alive'] },
-        { name: 'Platformer HUD', category: 'HUD', tags: ['platformer','2d','jump'] },
-        { name: 'RPG HUD', category: 'HUD', tags: ['rpg','health','mana','xp'] },
-        { name: 'Strategy HUD', category: 'HUD', tags: ['strategy','rts','resources'] },
-        { name: 'Lobby', category: 'Multiplayer', tags: ['lobby','matchmaking','find'] },
-        { name: 'Matchmaking', category: 'Multiplayer', tags: ['matchmaking','queue','search'] },
-        { name: 'Scoreboard', category: 'Multiplayer', tags: ['scoreboard','scores','results'] },
-        { name: 'Round Start', category: 'Multiplayer', tags: ['round','start','countdown'] },
-        { name: 'Round End', category: 'Multiplayer', tags: ['round','end','results'] },
-        { name: 'Spectator', category: 'Multiplayer', tags: ['spectator','watch','observe'] },
-        { name: 'Countdown', category: 'Multiplayer', tags: ['countdown','timer','start'] },
-        { name: 'Team Select', category: 'Multiplayer', tags: ['team','select','join'] },
-        { name: 'Character Select', category: 'Character', tags: ['character','select','hero','class'] },
-        { name: 'Character Customization', category: 'Character', tags: ['character','customize','appearance'] },
-        { name: 'Loadout', category: 'Character', tags: ['loadout','gear','setup'] },
-        { name: 'Weapon Select', category: 'Character', tags: ['weapon','select','gun'] },
-        { name: 'Weapon Upgrade', category: 'Character', tags: ['weapon','upgrade','enhance'] },
-        { name: 'Abilities', category: 'Character', tags: ['abilities','skills','powers'] },
-        { name: 'Perks', category: 'Character', tags: ['perks','bonuses','passive'] },
-        { name: 'Respawn', category: 'Common', tags: ['respawn','revive','death'] },
-        { name: 'Garage', category: 'Vehicle', tags: ['garage','car','vehicle'] },
-        { name: 'Vehicle Select', category: 'Vehicle', tags: ['vehicle','select','car'] },
-        { name: 'Vehicle Customization', category: 'Vehicle', tags: ['vehicle','customize','modify'] },
-        { name: 'Paint', category: 'Vehicle', tags: ['paint','color','skin'] },
-        { name: 'Decals', category: 'Vehicle', tags: ['decals','sticker','design'] },
-        { name: 'Engine Upgrade', category: 'Vehicle', tags: ['engine','upgrade','performance'] },
-        { name: 'Leaderboard', category: 'Social', tags: ['leaderboard','rank','top','scores'] },
-        { name: 'Friends', category: 'Social', tags: ['friends','social','list'] },
-        { name: 'Invite', category: 'Social', tags: ['invite','friend','send'] },
-        { name: 'Party', category: 'Social', tags: ['party','group','team'] },
-        { name: 'Profile Settings', category: 'Settings', tags: ['profile','settings','account'] },
-        { name: 'Privacy', category: 'Settings', tags: ['privacy','security','options'] },
-        { name: 'Language', category: 'Settings', tags: ['language','localization','i18n'] },
-        { name: 'Clan', category: 'Social', tags: ['clan','guild','group'] },
-        { name: 'Achievements', category: 'Progress', tags: ['achievements','trophies','badges'] },
-        { name: 'Challenges', category: 'Progress', tags: ['challenges','tasks','daily'] },
-        { name: 'Rewards', category: 'Progress', tags: ['rewards','claim','prize'] },
-        { name: 'Season', category: 'Progress', tags: ['season','rank','progress'] },
-        { name: 'Rank', category: 'Progress', tags: ['rank','tier','division'] },
-        { name: 'Statistics', category: 'Progress', tags: ['stats','statistics','data'] },
-        { name: 'Progress', category: 'Progress', tags: ['progress','level','xp'] },
-        { name: 'Mission Complete', category: 'Progress', tags: ['mission','complete','success'] },
-        { name: 'Mission Failed', category: 'Progress', tags: ['mission','failed','lose'] },
-        { name: 'Next Level', category: 'Progress', tags: ['next','level','continue'] },
-        { name: 'Retry', category: 'Progress', tags: ['retry','try','again'] },
-        { name: 'Save', category: 'System', tags: ['save','storage'] },
-        { name: 'Continue', category: 'System', tags: ['continue','resume'] },
-        { name: 'New Game', category: 'System', tags: ['new','start','begin'] },
-        { name: 'Load Game', category: 'System', tags: ['load','slot','save'] },
-        { name: 'Game Complete', category: 'System', tags: ['complete','finish','end'] },
-        { name: 'Resource Storage', category: 'System', tags: ['resources','storage','materials'] },
-        { name: 'Events', category: 'Social', tags: ['events','special','limited'] },
-        { name: 'Announcement', category: 'Social', tags: ['announcement','news','update'] },
-        { name: 'Purchase', category: 'Shop', tags: ['purchase','buy','transaction'] },
-        { name: 'Reward', category: 'Shop', tags: ['reward','claim','prize'] },
-        { name: 'About', category: 'System', tags: ['about','info','version'] },
-        { name: 'Chapter Select', category: 'Navigation', tags: ['chapter','select','story'] },
-        { name: 'Stage Select', category: 'Navigation', tags: ['stage','select','level'] }
-      ]
-    };
-
-    // Remove the duplicate empty racing entry at end
-    UI_TEMPLATES.collections = UI_TEMPLATES.collections.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
-
-    // ===== UI TEMPLATE MANAGER =====
-    class UITemplateManager {
-      constructor(uiStateManager) {
-        this.uiState = uiStateManager;
-        this.searchQuery = '';
-        this.activeGenre = 'all';
-        this.viewMode = 'collections'; // 'collections' | 'pages' | 'editor'
-        this.expandedCollection = null;
-      }
-
-      search(query) {
-        this.searchQuery = query.toLowerCase().trim();
-      }
-
-      getFilteredCollections() {
-        let cols = UI_TEMPLATES.collections.filter(c => c.pages.length > 0);
-        if (this.activeGenre !== 'all') {
-          cols = cols.filter(c => c.genre === this.activeGenre || c.id === this.activeGenre);
-        }
-        if (this.searchQuery) {
-          cols = cols.filter(c => 
-            c.name.toLowerCase().includes(this.searchQuery) ||
-            c.desc.toLowerCase().includes(this.searchQuery) ||
-            c.pages.some(p => p.name.toLowerCase().includes(this.searchQuery) ||
-              (p.tags || []).some(t => t.includes(this.searchQuery)))
-          );
-        }
-        return cols;
-      }
-
-      getFilteredPages() {
-        let pages = UI_TEMPLATES.pages;
-        if (this.activeGenre !== 'all') {
-          pages = pages.filter(p => p.category.toLowerCase() === this.activeGenre);
-        }
-        if (this.searchQuery) {
-          pages = pages.filter(p => 
-            p.name.toLowerCase().includes(this.searchQuery) ||
-            (p.tags || []).some(t => t.includes(this.searchQuery))
-          );
-        }
-        return pages;
-      }
-
-      getGenres() {
-        const cats = new Set(UI_TEMPLATES.pages.map(p => p.category));
-        return ['all', ...Array.from(cats).sort()];
-      }
-
-      importCollection(collectionId) {
-        const col = UI_TEMPLATES.collections.find(c => c.id === collectionId);
-        if (!col) return;
-
-        const existingCount = this.uiState.getState().pages.length;
-        let cs = this.uiState.getCanvasSize();
-        const cw = cs.width, ch = cs.height;
-
-        col.pages.forEach(pageDef => {
-          const page = {
-            id: this.generatePageId(),
-            name: pageDef.name,
-            elements: [],
-            visible: false,
-            targetScene: this.uiState.getState().activeScene || 'Scene 1'
-          };
-
-          pageDef.elements.forEach(elDef => {
-            const el = this.createElementFromTemplate(elDef, cw, ch);
-            if (el) page.elements.push(el);
-          });
-
-          this.uiState.getState().pages.push(page);
-        });
-
-        this.uiState.save();
-        return col.pages.length;
-      }
-
-      importSinglePage(pageName) {
-        const pageDef = UI_TEMPLATES.pages.find(p => p.name === pageName);
-        if (!pageDef) return false;
-
-        const cs = this.uiState.getCanvasSize();
-        const cw = cs.width, ch = cs.height;
-        
-        const page = {
-          id: this.generatePageId(),
-          name: pageDef.name,
-          elements: this.getDefaultElementsForPage(pageDef.name, cw, ch),
-          visible: false,
-          targetScene: this.uiState.getState().activeScene || 'Scene 1'
-        };
-
-        this.uiState.getState().pages.push(page);
-        this.uiState.save();
-        return true;
-      }
-
-      createElementFromTemplate(def, cw, ch) {
-        const x = typeof def.x === 'number' ? (def.x / 100 * cw) : cw / 2 - 50;
-        const y = typeof def.y === 'number' ? (def.y / 100 * ch) : ch / 2 - 25;
-        const w = typeof def.w === 'number' ? (def.w / 100 * cw) : 100;
-        const h = typeof def.h === 'number' ? (def.h / 100 * ch) : 40;
-
-        return {
-          id: this.generatePageId(),
-          type: def.type,
-          name: (def.eventLabel || def.text || def.type).substring(0, 20),
-          x: Math.round(x),
-          y: Math.round(y),
-          width: Math.round(w),
-          height: Math.round(h),
-          visible: true,
-          enabled: true,
-          eventKey: def.eventKey || '',
-          eventLabel: def.eventLabel || '',
-          text: def.text || '',
-          fontSize: def.fontSize || 14,
-          color: def.color || '#ffffff',
-          bgColor: def.bgColor || 'transparent',
-          anchor: 'top-left',
-          targetScene: ''
-        };
-      }
-
-      getDefaultElementsForPage(name, cw, ch) {
-        const nl = name.toLowerCase();
-        const elements = [];
-        
-        // Background panel
-        elements.push({
-          id: this.generatePageId(), type: 'panel', name: 'Background',
-          x: 0, y: 0, width: cw, height: ch, visible: true, enabled: true,
-          eventKey: '', eventLabel: '', text: '', fontSize: 14,
-          color: '#ffffff', bgColor: '#0d1117', anchor: 'top-left', targetScene: ''
-        });
-
-        // Title
-        elements.push({
-          id: this.generatePageId(), type: 'text', name: 'Title',
-          x: Math.round(cw / 2 - 100), y: Math.round(ch * 0.15),
-          width: 200, height: 30, visible: true, enabled: true,
-          eventKey: '', eventLabel: '', text: name, fontSize: 20, color: '#ff6b35',
-          anchor: 'top-left', targetScene: ''
-        });
-
-        if (nl.includes('menu') || nl.includes('main')) {
-          elements.push(this.makeButton('Play', 'play', cw * 0.3, ch * 0.4, cw * 0.4, ch * 0.08, '#ff6b35'));
-          elements.push(this.makeButton('Settings', 'settings', cw * 0.3, ch * 0.52, cw * 0.4, ch * 0.08, '#2a2a40'));
-        } else if (nl.includes('hud')) {
-          elements.push(this.makeText('0:00', cw * 0.4, ch * 0.03, 100, 20, '#fff'));
-          elements.push(this.makeButton('⏸', 'pause', cw * 0.85, ch * 0.03, 30, 20, '#ffffff22'));
-        } else if (nl.includes('pause')) {
-          elements.push(this.makeButton('Resume', 'resume', cw * 0.3, ch * 0.4, cw * 0.4, ch * 0.08, '#ff6b35'));
-          elements.push(this.makeButton('Quit', 'quit', cw * 0.3, ch * 0.52, cw * 0.4, ch * 0.08, '#3a1515'));
-        } else if (nl.includes('settings')) {
-          elements.push(this.makeButton('Audio', 'audio', cw * 0.15, ch * 0.3, cw * 0.7, ch * 0.08, '#1a1a35'));
-          elements.push(this.makeButton('Graphics', 'graphics', cw * 0.15, ch * 0.42, cw * 0.7, ch * 0.08, '#1a1a35'));
-        } else if (nl.includes('game over') || nl.includes('defeat')) {
-          elements.push(this.makeButton('Retry', 'retry', cw * 0.3, ch * 0.5, cw * 0.4, ch * 0.08, '#ff6b35'));
-          elements.push(this.makeButton('Menu', 'menu', cw * 0.3, ch * 0.62, cw * 0.4, ch * 0.08, '#2a2a40'));
-        } else if (nl.includes('victory') || nl.includes('win')) {
-          elements.push(this.makeButton('Next', 'next', cw * 0.3, ch * 0.5, cw * 0.4, ch * 0.08, '#33cc33'));
-          elements.push(this.makeButton('Menu', 'menu', cw * 0.3, ch * 0.62, cw * 0.4, ch * 0.08, '#2a2a40'));
-        } else {
-          elements.push(this.makeButton('Back', 'back', cw * 0.05, ch * 0.03, 50, 25, '#2a2a40'));
-        }
-
-        return elements;
-      }
-
-      makeButton(label, key, x, y, w, h, bg) {
-        return {
-          id: this.generatePageId(), type: 'button', name: label,
-          x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h),
-          visible: true, enabled: true, eventKey: key, eventLabel: label,
-          text: '', fontSize: 14, color: '#ffffff', bgColor: bg,
-          anchor: 'top-left', targetScene: ''
-        };
-      }
-
-      makeText(text, x, y, w, h, color) {
-        return {
-          id: this.generatePageId(), type: 'text', name: text.substring(0, 15),
-          x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h),
-          visible: true, enabled: true, eventKey: '', eventLabel: '',
-          text: text, fontSize: 14, color: color, bgColor: 'transparent',
-          anchor: 'top-left', targetScene: ''
-        };
-      }
-
-      generatePageId() {
-        return 'ui_' + Math.random().toString(36).substr(2, 9);
-      }
-
-      renderTemplatesView() {
-        const genres = this.getGenres();
-        const collections = this.getFilteredCollections();
-        const pages = this.getFilteredPages();
-
-        let html = '<div id="ui-templates-wrap">';
-        
-        // Header with search
-        html += '<div id="ui-tpl-header">';
-        html += '<button class="ui-tpl-back-btn" id="ui-tpl-back-to-editor">✏ Editor</button>';
-        html += '<input id="ui-tpl-search" type="text" placeholder="Search pages & collections..." value="' + this.searchQuery + '">';
-        html += '</div>';
-
-        // Genre filter chips
-        html += '<div id="ui-tpl-filter-bar">';
-        genres.forEach(g => {
-          html += '<span class="ui-tpl-filter-chip' + (this.activeGenre === g ? ' active' : '') + '" data-genre="' + g + '">' + (g === 'all' ? 'All' : g.replace(/_/g, ' ')) + '</span>';
-        });
-        html += '</div>';
-
-        // Content
-        html += '<div id="ui-tpl-list">';
-
-        // Collections section
-        if (collections.length > 0) {
-          html += '<div style="padding:4px 6px;color:#ff6b35;font-size:11px;font-weight:600;">📚 Collections</div>';
-          collections.forEach(col => {
-            html += '<div class="ui-tpl-collection-header" data-collection="' + col.id + '">';
-            html += '<div class="ui-tpl-coll-icon">' + col.icon + '</div>';
-            html += '<div class="ui-tpl-coll-info">';
-            html += '<div class="ui-tpl-coll-name">' + col.name + '</div>';
-            html += '<div class="ui-tpl-coll-desc">' + col.desc + '</div>';
-            html += '<div class="ui-tpl-coll-count">' + col.pages.length + ' pages</div>';
-            html += '</div>';
-            html += '<button class="ui-tpl-import-btn" data-import-collection="' + col.id + '">Import All</button>';
-            html += '</div>';
-            
-            // Expanded pages list
-            if (this.expandedCollection === col.id) {
-              html += '<div class="ui-tpl-pages-list">';
-              col.pages.forEach(p => {
-                html += '<div class="ui-tpl-page-item" data-import-page="' + col.id + ':' + p.name + '">';
-                html += '<span>' + p.name + '</span>';
-                html += '<span class="tpl-type">' + p.type + '</span>';
-                html += '</div>';
-              });
-              html += '</div>';
-            }
-          });
-        }
-
-        // Individual pages section
-        if (pages.length > 0) {
-          html += '<div style="padding:4px 6px;color:#4a9eff;font-size:11px;font-weight:600;margin-top:8px;">📄 Pages</div>';
-          pages.forEach(p => {
-            html += '<div class="ui-tpl-page-item" data-add-page="' + p.name + '">';
-            html += '<span>' + p.name + '</span>';
-            html += '<span class="tpl-type">' + p.category + '</span>';
-            html += '</div>';
-          });
-        }
-
-        if (collections.length === 0 && pages.length === 0) {
-          html += '<div class="ui-tpl-empty">No results found</div>';
-        }
-
-        html += '</div>'; // ui-tpl-list
-        html += '</div>'; // ui-tpl-templates-wrap
-
-        return html;
-      }
-
-      setupEvents(panel, uiPanelManager) {
-        const panel_el = panel || document.getElementById('ui-panel');
-        if (!panel_el) return;
-
-        // Back to editor
-        const backBtn = panel_el.querySelector('#ui-tpl-back-to-editor');
-        if (backBtn) {
-          backBtn.addEventListener('click', () => {
-            this.viewMode = 'editor';
-            uiPanelManager.render();
-          });
-        }
-
-        // Search
-        const searchInput = panel_el.querySelector('#ui-tpl-search');
-        if (searchInput) {
-          searchInput.addEventListener('input', () => {
-            this.search(searchInput.value);
-            this.renderListOnly(panel_el, uiPanelManager);
-          });
-        }
-
-        // Genre filter
-        panel_el.querySelectorAll('.ui-tpl-filter-chip').forEach(chip => {
-          chip.addEventListener('click', () => {
-            this.activeGenre = chip.dataset.genre;
-            this.renderListOnly(panel_el, uiPanelManager);
-          });
-        });
-
-        // Import collection
-        panel_el.querySelectorAll('[data-import-collection]').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const id = btn.dataset.importCollection;
-            const count = this.importCollection(id);
-            if (count) {
-              this.viewMode = 'editor';
-              uiPanelManager.render();
-            }
-          });
-        });
-
-        // Import single page from collection
-        panel_el.querySelectorAll('[data-import-page]').forEach(item => {
-          item.addEventListener('click', () => {
-            const [colId, pageName] = item.dataset.importPage.split(':');
-            const col = UI_TEMPLATES.collections.find(c => c.id === colId);
-            if (!col) return;
-            const pageDef = col.pages.find(p => p.name === pageName);
-            if (!pageDef) return;
-
-            const cs = this.uiState.getCanvasSize();
-            const page = {
-              id: this.generatePageId(),
-              name: pageDef.name,
-              elements: [],
-              visible: false,
-              targetScene: this.uiState.getState().activeScene || 'Scene 1'
-            };
-            pageDef.elements.forEach(elDef => {
-              const el = this.createElementFromTemplate(elDef, cs.width, cs.height);
-              if (el) page.elements.push(el);
-            });
-            this.uiState.getState().pages.push(page);
-            this.uiState.save();
-            this.viewMode = 'editor';
-            uiPanelManager.render();
-          });
-        });
-
-        // Add individual page
-        panel_el.querySelectorAll('[data-add-page]').forEach(item => {
-          item.addEventListener('click', () => {
-            this.importSinglePage(item.dataset.addPage);
-            this.viewMode = 'editor';
-            uiPanelManager.render();
-          });
-        });
-
-        // Expand collection
-        panel_el.querySelectorAll('[data-collection]').forEach(header => {
-          header.addEventListener('click', (e) => {
-            if (e.target.closest('.ui-tpl-import-btn')) return;
-            const id = header.dataset.collection;
-            this.expandedCollection = this.expandedCollection === id ? null : id;
-            this.renderListOnly(panel_el, uiPanelManager);
-          });
-        });
-      }
-
-      renderListOnly(panel_el, uiPanelManager) {
-        const listEl = panel_el.querySelector('#ui-tpl-list');
-        const filterBar = panel_el.querySelector('#ui-tpl-filter-bar');
-        if (!listEl) return;
-
-        // Re-render filter bar
-        if (filterBar) {
-          const genres = this.getGenres();
-          filterBar.innerHTML = genres.map(g =>
-            '<span class="ui-tpl-filter-chip' + (this.activeGenre === g ? ' active' : '') + '" data-genre="' + g + '">' + (g === 'all' ? 'All' : g.replace(/_/g, ' ')) + '</span>'
-          ).join('');
-          filterBar.querySelectorAll('.ui-tpl-filter-chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-              this.activeGenre = chip.dataset.genre;
-              this.renderListOnly(panel_el, uiPanelManager);
-            });
-          });
-        }
-
-        // Build new list content
-        const collections = this.getFilteredCollections();
-        const pages = this.getFilteredPages();
-        let html = '';
-
-        if (collections.length > 0) {
-          html += '<div style="padding:4px 6px;color:#ff6b35;font-size:11px;font-weight:600;">📚 Collections</div>';
-          collections.forEach(col => {
-            html += '<div class="ui-tpl-collection-header" data-collection="' + col.id + '">';
-            html += '<div class="ui-tpl-coll-icon">' + col.icon + '</div>';
-            html += '<div class="ui-tpl-coll-info">';
-            html += '<div class="ui-tpl-coll-name">' + col.name + '</div>';
-            html += '<div class="ui-tpl-coll-desc">' + col.desc + '</div>';
-            html += '<div class="ui-tpl-coll-count">' + col.pages.length + ' pages</div>';
-            html += '</div>';
-            html += '<button class="ui-tpl-import-btn" data-import-collection="' + col.id + '">Import All</button>';
-            html += '</div>';
-            if (this.expandedCollection === col.id) {
-              html += '<div class="ui-tpl-pages-list">';
-              col.pages.forEach(p => {
-                html += '<div class="ui-tpl-page-item" data-import-page="' + col.id + ':' + p.name + '">';
-                html += '<span>' + p.name + '</span><span class="tpl-type">' + p.type + '</span></div>';
-              });
-              html += '</div>';
-            }
-          });
-        }
-
-        if (pages.length > 0) {
-          html += '<div style="padding:4px 6px;color:#4a9eff;font-size:11px;font-weight:600;margin-top:8px;">📄 Pages</div>';
-          pages.forEach(p => {
-            html += '<div class="ui-tpl-page-item" data-add-page="' + p.name + '">';
-            html += '<span>' + p.name + '</span><span class="tpl-type">' + p.category + '</span></div>';
-          });
-        }
-
-        if (!collections.length && !pages.length) {
-          html = '<div class="ui-tpl-empty">No results found</div>';
-        }
-
-        listEl.innerHTML = html;
-
-        // Re-attach events
-        listEl.querySelectorAll('[data-import-collection]').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const count = this.importCollection(btn.dataset.importCollection);
-            if (count) { this.viewMode = 'editor'; uiPanelManager.render(); }
-          });
-        });
-        listEl.querySelectorAll('[data-import-page]').forEach(item => {
-          item.addEventListener('click', () => {
-            const [colId, pageName] = item.dataset.importPage.split(':');
-            const col = UI_TEMPLATES.collections.find(c => c.id === colId);
-            const pageDef = col?.pages.find(p => p.name === pageName);
-            if (!pageDef) return;
-            const cs = this.uiState.getCanvasSize();
-            const page = { id: this.generatePageId(), name: pageDef.name, elements: [], visible: false, targetScene: this.uiState.getState().activeScene || 'Scene 1' };
-            pageDef.elements.forEach(elDef => { const el = this.createElementFromTemplate(elDef, cs.width, cs.height); if (el) page.elements.push(el); });
-            this.uiState.getState().pages.push(page);
-            this.uiState.save();
-            this.viewMode = 'editor';
-            uiPanelManager.render();
-          });
-        });
-        listEl.querySelectorAll('[data-add-page]').forEach(item => {
-          item.addEventListener('click', () => {
-            this.importSinglePage(item.dataset.addPage);
-            this.viewMode = 'editor';
-            uiPanelManager.render();
-          });
-        });
-        listEl.querySelectorAll('[data-collection]').forEach(header => {
-          header.addEventListener('click', (e) => {
-            if (e.target.closest('.ui-tpl-import-btn')) return;
-            this.expandedCollection = this.expandedCollection === header.dataset.collection ? null : header.dataset.collection;
-            this.renderListOnly(panel_el, uiPanelManager);
-          });
-        });
-      }
-    }
-
-    // Global template manager instance
-    let uiTemplateManager = null;
-
-
-        // UIPanelManager (editor)
-    class UIPanelManager {
-      constructor() {
-        this.panel = document.getElementById('ui-panel');
-        if (!this.panel) return;
-        loadUIState();
-      }
-      render() {
-        if (!this.panel) return;
-        // Show templates view if template manager wants it
-        if (window.uiTemplateManager && window.uiTemplateManager.viewMode !== 'editor') {
-          this.panel.innerHTML = window.uiTemplateManager.renderTemplatesView();
-          window.uiTemplateManager.setupEvents(this.panel, this);
-          return;
-        }
-        this.panel.innerHTML = '<div id="ui-mode-bar"><button id="ui-tpl-btn" title="Templates">📦 Templates</button><button id="ui-editor-btn" class="ui-active-mode" title="Editor">✏ Editor</button></div>' +
-          '<div id="ui-orientation-bar"><span>Orientation:</span><button class="' + (UI_STATE.orientation === 'portrait' ? 'ui-active-orient' : '') + '" data-orient="portrait">Portrait</button><button class="' + (UI_STATE.orientation === 'landscape' ? 'ui-active-orient' : '') + '" data-orient="landscape">Landscape</button></div>' +
-          '<div id="ui-pages-header">' + UI_STATE.pages.map(p => '<button class="' + (p.id === UI_STATE.activePageId ? 'ui-active-page' : '') + '" data-page="' + p.id + '">' + p.name + '</button>').join('') + '<button id="ui-add-page-btn">+ Page</button></div>' +
-          '<div id="ui-canvas-wrap"><div id="ui-canvas" class="' + (UI_STATE.isEditing ? 'ui-editing' : '') + '"></div></div>' +
-          '<div id="ui-props"></div>' +
-          '<div id="ui-add-bar"><button data-add="button">+ Button</button><button data-add="joystick">+ Joystick</button><button data-add="panel">+ Panel</button><button data-add="text">+ Text</button></div>';
-        this.setupCanvas();
-        this.setupEvents();
-        this.renderElements();
-        this.renderProps();
-      }
-      setupCanvas() {
-        const c = document.getElementById('ui-canvas');
-        if (!c) return;
-        const s = getUICanvasSize();
-        c.style.width = s.width + 'px'; c.style.height = s.height + 'px';
-        c.addEventListener('click', (e) => { if (e.target === c) { UI_STATE.selectedElementId = null; this.renderElements(); this.renderProps(); } });
-      }
-      setupEvents() {
-        // Templates button
-        const tplBtn = document.getElementById('ui-tpl-btn');
-        if (tplBtn) tplBtn.addEventListener('click', () => { if (window.uiTemplateManager) { window.uiTemplateManager.viewMode = 'collections'; this.render(); } });
-        this.panel.querySelectorAll('[data-orient]').forEach(b => b.addEventListener('click', () => { UI_STATE.orientation = b.dataset.orient; saveUIState(); this.render(); }));
-        this.panel.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { UI_STATE.activePageId = b.dataset.page; UI_STATE.selectedElementId = null; saveUIState(); this.render(); }));
-        const addP = document.getElementById('ui-add-page-btn');
-        if (addP) addP.addEventListener('click', () => { const n = prompt('Page name:', 'Page ' + (UI_STATE.pages.length + 1)); if (!n) return; const p = createDefaultUIPage(n); UI_STATE.pages.push(p); UI_STATE.activePageId = p.id; saveUIState(); this.render(); });
-        this.panel.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
-          const type = b.dataset.add; const page = getActiveUIPage(); if (!page) return;
-          const cs = getUICanvasSize();
-          const el = { id: generateUIId(), type, name: type.charAt(0).toUpperCase() + type.slice(1), x: Math.round(cs.width/2-50), y: Math.round(cs.height/2-25), width: type === 'joystick' ? 100 : type === 'text' ? 150 : 100, height: type === 'joystick' ? 100 : type === 'text' ? 30 : 40, visible: true, enabled: true, eventKey: (type === 'button' || type === 'joystick') ? 'action' : '', eventLabel: type === 'button' ? 'Button' : '', text: type === 'text' ? 'Text' : '', fontSize: 14, color: '#ffffff', bgColor: type === 'button' ? '#4a9eff' : type === 'panel' ? 'rgba(0,0,0,0.3)' : 'transparent' };
-          page.elements.push(el); UI_STATE.selectedElementId = el.id; saveUIState(); this.renderElements(); this.renderProps();
-        }));
-      }
-      renderElements() {
-        const canvas = document.getElementById('ui-canvas'); if (!canvas) return;
-        canvas.querySelectorAll('.ui-element').forEach(e => e.remove());
-        const page = getActiveUIPage(); if (!page) return;
-        page.elements.forEach(el => {
-          const div = document.createElement('div');
-          div.className = 'ui-element ui-' + el.type + '-el' + (el.id === UI_STATE.selectedElementId ? ' ui-selected' : '');
-          div.dataset.id = el.id; div.style.left = el.x + 'px'; div.style.top = el.y + 'px'; div.style.width = el.width + 'px'; div.style.height = el.height + 'px';
-          if (!el.visible) div.style.opacity = '0.3';
-          if (el.type === 'button') { div.textContent = el.eventLabel || 'Button'; div.style.background = el.bgColor || el.color; }
-          else if (el.type === 'text') { div.textContent = el.text || 'Text'; div.style.fontSize = (el.fontSize || 14) + 'px'; div.style.color = el.color; }
-          else if (el.type === 'panel') { div.style.background = el.bgColor; }
-          const handle = document.createElement('div'); handle.className = 'ui-resize-handle'; div.appendChild(handle);
-          div.addEventListener('click', (e) => { e.stopPropagation(); UI_STATE.selectedElementId = el.id; this.renderElements(); this.renderProps(); });
-          let drag = false, ox = 0, oy = 0;
-          div.addEventListener('pointerdown', (e) => { if (e.target === handle) return; drag = true; const r = canvas.getBoundingClientRect(); ox = e.clientX - r.left - el.x; oy = e.clientY - r.top - el.y; e.preventDefault(); });
-          const onmove = (e) => { if (!drag) return; const r = canvas.getBoundingClientRect(); el.x = Math.max(0, Math.min(canvas.clientWidth - el.width, e.clientX - r.left - ox)); el.y = Math.max(0, Math.min(canvas.clientHeight - el.height, e.clientY - r.top - oy)); div.style.left = el.x + 'px'; div.style.top = el.y + 'px'; };
-          const onup = () => { if (drag) { drag = false; saveUIState(); } };
-          document.addEventListener('pointermove', onmove);
-          document.addEventListener('pointerup', onup);
-          let res = false, sw = 0, sh = 0, sx = 0, sy = 0;
-          handle.addEventListener('pointerdown', (e) => { res = true; sw = el.width; sh = el.height; sx = e.clientX; sy = e.clientY; e.stopPropagation(); e.preventDefault(); });
-          document.addEventListener('pointermove', (e) => { if (!res) return; el.width = Math.max(20, sw + (e.clientX - sx)); el.height = Math.max(20, sh + (e.clientY - sy)); div.style.width = el.width + 'px'; div.style.height = el.height + 'px'; });
-          document.addEventListener('pointerup', () => { if (res) { res = false; saveUIState(); } });
-          canvas.appendChild(div);
-        });
-      }
-      renderProps() {
-        const props = document.getElementById('ui-props'); if (!props) return;
-        const el = getSelectedUIElement();
-        if (!el) { props.innerHTML = '<div style="font-size:11px;color:#666;padding:4px;">Select an element</div>'; return; }
-        const row = (l, i) => '<div class="ui-prop-row"><span class="ui-prop-label">' + l + '</span>' + i + '</div>';
-        let h = '<div style="font-size:11px;color:#ff6b35;font-weight:600;margin-bottom:6px;">' + el.type.toUpperCase() + ': ' + el.name + '</div>';
-        h += row('Name', '<input type="text" data-prop="name" value="' + el.name + '">');
-        h += row('X', '<input type="number" data-prop="x" value="' + Math.round(el.x) + '">');
-        h += row('Y', '<input type="number" data-prop="y" value="' + Math.round(el.y) + '">');
-        h += row('W', '<input type="number" data-prop="width" value="' + Math.round(el.width) + '">');
-        h += row('H', '<input type="number" data-prop="height" value="' + Math.round(el.height) + '">');
-        h += row('Visible', '<input type="checkbox" data-prop="visible" ' + (el.visible ? 'checked' : '') + '>');
-        if (el.type === 'button' || el.type === 'joystick') h += row('Event Key', '<input type="text" data-prop="eventKey" value="' + el.eventKey + '">');
-        if (el.type === 'button') { h += row('Label', '<input type="text" data-prop="eventLabel" value="' + el.eventLabel + '">'); h += row('Color', '<input type="color" data-prop="color" value="' + el.color + '">'); }
-        if (el.type === 'text') { h += row('Text', '<input type="text" data-prop="text" value="' + el.text + '">'); h += row('Size', '<input type="number" data-prop="fontSize" value="' + el.fontSize + '">'); }
-        h += '<div style="margin-top:8px;"><button id="ui-del-el" style="padding:5px 10px;background:#3a1515;border:1px solid #ff4a4a;border-radius:4px;color:#ff4a4a;font-size:11px;cursor:pointer;width:100%;">Delete</button></div>';
-        props.innerHTML = h;
-        props.querySelectorAll('[data-prop]').forEach(inp => {
-          const p = inp.dataset.prop;
-          inp.addEventListener('input', () => {
-            if (p === 'visible') el[p] = inp.checked;
-            else if (['x','y','width','height','fontSize'].includes(p)) el[p] = parseFloat(inp.value) || 0;
-            else el[p] = inp.value;
-            saveUIState(); this.renderElements();
-          });
-        });
-        const del = document.getElementById('ui-del-el');
-        if (del) del.addEventListener('click', () => { const pg = getActiveUIPage(); if (pg) { pg.elements = pg.elements.filter(e => e.id !== el.id); UI_STATE.selectedElementId = null; saveUIState(); this.renderElements(); this.renderProps(); } });
-      }
-    }
-
-    window.CodeHotUI = { getState: () => UI_STATE, getActivePage: () => getActiveUIPage(), getCanvasSize: () => getUICanvasSize(), save: saveUIState, load: loadUIState };
-
-
-      // V11: Initialize UI system
-      window.uiTemplateManager = new UITemplateManager(window.CodeHotUI);
-      window.uiTemplateManager.viewMode = 'collections';
-      const uiPanelManager = new UIPanelManager();
-      window.uiPanelManager = uiPanelManager;
-      window.CodeHotUIOverlay = new UIRuntimeOverlay();
-      window.CodeHotUI.inputEngine = window.CodeHotUIOverlay.inputEngine;
-      window.CodeHotUI.scriptAPI = createUIScriptAPI(window.CodeHotUIOverlay.inputEngine);
-
-      UIManager.renderAssets();
-      // syncAssetActions removed (was undefined in V10)
+      AssetsUIManager.renderAssets();
+      syncAssetActions();
     });
   
     })(); } catch (e) { console.error('[Shell] AssetsManagerModule failed to initialize:', e); }
 
-  </script>
+  
+    // ── V11 Keyboard Shortcuts ─────────────────────────────────
+    document.addEventListener('keydown', (e) => {
+      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+      
+      // Ctrl+Z / Cmd+Z = Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        CommandManager.undo();
+        EventBus.emit('ui:refresh');
+      }
+      // Ctrl+Shift+Z / Ctrl+Y / Cmd+Shift+Z = Redo
+      if (((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) ||
+          ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
+        e.preventDefault();
+        CommandManager.redo();
+        EventBus.emit('ui:refresh');
+      }
+    });
+    
+    // ── V11 Auto-Save ──────────────────────────────────────────
+    setInterval(() => {
+      if (typeof ProjectState !== 'undefined' && ProjectState._data) {
+        ProjectState._data.scenes[0].objects = SCENE_STATE.objects;
+        ProjectState._data.scenes[0].camera = window.CodeHotScene && typeof window.CodeHotScene.getCameraSaveData === 'function' ? window.CodeHotScene.getCameraSaveData() : null;
+        // Sync scripts from ScriptStore
+        try {
+          const raw = localStorage.getItem('codehot-script-bindings');
+          if (raw) ProjectState._data.scripts = JSON.parse(raw);
+        } catch(e) {}
+        // Sync animations
+        try {
+          const raw = localStorage.getItem('codehot-animation-state');
+          if (raw) ProjectState._data.animations = JSON.parse(raw);
+        } catch(e) {}
+        ProjectState.save();
+      }
+    }, 30000);
+    
+    // ── V11 Lifecycle Hooks ────────────────────────────────────
+    EventBus.on('scene:objectAdded', () => { ProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+    EventBus.on('scene:objectRemoved', () => { ProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+    EventBus.on('scene:objectRenamed', () => { ProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+    EventBus.on('scene:objectTransformed', () => { ProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+    EventBus.on('script:changed', (d) => { if (d && d.objectId) ProjectState._data.scripts[d.objectId] = d.code; });
+    
+</script>
 </body>
 </html>
