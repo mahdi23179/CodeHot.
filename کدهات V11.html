@@ -3646,6 +3646,7 @@
       window.CodeHotProjectState = ProjectState;
 
 ThemeManager.load();
+        ProjectState.init();
         switchTab('scene'); // default landing tab
 
         const splash = document.getElementById('splash');
@@ -3936,7 +3937,7 @@ ThemeManager.load();
           exportedAt: Date.now(),
           codehotVersion: 11,
           data: {
-            'codehot-project-v11': (typeof ProjectState !== 'undefined' && ProjectState._data) ? JSON.stringify(ProjectState._data) : null,
+            'codehot-project-v11': (typeof window.CodeHotProjectState !== 'undefined' && window.CodeHotProjectState._data) ? JSON.stringify(window.CodeHotProjectState._data) : null,
             'codehot-scene': localStorage.getItem(CONFIG.SCENE_KEY),
             'codehot-assets': localStorage.getItem(CONFIG.ASSETS_KEY),
             'codehot-script-bindings': localStorage.getItem('codehot-script-bindings'),
@@ -12111,7 +12112,7 @@ Rules:
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         window.CodeHotCommandManager.undo();
-        window.CodeHotwindow.CodeHotEventBus.emit('ui:refresh');
+        window.CodeHotEventBus.emit('ui:refresh');
       }
       // Ctrl+Shift+Z / Ctrl+Y / Cmd+Shift+Z = Redo
       if (((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) ||
@@ -12123,31 +12124,36 @@ Rules:
     });
     
     // ── V11 Auto-Save ──────────────────────────────────────────
-    setInterval(() => {
-      if (typeof ProjectState !== 'undefined' && ProjectState._data) {
-        window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects;
-        window.CodeHotProjectState._data.scenes[0].camera = window.CodeHotScene && typeof window.CodeHotScene.getCameraSaveData === 'function' ? window.CodeHotScene.getCameraSaveData() : null;
-        // Sync scripts from ScriptStore
-        try {
-          const raw = localStorage.getItem('codehot-script-bindings');
-          if (raw) window.CodeHotProjectState._data.scripts = JSON.parse(raw);
-        } catch(e) {}
-        // Sync animations
-        try {
-          const raw = localStorage.getItem('codehot-animation-state');
-          if (raw) window.CodeHotProjectState._data.animations = JSON.parse(raw);
-        } catch(e) {}
-        window.CodeHotProjectState.save();
+    // ── V11 Auto-Save & Lifecycle Hooks ───────────────────────
+    // These run after DOMContentLoaded because window.CodeHot*
+    // are set inside ShellModule's DOMContentLoaded handler.
+    document.addEventListener('DOMContentLoaded', function() {
+      setInterval(function() {
+        if (typeof window.CodeHotProjectState !== 'undefined' && window.CodeHotProjectState._data) {
+          window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects;
+          window.CodeHotProjectState._data.scenes[0].camera = window.CodeHotScene && typeof window.CodeHotScene.getCameraSaveData === 'function' ? window.CodeHotScene.getCameraSaveData() : null;
+          try {
+            var raw = localStorage.getItem('codehot-script-bindings');
+            if (raw) window.CodeHotProjectState._data.scripts = JSON.parse(raw);
+          } catch(e) {}
+          try {
+            var raw2 = localStorage.getItem('codehot-animation-state');
+            if (raw2) window.CodeHotProjectState._data.animations = JSON.parse(raw2);
+          } catch(e) {}
+          window.CodeHotProjectState.save();
+        }
+      }, 30000);
+
+      // Lifecycle Hooks — bind after EventBus is available
+      if (window.CodeHotEventBus) {
+        window.CodeHotEventBus.on('scene:objectAdded', function() { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+        window.CodeHotEventBus.on('scene:objectRemoved', function() { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+        window.CodeHotEventBus.on('scene:objectRenamed', function() { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+        window.CodeHotEventBus.on('scene:objectTransformed', function() { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+        window.CodeHotEventBus.on('script:changed', function(d) { if (d && d.objectId) window.CodeHotProjectState._data.scripts[d.objectId] = d.code; });
       }
-    }, 30000);
-    
-    // ── V11 Lifecycle Hooks ────────────────────────────────────
-    window.CodeHotEventBus.on('scene:objectAdded', () => { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
-    window.CodeHotEventBus.on('scene:objectRemoved', () => { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
-    window.CodeHotEventBus.on('scene:objectRenamed', () => { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
-    window.CodeHotEventBus.on('scene:objectTransformed', () => { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
-    window.CodeHotEventBus.on('script:changed', (d) => { if (d && d.objectId) window.CodeHotProjectState._data.scripts[d.objectId] = d.code; });
-    
+    });
+
 </script>
 </body>
 </html>
