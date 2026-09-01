@@ -3157,7 +3157,495 @@
         const language = readLanguage();
         showSplashTagline(language);
         buildTabBar(language);
-        ThemeManager.load();
+              // ══════════════════════════════════════════════════════════════
+      // V11 INFRASTRUCTURE: EventBus, SelectionBus, CommandManager,
+      // ThemeManager, Localization, ProjectState
+      // ══════════════════════════════════════════════════════════════
+
+      // ── EventBus ──────────────────────────────────────────────
+      // Central event bus for all inter-module communication.
+      // Panels subscribe/unsubscribe; events auto-cleanup on destroy.
+      const EventBus = {
+      _listeners: {},
+      on(event, fn) {
+      (this._listeners[event] = this._listeners[event] || []).push(fn);
+      return () => this.off(event, fn);
+      },
+      off(event, fn) {
+      const arr = this._listeners[event];
+      if (!arr) return;
+      const idx = arr.indexOf(fn);
+      if (idx >= 0) arr.splice(idx, 1);
+      },
+      emit(event, data) {
+      const arr = this._listeners[event];
+      if (!arr) return;
+      for (let i = 0; i < arr.length; i++) {
+      try { arr[i](data); } catch (e) { console.error(`[EventBus] Error in "${event}":`, e); }
+      }
+      },
+      // Also dispatch to DOM for backward compat
+      emitDOM(event, detail) {
+      this.emit(event, detail);
+      try { window.dispatchEvent(new CustomEvent(event, { detail: detail || {} })); } catch(e) {}
+      }
+      };
+
+      // ── SelectionBus ──────────────────────────────────────────
+      // Single source of truth for which object/asset/animation is selected.
+      // All panels read from here; changes propagate via EventBus.
+      const SelectionBus = {
+      _state: {
+      sceneObjectId: null,  // selected 3D object in scene
+      assetId: null,        // selected asset in asset panel
+      animationId: null,    // selected animation
+      scriptObjectId: null, // object whose script is being edited
+      },
+      get(key) { return this._state[key]; },
+      set(key, value) {
+      const old = this._state[key];
+      if (old === value) return;
+      this._state[key] = value;
+      EventBus.emit('selection:changed', { key, value, oldValue: old });
+      EventBus.emit('selection:' + key, { value, oldValue: old });
+      },
+      clear() {
+      const prev = { ...this._state };
+      this._state.sceneObjectId = null;
+      this._state.assetId = null;
+      this._state.animationId = null;
+      this._state.scriptObjectId = null;
+      EventBus.emit('selection:cleared', { previous: prev });
+      },
+      invalidateObject(id) {
+      if (this._state.sceneObjectId === id) this.set('sceneObjectId', null);
+      if (this._state.scriptObjectId === id) this.set('scriptObjectId', null);
+      }
+      };
+
+      // ── CommandManager (Undo/Redo) ────────────────────────────
+      // Command pattern: each action is a { execute, undo } pair.
+      // Max history capped to prevent memory bloat.
+      const CommandManager = {
+      _undoStack: [],
+      _redoStack: [],
+      _maxHistory: 100,
+      _batchMode: false,
+      _batchCommands: [],
+
+      execute(cmd) {
+      // cmd = { type, execute(), undo(), description }
+      if (this._batchMode) {
+      cmd.execute();
+      this._batchCommands.push(cmd);
+      return;
+      }
+      cmd.execute();
+      this._undoStack.push(cmd);
+      if (this._undoStack.length > this._maxHistory) {
+      this._undoStack.shift();
+      }
+      this._redoStack = [];
+      EventBus.emit('command:executed', { type: cmd.type, description: cmd.description });
+      EventBus.emit('state:changed');
+      },
+
+      undo() {
+      if (this._undoStack.length === 0) return false;
+      const cmd = this._undoStack.pop();
+      cmd.undo();
+      this._redoStack.push(cmd);
+      EventBus.emit('command:undone', { type: cmd.type, description: cmd.description });
+      EventBus.emit('state:changed');
+      return true;
+      },
+
+      redo() {
+      if (this._redoStack.length === 0) return false;
+      const cmd = this._redoStack.pop();
+      cmd.execute();
+      this._undoStack.push(cmd);
+      EventBus.emit('command:redone', { type: cmd.type, description: cmd.description });
+      EventBus.emit('state:changed');
+      return true;
+      },
+
+      startBatch() { this._batchMode = true; this._batchCommands = []; },
+      endBatch(description) {
+      this._batchMode = false;
+      const cmds = this._batchCommands;
+      this._batchCommands = [];
+      if (cmds.length === 0) return;
+      this._undoStack.push({
+      type: 'batch',
+      description: description || 'Batch operation',
+      execute() { cmds.forEach(c => c.execute()); },
+      undo() { for (let i = cmds.length - 1; i >= 0; i--) cmds[i].undo(); }
+      });
+      if (this._undoStack.length > this._maxHistory) this._undoStack.shift();
+      this._redoStack = [];
+      EventBus.emit('state:changed');
+      },
+
+      canUndo() { return this._undoStack.length > 0; },
+      canRedo() { return this._redoStack.length > 0; },
+      clear() { this._undoStack = []; this._redoStack = []; }
+      };
+
+      // ── Runtime State Machine ─────────────────────────────────
+      // Proper lifecycle: Editor → Starting → Running → Paused → Stopping → Editor
+      const RUNTIME_LIFECYCLE = Object.freeze({
+      EDITOR: 'editor',
+      STARTING: 'starting',
+      RUNNING: 'running',
+      PAUSED: 'paused',
+      STOPPING: 'stopping'
+      });
+
+      const RuntimeLifecycle = {
+      _state: RUNTIME_LIFECYCLE.EDITOR,
+      get state() { return this._state; },
+      get isPlaying() { return this._state === RUNTIME_LIFECYCLE.RUNNING || this._state === RUNTIME_LIFECYCLE.PAUSED; },
+      get isPaused() { return this._state === RUNTIME_LIFECYCLE.PAUSED; },
+      get canEdit() { return this._state === RUNTIME_LIFECYCLE.EDITOR; },
+
+      transition(newState) {
+      const old = this._state;
+      // Validate transition
+      const validTransitions = {
+      [RUNTIME_LIFECYCLE.EDITOR]: [RUNTIME_LIFECYCLE.STARTING],
+      [RUNTIME_LIFECYCLE.STARTING]: [RUNTIME_LIFECYCLE.RUNNING, RUNTIME_LIFECYCLE.EDITOR],
+      [RUNTIME_LIFECYCLE.RUNNING]: [RUNTIME_LIFECYCLE.PAUSED, RUNTIME_LIFECYCLE.STOPPING],
+      [RUNTIME_LIFECYCLE.PAUSED]: [RUNTIME_LIFECYCLE.RUNNING, RUNTIME_LIFECYCLE.STOPPING],
+      [RUNTIME_LIFECYCLE.STOPPING]: [RUNTIME_LIFECYCLE.EDITOR]
+      };
+      if (!validTransitions[old] || !validTransitions[old].includes(newState)) {
+      console.warn(`[RuntimeLifecycle] Invalid transition: ${old} → ${newState}`);
+      return false;
+      }
+      this._state = newState;
+      EventBus.emit('runtime:stateChanged', { from: old, to: newState });
+      return true;
+      },
+
+      reset() {
+      this._state = RUNTIME_LIFECYCLE.EDITOR;
+      }
+      };
+
+      // ── Theme Manager ─────────────────────────────────────────
+      // Centralized theme tokens with CSS custom properties.
+      const ThemeManager = {
+      _current: 'dark',
+      _themes: {
+      dark: {
+      bg: '#1e1e1e', panelBg: '#252526', panelBorder: '#3c3c3c',
+      buttonBg: '#0e639c', buttonText: '#ffffff', buttonHover: '#1177bb',
+      accent: '#007acc', accentHover: '#1a8ad4',
+      text: '#cccccc', textMuted: '#858585', textBright: '#e0e0e0',
+      inputBg: '#3c3c3c', inputBorder: '#555', inputText: '#e0e0e0',
+      selected: '#264f78', hover: '#2a2d2e',
+      error: '#f44336', warning: '#ff9800', success: '#4caf50', info: '#2196f3',
+      consoleBg: '#1e1e1e', tabBg: '#2d2d2d', tabActive: '#1e1e1e',
+      scrollThumb: '#424242', scrollTrack: '#1e1e1e',
+      },
+      light: {
+      bg: '#ffffff', panelBg: '#f3f3f3', panelBorder: '#d4d4d4',
+      buttonBg: '#007acc', buttonText: '#ffffff', buttonHover: '#005fa3',
+      accent: '#007acc', accentHover: '#005fa3',
+      text: '#333333', textMuted: '#888888', textBright: '#000000',
+      inputBg: '#ffffff', inputBorder: '#cccccc', inputText: '#333333',
+      selected: '#cde4f7', hover: '#e8e8e8',
+      error: '#d32f2f', warning: '#f57c00', success: '#388e3c', info: '#1976d2',
+      consoleBg: '#ffffff', tabBg: '#e0e0e0', tabActive: '#ffffff',
+      scrollThumb: '#c1c1c1', scrollTrack: '#f0f0f0',
+      }
+      },
+
+      apply(name) {
+      const t = this._themes[name] || this._themes.dark;
+      this._current = name;
+      const root = document.documentElement;
+      Object.entries(t).forEach(([key, val]) => {
+      root.style.setProperty('--ch-' + key, val);
+      });
+      root.setAttribute('data-theme', name);
+      EventBus.emit('theme:changed', { theme: name });
+      try { localStorage.setItem('codehot-theme', name); } catch(e) {}
+      },
+
+      get(key) {
+      return (this._themes[this._current] || this._themes.dark)[key];
+      },
+
+      getCurrent() { return this._current; },
+
+      load() {
+      try {
+      const saved = localStorage.getItem('codehot-theme');
+      if (saved && this._themes[saved]) this.apply(saved);
+      else this.apply('dark');
+      } catch(e) { this.apply('dark'); }
+      }
+      };
+
+      // ── ProjectState (Unified Save/Load) ──────────────────────
+      // Single source of truth for all project data.
+      // Replaces scattered localStorage reads/writes.
+      const STORAGE_KEYS = {
+      project: 'codehot-project-v11',
+      legacy_scene: 'codehot-scene',
+      legacy_assets: 'codehot-assets',
+      legacy_scripts: 'codehot-script-bindings',
+      legacy_animation: 'codehot-animation-state',
+      legacy_console: 'codehot-console-logs',
+      legacy_settings: 'codehot-settings',
+      legacy_ai: 'codehot-ai-conversation',
+      legacy_ai_queue: 'codehot-ai-queue',
+      legacy_asset_groups: 'codehot-asset-groups',
+      theme: 'codehot-theme',
+      };
+
+      const ProjectState = {
+      _data: null,
+
+      getDefault() {
+      return {
+      version: 11,
+      timestamp: Date.now(),
+      cleanExit: true,
+      settings: { language: 'fa', theme: 'dark' },
+      scenes: [{ id: 'default', name: 'Scene 1', objects: [], camera: null }],
+      activeSceneId: 'default',
+      assets: [],
+      assetGroups: [],
+      scripts: {},       // objectId → script code
+      animations: [],    // animation records
+      consoleLogs: [],
+      aiConversation: null,
+      uiState: null,     // future UI pages
+      };
+      },
+
+      init() {
+      // Try loading V11 format first
+      let data = null;
+      try {
+      const raw = localStorage.getItem(STORAGE_KEYS.project);
+      if (raw) data = JSON.parse(raw);
+      } catch(e) {}
+
+      if (!data || data.version !== 11) {
+      // Migrate from legacy keys
+      data = this.migrateFromLegacy();
+      }
+
+      this._data = data;
+      return this._data;
+      },
+
+      migrateFromLegacy() {
+      const data = this.getDefault();
+      try {
+      // Scene
+      const sceneRaw = localStorage.getItem(STORAGE_KEYS.legacy_scene);
+      if (sceneRaw) {
+      const scene = JSON.parse(sceneRaw);
+      if (scene.objects) data.scenes[0].objects = scene.objects;
+      if (scene.camera) data.scenes[0].camera = scene.camera;
+      }
+      // Assets
+      const assetsRaw = localStorage.getItem(STORAGE_KEYS.legacy_assets);
+      if (assetsRaw) {
+      const assets = JSON.parse(assetsRaw);
+      if (Array.isArray(assets)) data.assets = assets;
+      }
+      // Scripts
+      const scriptsRaw = localStorage.getItem(STORAGE_KEYS.legacy_scripts);
+      if (scriptsRaw) {
+      const scripts = JSON.parse(scriptsRaw);
+      if (typeof scripts === 'object' && scripts !== null) data.scripts = scripts;
+      }
+      // Animations
+      const animRaw = localStorage.getItem(STORAGE_KEYS.legacy_animation);
+      if (animRaw) {
+      const anims = JSON.parse(animRaw);
+      if (Array.isArray(anims)) data.animations = anims;
+      }
+      // Settings
+      const settingsRaw = localStorage.getItem(STORAGE_KEYS.legacy_settings);
+      if (settingsRaw) {
+      const settings = JSON.parse(settingsRaw);
+      if (settings) Object.assign(data.settings, settings);
+      }
+      // Asset groups
+      const groupsRaw = localStorage.getItem(STORAGE_KEYS.legacy_asset_groups);
+      if (groupsRaw) {
+      const groups = JSON.parse(groupsRaw);
+      if (Array.isArray(groups)) data.assetGroups = groups;
+      }
+      } catch(e) {
+      console.warn('[ProjectState] Migration error:', e);
+      }
+      return data;
+      },
+
+      get() { return this._data || this.getDefault(); },
+
+      getScene(id) {
+      const sid = id || this._data.activeSceneId;
+      return this._data.scenes.find(s => s.id === sid) || this._data.scenes[0];
+      },
+
+      getActiveScene() { return this.getScene(); },
+
+      save() {
+      if (!this._data) return;
+      this._data.timestamp = Date.now();
+      this._data.cleanExit = false;
+      try {
+      localStorage.setItem(STORAGE_KEYS.project, JSON.stringify(this._data));
+      // Also save to legacy keys for backward compatibility
+      this.syncToLegacy();
+      } catch(e) {
+      console.error('[ProjectState] Save error:', e);
+      }
+      },
+
+      syncToLegacy() {
+      const scene = this.getActiveScene();
+      try {
+      localStorage.setItem(STORAGE_KEYS.legacy_scene, JSON.stringify({
+      version: 2, timestamp: Date.now(), cleanExit: true,
+      objects: scene.objects, camera: scene.camera
+      }));
+      localStorage.setItem(STORAGE_KEYS.legacy_assets, JSON.stringify(this._data.assets));
+      localStorage.setItem(STORAGE_KEYS.legacy_scripts, JSON.stringify(this._data.scripts));
+      localStorage.setItem(STORAGE_KEYS.legacy_animation, JSON.stringify(this._data.animations));
+      } catch(e) {}
+      },
+
+      markClean() {
+      if (!this._data) return;
+      this._data.cleanExit = true;
+      this.save();
+      },
+
+      // Object operations (all go through CommandManager for undo/redo)
+      addObject(objData) {
+      const scene = this.getActiveScene();
+      const cmd = {
+      type: 'addObject',
+      description: 'Add ' + (objData.name || objData.type),
+      execute: () => {
+      scene.objects.push(objData);
+      EventBus.emit('scene:objectAdded', { object: objData });
+      EventBus.emit('state:changed');
+      },
+      undo: () => {
+      const idx = scene.objects.findIndex(o => o.id === objData.id);
+      if (idx >= 0) scene.objects.splice(idx, 1);
+      SelectionBus.invalidateObject(objData.id);
+      EventBus.emit('scene:objectRemoved', { id: objData.id });
+      EventBus.emit('state:changed');
+      }
+      };
+      CommandManager.execute(cmd);
+      },
+
+      removeObject(id) {
+      const scene = this.getActiveScene();
+      const obj = scene.objects.find(o => o.id === id);
+      if (!obj) return;
+      const objCopy = JSON.parse(JSON.stringify(obj));
+      const cmd = {
+      type: 'removeObject',
+      description: 'Delete ' + obj.name,
+      execute: () => {
+      const idx = scene.objects.findIndex(o => o.id === id);
+      if (idx >= 0) scene.objects.splice(idx, 1);
+      SelectionBus.invalidateObject(id);
+      EventBus.emit('scene:objectRemoved', { id });
+      EventBus.emit('state:changed');
+      },
+      undo: () => {
+      scene.objects.push(objCopy);
+      EventBus.emit('scene:objectAdded', { object: objCopy });
+      EventBus.emit('state:changed');
+      }
+      };
+      CommandManager.execute(cmd);
+      },
+
+      renameObject(id, newName) {
+      const scene = this.getActiveScene();
+      const obj = scene.objects.find(o => o.id === id);
+      if (!obj) return;
+      const oldName = obj.name;
+      const cmd = {
+      type: 'renameObject',
+      description: 'Rename ' + oldName + ' → ' + newName,
+      execute: () => {
+      obj.name = newName;
+      EventBus.emit('scene:objectRenamed', { id, name: newName });
+      EventBus.emit('state:changed');
+      },
+      undo: () => {
+      obj.name = oldName;
+      EventBus.emit('scene:objectRenamed', { id, name: oldName });
+      EventBus.emit('state:changed');
+      }
+      };
+      CommandManager.execute(cmd);
+      },
+
+      updateObjectTransform(id, prop, value) {
+      const scene = this.getActiveScene();
+      const obj = scene.objects.find(o => o.id === id);
+      if (!obj) return;
+      const parts = prop.split('.');
+      let target = obj;
+      for (let i = 0; i < parts.length - 1; i++) target = target[parts[i]];
+      const key = parts[parts.length - 1];
+      const oldValue = target[key];
+      const cmd = {
+      type: 'transform',
+      description: 'Transform ' + obj.name,
+      execute: () => { target[key] = value; EventBus.emit('scene:objectTransformed', { id }); EventBus.emit('state:changed'); },
+      undo: () => { target[key] = oldValue; EventBus.emit('scene:objectTransformed', { id }); EventBus.emit('state:changed'); }
+      };
+      CommandManager.execute(cmd);
+      },
+
+      // Script operations
+      setScript(objectId, code) {
+      const scripts = this._data.scripts;
+      const oldCode = scripts[objectId] || '';
+      const cmd = {
+      type: 'setScript',
+      description: 'Edit script for ' + objectId,
+      execute: () => { scripts[objectId] = code; EventBus.emit('script:changed', { objectId, code }); EventBus.emit('state:changed'); },
+      undo: () => { if (oldCode) scripts[objectId] = oldCode; else delete scripts[objectId]; EventBus.emit('script:changed', { objectId, code: oldCode }); EventBus.emit('state:changed'); }
+      };
+      CommandManager.execute(cmd);
+      },
+
+      getScript(objectId) {
+      return this._data.scripts[objectId] || '';
+      }
+      };
+
+
+
+      // Expose infrastructure to all IIFE modules via window
+      window.CodeHotEventBus = EventBus;
+      window.CodeHotSelectionBus = SelectionBus;
+      window.CodeHotCommandManager = CommandManager;
+      window.CodeHotRuntimeLifecycle = RuntimeLifecycle;
+      window.CodeHotThemeManager = ThemeManager;
+      window.CodeHotProjectState = ProjectState;
+
+ThemeManager.load();
         switchTab('scene'); // default landing tab
 
         const splash = document.getElementById('splash');
@@ -3371,484 +3859,6 @@
     // part of the persisted schema, so it isn't in DEFAULT_SETTINGS.
     let UI_STATE = {
       collapsedSections: new Set()
-    };
-
-    // ══════════════════════════════════════════════════════════════
-    // V11 INFRASTRUCTURE: EventBus, SelectionBus, CommandManager,
-    // ThemeManager, Localization, ProjectState
-    // ══════════════════════════════════════════════════════════════
-
-    // ── EventBus ──────────────────────────────────────────────
-    // Central event bus for all inter-module communication.
-    // Panels subscribe/unsubscribe; events auto-cleanup on destroy.
-    const EventBus = {
-      _listeners: {},
-      on(event, fn) {
-        (this._listeners[event] = this._listeners[event] || []).push(fn);
-        return () => this.off(event, fn);
-      },
-      off(event, fn) {
-        const arr = this._listeners[event];
-        if (!arr) return;
-        const idx = arr.indexOf(fn);
-        if (idx >= 0) arr.splice(idx, 1);
-      },
-      emit(event, data) {
-        const arr = this._listeners[event];
-        if (!arr) return;
-        for (let i = 0; i < arr.length; i++) {
-          try { arr[i](data); } catch (e) { console.error(`[EventBus] Error in "${event}":`, e); }
-        }
-      },
-      // Also dispatch to DOM for backward compat
-      emitDOM(event, detail) {
-        this.emit(event, detail);
-        try { window.dispatchEvent(new CustomEvent(event, { detail: detail || {} })); } catch(e) {}
-      }
-    };
-
-    // ── SelectionBus ──────────────────────────────────────────
-    // Single source of truth for which object/asset/animation is selected.
-    // All panels read from here; changes propagate via EventBus.
-    const SelectionBus = {
-      _state: {
-        sceneObjectId: null,  // selected 3D object in scene
-        assetId: null,        // selected asset in asset panel
-        animationId: null,    // selected animation
-        scriptObjectId: null, // object whose script is being edited
-      },
-      get(key) { return this._state[key]; },
-      set(key, value) {
-        const old = this._state[key];
-        if (old === value) return;
-        this._state[key] = value;
-        EventBus.emit('selection:changed', { key, value, oldValue: old });
-        EventBus.emit('selection:' + key, { value, oldValue: old });
-      },
-      clear() {
-        const prev = { ...this._state };
-        this._state.sceneObjectId = null;
-        this._state.assetId = null;
-        this._state.animationId = null;
-        this._state.scriptObjectId = null;
-        EventBus.emit('selection:cleared', { previous: prev });
-      },
-      invalidateObject(id) {
-        if (this._state.sceneObjectId === id) this.set('sceneObjectId', null);
-        if (this._state.scriptObjectId === id) this.set('scriptObjectId', null);
-      }
-    };
-
-    // ── CommandManager (Undo/Redo) ────────────────────────────
-    // Command pattern: each action is a { execute, undo } pair.
-    // Max history capped to prevent memory bloat.
-    const CommandManager = {
-      _undoStack: [],
-      _redoStack: [],
-      _maxHistory: 100,
-      _batchMode: false,
-      _batchCommands: [],
-
-      execute(cmd) {
-        // cmd = { type, execute(), undo(), description }
-        if (this._batchMode) {
-          cmd.execute();
-          this._batchCommands.push(cmd);
-          return;
-        }
-        cmd.execute();
-        this._undoStack.push(cmd);
-        if (this._undoStack.length > this._maxHistory) {
-          this._undoStack.shift();
-        }
-        this._redoStack = [];
-        EventBus.emit('command:executed', { type: cmd.type, description: cmd.description });
-        EventBus.emit('state:changed');
-      },
-
-      undo() {
-        if (this._undoStack.length === 0) return false;
-        const cmd = this._undoStack.pop();
-        cmd.undo();
-        this._redoStack.push(cmd);
-        EventBus.emit('command:undone', { type: cmd.type, description: cmd.description });
-        EventBus.emit('state:changed');
-        return true;
-      },
-
-      redo() {
-        if (this._redoStack.length === 0) return false;
-        const cmd = this._redoStack.pop();
-        cmd.execute();
-        this._undoStack.push(cmd);
-        EventBus.emit('command:redone', { type: cmd.type, description: cmd.description });
-        EventBus.emit('state:changed');
-        return true;
-      },
-
-      startBatch() { this._batchMode = true; this._batchCommands = []; },
-      endBatch(description) {
-        this._batchMode = false;
-        const cmds = this._batchCommands;
-        this._batchCommands = [];
-        if (cmds.length === 0) return;
-        this._undoStack.push({
-          type: 'batch',
-          description: description || 'Batch operation',
-          execute() { cmds.forEach(c => c.execute()); },
-          undo() { for (let i = cmds.length - 1; i >= 0; i--) cmds[i].undo(); }
-        });
-        if (this._undoStack.length > this._maxHistory) this._undoStack.shift();
-        this._redoStack = [];
-        EventBus.emit('state:changed');
-      },
-
-      canUndo() { return this._undoStack.length > 0; },
-      canRedo() { return this._redoStack.length > 0; },
-      clear() { this._undoStack = []; this._redoStack = []; }
-    };
-
-    // ── Runtime State Machine ─────────────────────────────────
-    // Proper lifecycle: Editor → Starting → Running → Paused → Stopping → Editor
-    const RUNTIME_LIFECYCLE = Object.freeze({
-      EDITOR: 'editor',
-      STARTING: 'starting',
-      RUNNING: 'running',
-      PAUSED: 'paused',
-      STOPPING: 'stopping'
-    });
-
-    const RuntimeLifecycle = {
-      _state: RUNTIME_LIFECYCLE.EDITOR,
-      get state() { return this._state; },
-      get isPlaying() { return this._state === RUNTIME_LIFECYCLE.RUNNING || this._state === RUNTIME_LIFECYCLE.PAUSED; },
-      get isPaused() { return this._state === RUNTIME_LIFECYCLE.PAUSED; },
-      get canEdit() { return this._state === RUNTIME_LIFECYCLE.EDITOR; },
-
-      transition(newState) {
-        const old = this._state;
-        // Validate transition
-        const validTransitions = {
-          [RUNTIME_LIFECYCLE.EDITOR]: [RUNTIME_LIFECYCLE.STARTING],
-          [RUNTIME_LIFECYCLE.STARTING]: [RUNTIME_LIFECYCLE.RUNNING, RUNTIME_LIFECYCLE.EDITOR],
-          [RUNTIME_LIFECYCLE.RUNNING]: [RUNTIME_LIFECYCLE.PAUSED, RUNTIME_LIFECYCLE.STOPPING],
-          [RUNTIME_LIFECYCLE.PAUSED]: [RUNTIME_LIFECYCLE.RUNNING, RUNTIME_LIFECYCLE.STOPPING],
-          [RUNTIME_LIFECYCLE.STOPPING]: [RUNTIME_LIFECYCLE.EDITOR]
-        };
-        if (!validTransitions[old] || !validTransitions[old].includes(newState)) {
-          console.warn(`[RuntimeLifecycle] Invalid transition: ${old} → ${newState}`);
-          return false;
-        }
-        this._state = newState;
-        EventBus.emit('runtime:stateChanged', { from: old, to: newState });
-        return true;
-      },
-
-      reset() {
-        this._state = RUNTIME_LIFECYCLE.EDITOR;
-      }
-    };
-
-    // ── Theme Manager ─────────────────────────────────────────
-    // Centralized theme tokens with CSS custom properties.
-    const ThemeManager = {
-      _current: 'dark',
-      _themes: {
-        dark: {
-          bg: '#1e1e1e', panelBg: '#252526', panelBorder: '#3c3c3c',
-          buttonBg: '#0e639c', buttonText: '#ffffff', buttonHover: '#1177bb',
-          accent: '#007acc', accentHover: '#1a8ad4',
-          text: '#cccccc', textMuted: '#858585', textBright: '#e0e0e0',
-          inputBg: '#3c3c3c', inputBorder: '#555', inputText: '#e0e0e0',
-          selected: '#264f78', hover: '#2a2d2e',
-          error: '#f44336', warning: '#ff9800', success: '#4caf50', info: '#2196f3',
-          consoleBg: '#1e1e1e', tabBg: '#2d2d2d', tabActive: '#1e1e1e',
-          scrollThumb: '#424242', scrollTrack: '#1e1e1e',
-        },
-        light: {
-          bg: '#ffffff', panelBg: '#f3f3f3', panelBorder: '#d4d4d4',
-          buttonBg: '#007acc', buttonText: '#ffffff', buttonHover: '#005fa3',
-          accent: '#007acc', accentHover: '#005fa3',
-          text: '#333333', textMuted: '#888888', textBright: '#000000',
-          inputBg: '#ffffff', inputBorder: '#cccccc', inputText: '#333333',
-          selected: '#cde4f7', hover: '#e8e8e8',
-          error: '#d32f2f', warning: '#f57c00', success: '#388e3c', info: '#1976d2',
-          consoleBg: '#ffffff', tabBg: '#e0e0e0', tabActive: '#ffffff',
-          scrollThumb: '#c1c1c1', scrollTrack: '#f0f0f0',
-        }
-      },
-
-      apply(name) {
-        const t = this._themes[name] || this._themes.dark;
-        this._current = name;
-        const root = document.documentElement;
-        Object.entries(t).forEach(([key, val]) => {
-          root.style.setProperty('--ch-' + key, val);
-        });
-        root.setAttribute('data-theme', name);
-        EventBus.emit('theme:changed', { theme: name });
-        try { localStorage.setItem('codehot-theme', name); } catch(e) {}
-      },
-
-      get(key) {
-        return (this._themes[this._current] || this._themes.dark)[key];
-      },
-
-      getCurrent() { return this._current; },
-
-      load() {
-        try {
-          const saved = localStorage.getItem('codehot-theme');
-          if (saved && this._themes[saved]) this.apply(saved);
-          else this.apply('dark');
-        } catch(e) { this.apply('dark'); }
-      }
-    };
-
-    // ── ProjectState (Unified Save/Load) ──────────────────────
-    // Single source of truth for all project data.
-    // Replaces scattered localStorage reads/writes.
-    const STORAGE_KEYS = {
-      project: 'codehot-project-v11',
-      legacy_scene: 'codehot-scene',
-      legacy_assets: 'codehot-assets',
-      legacy_scripts: 'codehot-script-bindings',
-      legacy_animation: 'codehot-animation-state',
-      legacy_console: 'codehot-console-logs',
-      legacy_settings: 'codehot-settings',
-      legacy_ai: 'codehot-ai-conversation',
-      legacy_ai_queue: 'codehot-ai-queue',
-      legacy_asset_groups: 'codehot-asset-groups',
-      theme: 'codehot-theme',
-    };
-
-    const ProjectState = {
-      _data: null,
-
-      getDefault() {
-        return {
-          version: 11,
-          timestamp: Date.now(),
-          cleanExit: true,
-          settings: { language: 'fa', theme: 'dark' },
-          scenes: [{ id: 'default', name: 'Scene 1', objects: [], camera: null }],
-          activeSceneId: 'default',
-          assets: [],
-          assetGroups: [],
-          scripts: {},       // objectId → script code
-          animations: [],    // animation records
-          consoleLogs: [],
-          aiConversation: null,
-          uiState: null,     // future UI pages
-        };
-      },
-
-      init() {
-        // Try loading V11 format first
-        let data = null;
-        try {
-          const raw = localStorage.getItem(STORAGE_KEYS.project);
-          if (raw) data = JSON.parse(raw);
-        } catch(e) {}
-
-        if (!data || data.version !== 11) {
-          // Migrate from legacy keys
-          data = this.migrateFromLegacy();
-        }
-
-        this._data = data;
-        return this._data;
-      },
-
-      migrateFromLegacy() {
-        const data = this.getDefault();
-        try {
-          // Scene
-          const sceneRaw = localStorage.getItem(STORAGE_KEYS.legacy_scene);
-          if (sceneRaw) {
-            const scene = JSON.parse(sceneRaw);
-            if (scene.objects) data.scenes[0].objects = scene.objects;
-            if (scene.camera) data.scenes[0].camera = scene.camera;
-          }
-          // Assets
-          const assetsRaw = localStorage.getItem(STORAGE_KEYS.legacy_assets);
-          if (assetsRaw) {
-            const assets = JSON.parse(assetsRaw);
-            if (Array.isArray(assets)) data.assets = assets;
-          }
-          // Scripts
-          const scriptsRaw = localStorage.getItem(STORAGE_KEYS.legacy_scripts);
-          if (scriptsRaw) {
-            const scripts = JSON.parse(scriptsRaw);
-            if (typeof scripts === 'object' && scripts !== null) data.scripts = scripts;
-          }
-          // Animations
-          const animRaw = localStorage.getItem(STORAGE_KEYS.legacy_animation);
-          if (animRaw) {
-            const anims = JSON.parse(animRaw);
-            if (Array.isArray(anims)) data.animations = anims;
-          }
-          // Settings
-          const settingsRaw = localStorage.getItem(STORAGE_KEYS.legacy_settings);
-          if (settingsRaw) {
-            const settings = JSON.parse(settingsRaw);
-            if (settings) Object.assign(data.settings, settings);
-          }
-          // Asset groups
-          const groupsRaw = localStorage.getItem(STORAGE_KEYS.legacy_asset_groups);
-          if (groupsRaw) {
-            const groups = JSON.parse(groupsRaw);
-            if (Array.isArray(groups)) data.assetGroups = groups;
-          }
-        } catch(e) {
-          console.warn('[ProjectState] Migration error:', e);
-        }
-        return data;
-      },
-
-      get() { return this._data || this.getDefault(); },
-
-      getScene(id) {
-        const sid = id || this._data.activeSceneId;
-        return this._data.scenes.find(s => s.id === sid) || this._data.scenes[0];
-      },
-
-      getActiveScene() { return this.getScene(); },
-
-      save() {
-        if (!this._data) return;
-        this._data.timestamp = Date.now();
-        this._data.cleanExit = false;
-        try {
-          localStorage.setItem(STORAGE_KEYS.project, JSON.stringify(this._data));
-          // Also save to legacy keys for backward compatibility
-          this.syncToLegacy();
-        } catch(e) {
-          console.error('[ProjectState] Save error:', e);
-        }
-      },
-
-      syncToLegacy() {
-        const scene = this.getActiveScene();
-        try {
-          localStorage.setItem(STORAGE_KEYS.legacy_scene, JSON.stringify({
-            version: 2, timestamp: Date.now(), cleanExit: true,
-            objects: scene.objects, camera: scene.camera
-          }));
-          localStorage.setItem(STORAGE_KEYS.legacy_assets, JSON.stringify(this._data.assets));
-          localStorage.setItem(STORAGE_KEYS.legacy_scripts, JSON.stringify(this._data.scripts));
-          localStorage.setItem(STORAGE_KEYS.legacy_animation, JSON.stringify(this._data.animations));
-        } catch(e) {}
-      },
-
-      markClean() {
-        if (!this._data) return;
-        this._data.cleanExit = true;
-        this.save();
-      },
-
-      // Object operations (all go through CommandManager for undo/redo)
-      addObject(objData) {
-        const scene = this.getActiveScene();
-        const cmd = {
-          type: 'addObject',
-          description: 'Add ' + (objData.name || objData.type),
-          execute: () => {
-            scene.objects.push(objData);
-            EventBus.emit('scene:objectAdded', { object: objData });
-            EventBus.emit('state:changed');
-          },
-          undo: () => {
-            const idx = scene.objects.findIndex(o => o.id === objData.id);
-            if (idx >= 0) scene.objects.splice(idx, 1);
-            SelectionBus.invalidateObject(objData.id);
-            EventBus.emit('scene:objectRemoved', { id: objData.id });
-            EventBus.emit('state:changed');
-          }
-        };
-        CommandManager.execute(cmd);
-      },
-
-      removeObject(id) {
-        const scene = this.getActiveScene();
-        const obj = scene.objects.find(o => o.id === id);
-        if (!obj) return;
-        const objCopy = JSON.parse(JSON.stringify(obj));
-        const cmd = {
-          type: 'removeObject',
-          description: 'Delete ' + obj.name,
-          execute: () => {
-            const idx = scene.objects.findIndex(o => o.id === id);
-            if (idx >= 0) scene.objects.splice(idx, 1);
-            SelectionBus.invalidateObject(id);
-            EventBus.emit('scene:objectRemoved', { id });
-            EventBus.emit('state:changed');
-          },
-          undo: () => {
-            scene.objects.push(objCopy);
-            EventBus.emit('scene:objectAdded', { object: objCopy });
-            EventBus.emit('state:changed');
-          }
-        };
-        CommandManager.execute(cmd);
-      },
-
-      renameObject(id, newName) {
-        const scene = this.getActiveScene();
-        const obj = scene.objects.find(o => o.id === id);
-        if (!obj) return;
-        const oldName = obj.name;
-        const cmd = {
-          type: 'renameObject',
-          description: 'Rename ' + oldName + ' → ' + newName,
-          execute: () => {
-            obj.name = newName;
-            EventBus.emit('scene:objectRenamed', { id, name: newName });
-            EventBus.emit('state:changed');
-          },
-          undo: () => {
-            obj.name = oldName;
-            EventBus.emit('scene:objectRenamed', { id, name: oldName });
-            EventBus.emit('state:changed');
-          }
-        };
-        CommandManager.execute(cmd);
-      },
-
-      updateObjectTransform(id, prop, value) {
-        const scene = this.getActiveScene();
-        const obj = scene.objects.find(o => o.id === id);
-        if (!obj) return;
-        const parts = prop.split('.');
-        let target = obj;
-        for (let i = 0; i < parts.length - 1; i++) target = target[parts[i]];
-        const key = parts[parts.length - 1];
-        const oldValue = target[key];
-        const cmd = {
-          type: 'transform',
-          description: 'Transform ' + obj.name,
-          execute: () => { target[key] = value; EventBus.emit('scene:objectTransformed', { id }); EventBus.emit('state:changed'); },
-          undo: () => { target[key] = oldValue; EventBus.emit('scene:objectTransformed', { id }); EventBus.emit('state:changed'); }
-        };
-        CommandManager.execute(cmd);
-      },
-
-      // Script operations
-      setScript(objectId, code) {
-        const scripts = this._data.scripts;
-        const oldCode = scripts[objectId] || '';
-        const cmd = {
-          type: 'setScript',
-          description: 'Edit script for ' + objectId,
-          execute: () => { scripts[objectId] = code; EventBus.emit('script:changed', { objectId, code }); EventBus.emit('state:changed'); },
-          undo: () => { if (oldCode) scripts[objectId] = oldCode; else delete scripts[objectId]; EventBus.emit('script:changed', { objectId, code: oldCode }); EventBus.emit('state:changed'); }
-        };
-        CommandManager.execute(cmd);
-      },
-
-      getScript(objectId) {
-        return this._data.scripts[objectId] || '';
-      }
     };
 
     class SettingsManager {
