@@ -3980,8 +3980,8 @@ ThemeManager.load();
           });
 
           // V11: restore ProjectState if present
-          if (parsed.data['codehot-project-v11'] && typeof ProjectState !== 'undefined') {
-            try { ProjectState._data = JSON.parse(parsed.data['codehot-project-v11']); } catch(e) {}
+          if (parsed.data['codehot-project-v11'] && typeof window.CodeHotProjectState !== 'undefined') {
+            try { window.CodeHotProjectState._data = JSON.parse(parsed.data['codehot-project-v11']); } catch(e) {}
           }
           SettingsManager.load();
           onDone(true, null);
@@ -4465,8 +4465,8 @@ ThemeManager.load();
         try {
           // V11: prefer ProjectState, fallback to localStorage
         let raw = null;
-        if (typeof ProjectState !== 'undefined' && ProjectState._data && Object.keys(ProjectState._data.scripts || {}).length > 0) {
-          return JSON.parse(JSON.stringify(ProjectState._data.scripts));
+        if (typeof window.CodeHotProjectState !== 'undefined' && window.CodeHotProjectState._data && Object.keys(window.CodeHotProjectState._data.scripts || {}).length > 0) {
+          return JSON.parse(JSON.stringify(window.CodeHotProjectState._data.scripts));
         }
         raw = localStorage.getItem(SCRIPT_STORAGE_KEY);
           const parsed = raw ? JSON.parse(raw) : {};
@@ -4479,8 +4479,8 @@ ThemeManager.load();
       static saveAll(bindings) {
         try {
           // V11: delegate to ProjectState for unified save
-        if (typeof ProjectState !== 'undefined' && ProjectState._data) {
-          ProjectState._data.scripts = bindings;
+        if (typeof window.CodeHotProjectState !== 'undefined' && window.CodeHotProjectState._data) {
+          window.CodeHotProjectState._data.scripts = bindings;
         }
         try { localStorage.setItem(SCRIPT_STORAGE_KEY, JSON.stringify(bindings)); } catch(e) {}
           return true;
@@ -7287,11 +7287,11 @@ ThemeManager.load();
           camera: this.getCameraSaveData()
         };
         // V11: also save to ProjectState
-        if (typeof ProjectState !== 'undefined' && ProjectState._data) {
-          const scene = ProjectState.getActiveScene();
+        if (typeof window.CodeHotProjectState !== 'undefined' && window.CodeHotProjectState._data) {
+          const scene = window.CodeHotProjectState.getActiveScene();
           scene.objects = SCENE_STATE.objects;
           scene.camera = this.getCameraSaveData();
-          ProjectState._data.scenes[0] = scene;
+          window.CodeHotProjectState._data.scenes[0] = scene;
         }
         try { localStorage.setItem('codehot-scene', JSON.stringify(saveData)); } catch(e) {}
         this.showSavingIndicator();
@@ -7969,14 +7969,14 @@ ThemeManager.load();
 
       start(options = {}) {
         if (RUNTIME_STATE.isPlaying) return false;
-        RuntimeLifecycle.transition('starting');
+        window.CodeHotRuntimeLifecycle.transition('starting');
         const onlyId = options && options.onlyId ? options.onlyId : null;
 
         RUNTIME_STATE.sceneSnapshot = this.cloneEditorScene();
         RUNTIME_STATE.cameraSnapshot = this.cloneEditorCamera();
         RUNTIME_STATE.selectedIdSnapshot = SCENE_STATE.selectedId;
         RUNTIME_STATE.isPlaying = true;
-        RuntimeLifecycle.transition('running');
+        window.CodeHotRuntimeLifecycle.transition('running');
         RUNTIME_STATE.elapsedTime = 0;
         RUNTIME_STATE.deltaTime = 0;
         RUNTIME_STATE.frame = 0;
@@ -8022,11 +8022,11 @@ ThemeManager.load();
 
       stop() {
         if (!RUNTIME_STATE.isPlaying) return false;
-        RuntimeLifecycle.transition('stopping');
+        window.CodeHotRuntimeLifecycle.transition('stopping');
 
         this.runLifecycle('stop');
         RUNTIME_STATE.isPlaying = false;
-        RuntimeLifecycle.transition('editor');
+        window.CodeHotRuntimeLifecycle.transition('editor');
         RUNTIME_STATE.elapsedTime = 0;
         RUNTIME_STATE.deltaTime = 0;
         RUNTIME_STATE.frame = 0;
@@ -12110,43 +12110,43 @@ Rules:
       // Ctrl+Z / Cmd+Z = Undo
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
-        CommandManager.undo();
-        EventBus.emit('ui:refresh');
+        window.CodeHotCommandManager.undo();
+        window.CodeHotwindow.CodeHotEventBus.emit('ui:refresh');
       }
       // Ctrl+Shift+Z / Ctrl+Y / Cmd+Shift+Z = Redo
       if (((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) ||
           ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
         e.preventDefault();
-        CommandManager.redo();
-        EventBus.emit('ui:refresh');
+        window.CodeHotCommandManager.redo();
+        window.CodeHotEventBus.emit('ui:refresh');
       }
     });
     
     // ── V11 Auto-Save ──────────────────────────────────────────
     setInterval(() => {
       if (typeof ProjectState !== 'undefined' && ProjectState._data) {
-        ProjectState._data.scenes[0].objects = SCENE_STATE.objects;
-        ProjectState._data.scenes[0].camera = window.CodeHotScene && typeof window.CodeHotScene.getCameraSaveData === 'function' ? window.CodeHotScene.getCameraSaveData() : null;
+        window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects;
+        window.CodeHotProjectState._data.scenes[0].camera = window.CodeHotScene && typeof window.CodeHotScene.getCameraSaveData === 'function' ? window.CodeHotScene.getCameraSaveData() : null;
         // Sync scripts from ScriptStore
         try {
           const raw = localStorage.getItem('codehot-script-bindings');
-          if (raw) ProjectState._data.scripts = JSON.parse(raw);
+          if (raw) window.CodeHotProjectState._data.scripts = JSON.parse(raw);
         } catch(e) {}
         // Sync animations
         try {
           const raw = localStorage.getItem('codehot-animation-state');
-          if (raw) ProjectState._data.animations = JSON.parse(raw);
+          if (raw) window.CodeHotProjectState._data.animations = JSON.parse(raw);
         } catch(e) {}
-        ProjectState.save();
+        window.CodeHotProjectState.save();
       }
     }, 30000);
     
     // ── V11 Lifecycle Hooks ────────────────────────────────────
-    EventBus.on('scene:objectAdded', () => { ProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
-    EventBus.on('scene:objectRemoved', () => { ProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
-    EventBus.on('scene:objectRenamed', () => { ProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
-    EventBus.on('scene:objectTransformed', () => { ProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
-    EventBus.on('script:changed', (d) => { if (d && d.objectId) ProjectState._data.scripts[d.objectId] = d.code; });
+    window.CodeHotEventBus.on('scene:objectAdded', () => { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+    window.CodeHotEventBus.on('scene:objectRemoved', () => { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+    window.CodeHotEventBus.on('scene:objectRenamed', () => { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+    window.CodeHotEventBus.on('scene:objectTransformed', () => { window.CodeHotProjectState._data.scenes[0].objects = SCENE_STATE.objects; });
+    window.CodeHotEventBus.on('script:changed', (d) => { if (d && d.objectId) window.CodeHotProjectState._data.scripts[d.objectId] = d.code; });
     
 </script>
 </body>
