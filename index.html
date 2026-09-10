@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CodeHot</title>
+  <script src="codehot-agent-protocol.js" defer></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -2832,7 +2833,7 @@
 </head>
 <body>
   <div id="splash">
-    <img id="splashLogo" src="data:image/png;base64,REPLACE_WITH_LOGO_BASE64" alt="CodeHot">
+    <img id="splashLogo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' rx='18' fill='%23ff6b35'/%3E%3Cpath d='M22 22h36v10H32v8h20v10H32v8h26v10H22z' fill='white'/%3E%3C/svg%3E" alt="CodeHot">
     <div id="splashTitle">CodeHot</div>
     <div id="splashTagline"></div>
   </div>
@@ -5650,6 +5651,7 @@ ThemeManager.load();
       redoStack: [],
       isDirty: false
     };
+    window.SCENE_STATE = SCENE_STATE;
 
     // Runtime state is deliberately kept outside SCENE_STATE. Runtime execution
     // must be transient: playing the project should never mutate the editor's
@@ -8933,6 +8935,7 @@ ThemeManager.load();
       const manager = new SceneManager();
       const runtime = new RuntimeEngine(manager);
       manager.runtime = runtime;
+      window._sceneEditorManager = manager;
       runtime.syncPublicState();
       manager.updateRuntimeUI();
       window.addEventListener('codehot:projectReset', () => {
@@ -9624,6 +9627,296 @@ Rules:
       }
     }
 
+    // ── Local AI Intent Parser ──────────────────────────────────────────
+    // Handles edit-time state changes locally without external API.
+    // Farsi + English natural language → direct state changes.
+
+    class AIIntentParser {
+      static INTENTS = {
+        MOVE: 'move', ROTATE: 'rotate', SCALE: 'scale',
+        RENAME: 'rename', CREATE: 'create', DELETE: 'delete',
+        TOGGLE_VISIBLE: 'toggle_visible', SCRIPT: 'script',
+        ANIMATION: 'animation', INSPECT: 'inspect', UNKNOWN: 'unknown'
+      };
+
+      static extractNumber(text) {
+        const num = text.match(/-?\d+(?:\.\d+)?/);
+        return num ? parseFloat(num[0]) : null;
+      }
+
+      static extractObjectRef(text, sceneObjects) {
+        if (!sceneObjects || !sceneObjects.length) return null;
+        const lower = text.toLowerCase().trim();
+        for (const obj of sceneObjects) {
+          if (lower.includes((obj.name || '').toLowerCase())) return obj;
+        }
+        const faWords = {
+          '\u0645\u06a9\u0639\u0628': 'cube', '\u06a9\u0631\u0647': 'sphere',
+          '\u0627\u0633\u062a\u0648\u0627\u0646\u0647': 'cylinder', '\u0645\u062e\u0631\u0648\u0637': 'cone',
+          '\u0622\u0628\u062c\u06a9\u062a': null, '\u0634\u06cc\u0621': null,
+          '\u0627\u06cc\u0646': null, '\u0627\u0648\u0646': null, '\u0645\u062f\u0644': null
+        };
+        for (const [fa, en] of Object.entries(faWords)) {
+          if (lower.includes(fa)) {
+            if (en) { const m = sceneObjects.find(o => (o.type||'').toLowerCase() === en); if (m) return m; }
+            else {
+              const selId = window.CodeHotScene && typeof window.CodeHotScene.getSelectedId === 'function' ? window.CodeHotScene.getSelectedId() : null;
+              if (selId) { const s = sceneObjects.find(o => o.id === selId); if (s) return s; }
+            }
+          }
+        }
+        for (const obj of sceneObjects) {
+          const n = (obj.name || '').toLowerCase();
+          if (lower.includes(n.substring(0, 4)) && n.length >= 3) return obj;
+        }
+        const selId = window.CodeHotScene && typeof window.CodeHotScene.getSelectedId === 'function' ? window.CodeHotScene.getSelectedId() : null;
+        return selId ? (sceneObjects.find(o => o.id === selId) || null) : null;
+      }
+
+      static recognize(text) {
+        const raw = text.trim();
+        const normalized = raw.replace(/[\u200c\u200d]/g, ' ').toLowerCase();
+        const ctx = typeof ContextExtractor !== 'undefined' ? ContextExtractor.extractScene() : { objects: [] };
+        const objs = Array.isArray(ctx.objects) ? ctx.objects : [];
+
+        if (/(\u0686\u06cc\s*\u0647|\u0686\u06cc\u0647|\u0648\u0636\u0639\u06cc\u062a|details?|status|info)/.test(normalized))
+          return { intent: this.INTENTS.INSPECT, target: this.extractObjectRef(normalized, objs), params: {} };
+
+        const createMatch = normalized.match(/(\w+)\s+(?:\u0628\u0633\u0627\u0632|\u0627\u06cc\u062c\u0627\u062f|\u0633\u0627\u062e\u062a|create|add|\u0627\u0636\u0627\u0641\u0647\s*\u06a9\u0646)/i);
+        if (createMatch) {
+          const typeMap = { cube: 'cube', '\u0645\u06a9\u0639\u0628': 'cube', sphere: 'sphere', '\u06a9\u0631\u0647': 'sphere', cylinder: 'cylinder', '\u0627\u0633\u062a\u0648\u0627\u0646\u0647': 'cylinder', cone: 'cone', '\u0645\u062e\u0631\u0648\u0637': 'cone' };
+          return { intent: this.INTENTS.CREATE, target: null, params: { type: typeMap[createMatch[1].trim().toLowerCase()] || 'cube' } };
+        }
+
+        if (/(\u062d\u0630\u0641|\u067e\u0627\u06a9|remove|delete)/i.test(normalized))
+          return { intent: this.INTENTS.DELETE, target: this.extractObjectRef(normalized, objs), params: {} };
+
+        if (/(\u062a\u063a\u06cc\u06cc\u0631\s*\u0627\u0633\u0645|rename|\u0627\u0633\u0645[\s\S]*\u0631\u0648[\s\S]*\u06a9\u0646)/i.test(normalized)) {
+          const nameMatch = normalized.match(/(?:\u0628\u0647|to|\u0628\u06a9\u0646|\u06a9\u0646)\s+(\S+)/i);
+          return { intent: this.INTENTS.RENAME, target: this.extractObjectRef(normalized, objs), params: { newName: nameMatch ? nameMatch[1] : null } };
+        }
+
+        if (/(\u0645\u062e\u0641\u06cc|\u067e\u0646\u0647\u0627\u0646|hide|show|\u0646\u0645\u0627\u06cc\u0627\u0646|visible)/i.test(normalized))
+          return { intent: this.INTENTS.TOGGLE_VISIBLE, target: this.extractObjectRef(normalized, objs), params: {} };
+
+        const animMatch = normalized.match(/(?:\u0627\u0646\u06cc\u0645\u06cc\u0634\u0646|animation|anim)\s*(?:\u0631\u0648\s*)?(?:\u0627\u062c\u0631\u0627|\u067e\u062e\u0634|play|start|run)\s*(?:"([^"]+)"|(\S+))?/i);
+        if (animMatch)
+          return { intent: this.INTENTS.ANIMATION, target: this.extractObjectRef(normalized, objs), params: { clipName: animMatch[1] || animMatch[2], action: 'play' } };
+
+        if (/(\u0642\u0648\u0646\u062a\u06cc|\u0632\u0645\u0627\u0646\u06cc\s*\u06a9\u0647|when|runtime|\u0648\u0642\u062a\u06cc\s*\u0634\u0631\u0648\u0639|\u0634\u0631\u0648\u0639\s*\u0634\u062f)/.test(normalized))
+          return { intent: this.INTENTS.SCRIPT, target: this.extractObjectRef(normalized, objs), params: { description: raw } };
+
+        const hasMoveWord = /(\u0628\u0630\u0627\u0631|\u0628\u06af\u0630\u0627\u0631|\u0628\u0628\u0631|\u0628\u06a9\u0634|\u0642\u0631\u0627\u0631\u0647|move|set|place|put|\u0628\u0647|\u0631\u0648\u06cc)/i.test(normalized);
+        const hasAxis = /[xyz][=:\s]*-?\d/.test(normalized);
+        const hasDir = /(\u0628\u0627\u0644\u0627|\u067e\u0627\u06cc\u06cc\u0646|\u0686\u067e|\u0631\u0627\u0633\u062a|\u062c\u0644\u0648|\u0639\u0642\u0628|up|down|left|right|forward|back)/i.test(normalized);
+        if (hasMoveWord && (hasAxis || hasDir)) {
+          const target = this.extractObjectRef(normalized, objs);
+          const params = { x: null, y: null, z: null };
+          const xM = normalized.match(/x[=:\s]*(-?\d+(?:\.\d+)?)/);
+          const yM = normalized.match(/y[=:\s]*(-?\d+(?:\.\d+)?)/);
+          const zM = normalized.match(/z[=:\s]*(-?\d+(?:\.\d+)?)/);
+          if (xM) params.x = parseFloat(xM[1]);
+          if (yM) params.y = parseFloat(yM[1]);
+          if (zM) params.z = parseFloat(zM[1]);
+          if (hasDir && params.x === null && params.y === null && params.z === null) {
+            const amt = this.extractNumber(normalized) || 5;
+            const dirMatch = normalized.match(/(\u0628\u0627\u0644\u0627|\u067e\u0627\u06cc\u06cc\u0646|\u0686\u067e|\u0631\u0627\u0633\u062a|\u062c\u0644\u0648|\u0639\u0642\u0628|up|down|left|right|forward|back)/i);
+            if (dirMatch) {
+              const d = dirMatch[1].toLowerCase();
+              if (/(\u0628\u0627\u0644\u0627|up)/.test(d)) params.y = (target ? target.position.y : 0) + amt;
+              else if (/(\u067e\u0627\u06cc\u06cc\u0646|down)/.test(d)) params.y = (target ? target.position.y : 0) - amt;
+              else if (/(\u0686\u067e|left)/.test(d)) params.x = (target ? target.position.x : 0) - amt;
+              else if (/(\u0631\u0627\u0633\u062a|right)/.test(d)) params.x = (target ? target.position.x : 0) + amt;
+              else if (/(\u062c\u0644\u0648|forward)/.test(d)) params.z = (target ? target.position.z : 0) - amt;
+              else if (/(\u0639\u0642\u0628|back)/.test(d)) params.z = (target ? target.position.z : 0) + amt;
+            }
+          }
+          return { intent: this.INTENTS.MOVE, target, params };
+        }
+
+        if (/(\u0628\u0686\u0631\u062e\u0648\u0646|\u0686\u0631\u062e\u0634|rotate|turn|spin)/i.test(normalized)) {
+          const target = this.extractObjectRef(normalized, objs);
+          const amt = this.extractNumber(normalized) || 45;
+          return { intent: this.INTENTS.ROTATE, target, params: { x: null, y: amt, z: null } };
+        }
+
+        if (/(\u0628\u0632\u0631\u06af|\u06a9\u0648\u0686\u06a9|scale|resize|bigger|smaller|\u062f\u0648\u0628\u0647\u0631|\u0646\u0635\u0641)/i.test(normalized)) {
+          const target = this.extractObjectRef(normalized, objs);
+          let factor = this.extractNumber(normalized);
+          if (/(\u0628\u0632\u0631\u06af|bigger|\u062f\u0648\u0628\u0647\u0631)/.test(normalized)) factor = factor || 2;
+          else if (/(\u06a9\u0648\u0686\u06a9|smaller|\u0646\u0635\u0641)/.test(normalized)) factor = factor || 0.5;
+          else factor = factor || 2;
+          return { intent: this.INTENTS.SCALE, target, params: { factor } };
+        }
+
+        return { intent: this.INTENTS.UNKNOWN, target: null, params: { description: raw } };
+      }
+    }
+
+    // ── Local AI State Executor ─────────────────────────────────────────
+
+    class AIStateExecutor {
+      static findSceneObject(id) { return window.SCENE_STATE.objects.find(o => o.id === id) || null; }
+      static findMesh(id) {
+        try {
+          const mgr = window._sceneEditorManager || null;
+          if (mgr && mgr.scene) return mgr.scene.children.find(c => c.userData && c.userData.id === id) || null;
+        } catch(e) {}
+        return null;
+      }
+      static commitUndo(desc) {
+        try { const mgr = window._sceneEditorManager || null; if (mgr && typeof mgr.pushUndoState === 'function') mgr.pushUndoState(); } catch(e) {}
+        try { window.CodeHotEventBus && window.CodeHotEventBus.emit('scene:objectModified', { description: desc }); } catch(e) {}
+      }
+      static commitToStorage() {
+        try { const mgr = window._sceneEditorManager || null; if (mgr && typeof mgr.saveToStorage === 'function') mgr.saveToStorage(); if (mgr && typeof mgr.updateHierarchy === 'function') mgr.updateHierarchy(); } catch(e) {}
+        try { if (typeof HierarchyManager !== 'undefined') HierarchyManager.loadFromScene(); } catch(e) {}
+      }
+      static execute(parsed) {
+        if (!parsed || parsed.intent === 'unknown') return null;
+        const h = {
+          move: () => this.execMove(parsed), rotate: () => this.execRotate(parsed),
+          scale: () => this.execScale(parsed), rename: () => this.execRename(parsed),
+          create: () => this.execCreate(parsed), delete: () => this.execDelete(parsed),
+          toggle_visible: () => this.execToggleVisible(parsed), animation: () => this.execAnimation(parsed),
+          inspect: () => this.execInspect(parsed), script: () => this.execScriptHint(parsed)
+        };
+        const handler = h[parsed.intent];
+        return handler ? handler() : null;
+      }
+      static execMove(p) {
+        const t = p.target;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u0628\u0631\u0627\u06cc \u062c\u0627\u0628\u0647\u0621\u062c\u0627\u06cc\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        const obj = this.findSceneObject(t.id);
+        if (!obj) return { ok: false, message: t.name + ' \u062f\u0631 Scene \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        this.commitUndo('Move ' + t.name);
+        const { x, y, z } = p.params;
+        if (x !== null && x !== undefined) obj.position.x = x;
+        if (y !== null && y !== undefined) obj.position.y = y;
+        if (z !== null && z !== undefined) obj.position.z = z;
+        const mesh = this.findMesh(t.id);
+        if (mesh) mesh.position.set(obj.position.x, obj.position.y, obj.position.z);
+        this.commitToStorage();
+        return { ok: true, message: '\u2705 ' + t.name + ' \u0628\u0647 X:' + obj.position.x.toFixed(1) + ' Y:' + obj.position.y.toFixed(1) + ' Z:' + obj.position.z.toFixed(1) + ' \u0645\u0646\u062a\u0642\u0644 \u0634\u062f.' };
+      }
+      static execRotate(p) {
+        const t = p.target;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u0628\u0631\u0627\u06cc \u0686\u0631\u062e\u0634 \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        const obj = this.findSceneObject(t.id);
+        if (!obj) return { ok: false, message: t.name + ' \u062f\u0631 Scene \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        this.commitUndo('Rotate ' + t.name);
+        const { x, y, z } = p.params;
+        if (x !== null && x !== undefined) obj.rotation.x += x;
+        if (y !== null && y !== undefined) obj.rotation.y += y;
+        if (z !== null && z !== undefined) obj.rotation.z += z;
+        const mesh = this.findMesh(t.id);
+        if (mesh) mesh.rotation.set(THREE.MathUtils.degToRad(obj.rotation.x), THREE.MathUtils.degToRad(obj.rotation.y), THREE.MathUtils.degToRad(obj.rotation.z));
+        this.commitToStorage();
+        return { ok: true, message: '\u2705 ' + t.name + ' \u0686\u0631\u062e\u0627\u0646\u062f\u0647 \u0634\u062f.' };
+      }
+      static execScale(p) {
+        const t = p.target;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u0628\u0631\u0627\u06cc \u062a\u063a\u06cc\u06cc\u0631 \u0627\u0646\u062f\u0627\u0632\u0647 \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        const obj = this.findSceneObject(t.id);
+        if (!obj) return { ok: false, message: t.name + ' \u062f\u0631 Scene \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        this.commitUndo('Scale ' + t.name);
+        const f = p.params.factor || 2;
+        obj.scale.x *= f; obj.scale.y *= f; obj.scale.z *= f;
+        const mesh = this.findMesh(t.id);
+        if (mesh) mesh.scale.set(obj.scale.x, obj.scale.y, obj.scale.z);
+        this.commitToStorage();
+        return { ok: true, message: '\u2705 ' + t.name + ' ' + (f > 1 ? '\u0628\u0632\u0631\u06af\u062a\u0631' : '\u06a9\u0648\u0686\u06a9\u062a\u0631') + ' \u0634\u062f (' + f + 'x).' };
+      }
+      static execRename(p) {
+        const t = p.target; const newName = p.params.newName;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u0628\u0631\u0627\u06cc \u062a\u063a\u06cc\u06cc\u0631 \u0627\u0633\u0645 \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        if (!newName) return { ok: false, message: '\u0627\u0633\u0645 \u062c\u062f\u06cc\u062f \u0645\u0634\u062e\u0635 \u0646\u0634\u062f.' };
+        const obj = this.findSceneObject(t.id);
+        if (!obj) return { ok: false, message: t.name + ' \u062f\u0631 Scene \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        this.commitUndo('Rename ' + t.name);
+        const oldName = obj.name; obj.name = newName;
+        const mesh = this.findMesh(t.id);
+        if (mesh && mesh.userData) mesh.userData.name = newName;
+        this.commitToStorage();
+        try { window.CodeHotEventBus && window.CodeHotEventBus.emit('scene:objectRenamed', { id: t.id, oldName, newName }); } catch(e) {}
+        return { ok: true, message: '\u2705 "' + oldName + '" \u0628\u0647 "' + newName + '" \u062a\u063a\u06cc\u06cc\u0631 \u0646\u0627\u0645 \u062f\u0627\u062f\u0647 \u0634\u062f.' };
+      }
+      static execCreate(p) {
+        try {
+          const mgr = window._sceneEditorManager || null;
+          if (mgr && typeof mgr.addObject === 'function') { mgr.addObject(p.params.type); return { ok: true, message: '\u2705 ' + p.params.type + ' \u062f\u0631 Scene \u0627\u06cc\u062c\u0627\u062f \u0634\u062f.' }; }
+          return { ok: false, message: 'Scene Manager \u062f\u0631 \u062f\u0633\u062a\u0631\u0633 \u0646\u06cc\u0633\u062f.' };
+        } catch(e) { return { ok: false, message: '\u062e\u0637\u0627: ' + (e.message || e) }; }
+      }
+      static execDelete(p) {
+        const t = p.target;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u0628\u0631\u0627\u06cc \u062d\u0630\u0641 \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        const obj = this.findSceneObject(t.id);
+        if (!obj) return { ok: false, message: t.name + ' \u062f\u0631 Scene \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        this.commitUndo('Delete ' + t.name);
+        const mesh = this.findMesh(t.id);
+        if (mesh) { const mgr = window._sceneEditorManager || null; if (mgr && mgr.scene) mgr.scene.remove(mesh); try { if (mesh.geometry) mesh.geometry.dispose(); if (mesh.material) mesh.material.dispose(); } catch(e) {} }
+        window.SCENE_STATE.objects = window.SCENE_STATE.objects.filter(o => o.id !== t.id);
+        if (window.SCENE_STATE.selectedId === t.id) window.SCENE_STATE.selectedId = null;
+        this.commitToStorage();
+        return { ok: true, message: '\u2705 ' + t.name + ' \u0627\u0632 Scene \u062d\u0630\u0641 \u0634\u062f.' };
+      }
+      static execToggleVisible(p) {
+        const t = p.target;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        const obj = this.findSceneObject(t.id);
+        if (!obj) return { ok: false, message: t.name + ' \u062f\u0631 Scene \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        this.commitUndo('Toggle ' + t.name);
+        obj.visible = !obj.visible;
+        const mesh = this.findMesh(t.id); if (mesh) mesh.visible = obj.visible;
+        this.commitToStorage();
+        return { ok: true, message: '\u2705 ' + t.name + ' ' + (obj.visible ? '\u0646\u0645\u0627\u06cc\u0627\u0646 \u0634\u062f' : '\u0645\u062e\u0641\u06cc \u0634\u062f') + '.' };
+      }
+      static execAnimation(p) {
+        const t = p.target; const animName = p.params.clipName; const action = p.params.action;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        const rtState = window.CodeHotScene && typeof window.CodeHotScene.getRuntimeState === 'function' ? window.CodeHotScene.getRuntimeState() : null;
+        if (!rtState || !rtState.isPlaying) {
+          if (action === 'play') {
+            const script = 'return {\n  start(ctx, self) { self.animation.play("' + (animName || 'Idle') + '"); },\n  update(ctx, self) {},\n  stop(ctx, self) { self.animation.stop(); }\n};';
+            return { ok: true, message: '\ud83c\udfac \u0627\u0646\u06cc\u0645\u06cc\u0634\u0646 "' + (animName || 'Idle') + '" \u0628\u0627\u06cc\u062f \u062f\u0631 \u062d\u0627\u0644\u062a Play \u0627\u062c\u0631\u0627 \u0634\u0648\u062f. \u0633\u06a9\u0631\u06cc\u067e\u062a ' + t.name + ' \u0633\u0627\u062e\u062a\u0647 \u0634\u062f.', action: 'script', script, target: t };
+          }
+          return { ok: false, message: 'Runtime \u062f\u0631 \u062d\u0627\u0644\u062a Play \u0646\u06cc\u0633\u062f.' };
+        }
+        try {
+          const rt = window._codeHotRuntime || window.CodeHotRuntime;
+          if (rt && typeof rt.getObject === 'function') {
+            const api = rt.getObject(t.id);
+            if (api && api.animation) {
+              if (action === 'play') { if (api.animation.play(animName)) return { ok: true, message: '\ud83c\udfac \u0627\u0646\u06cc\u0645\u06cc\u0634\u0646 "' + animName + '" \u0634\u0631\u0648\u0639 \u0634\u062f.' }; return { ok: false, message: '\u0627\u0646\u06cc\u0645\u06cc\u0634\u0646 "' + animName + '" \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' }; }
+              else { api.animation.stop(); return { ok: true, message: '\u23f9\ufe0f \u0627\u0646\u06cc\u0645\u06cc\u0634\u0646 \u0645\u062a\u0648\u0642\u0641 \u0634\u062f.' }; }
+            }
+          }
+          return { ok: false, message: 'Runtime API \u062f\u0631 \u062f\u0633\u062a\u0631\u0633 \u0646\u06cc\u0633\u062f.' };
+        } catch(e) { return { ok: false, message: '\u062e\u0637\u0627: ' + (e.message || e) }; }
+      }
+      static execInspect(p) {
+        const t = p.target;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        const obj = this.findSceneObject(t.id);
+        if (!obj) return { ok: false, message: t.name + ' \u062f\u0631 Scene \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        let scriptInfo = '\u0646\u062f\u0627\u0631\u062f';
+        try { const b = window.CodeHotScriptStore && typeof window.CodeHotScriptStore.getAll === 'function' ? window.CodeHotScriptStore.getAll(window.SCENE_STATE.objects) : {}; if (b && b[t.id] && b[t.id].code) scriptInfo = '\u062f\u0627\u0631\u062f'; } catch(e) {}
+        return { ok: true, message: '\ud83d\udccb **' + t.name + '**\nType: ' + t.type + '\nPosition: X:' + obj.position.x.toFixed(1) + ' Y:' + obj.position.y.toFixed(1) + ' Z:' + obj.position.z.toFixed(1) + '\nRotation: X:' + obj.rotation.x.toFixed(1) + '\u00b0 Y:' + obj.rotation.y.toFixed(1) + '\u00b0 Z:' + obj.rotation.z.toFixed(1) + '\nScale: X:' + obj.scale.x.toFixed(1) + ' Y:' + obj.scale.y.toFixed(1) + ' Z:' + obj.scale.z.toFixed(1) + '\nVisible: ' + obj.visible + '\nScript: ' + scriptInfo };
+      }
+      static execScriptHint(p) {
+        const t = p.target;
+        if (!t) return { ok: false, message: '\u0622\u0628\u062c\u06a9\u062a\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.' };
+        return { ok: true, message: '\ud83d\udcdd \u062f\u0631\u062e\u0634\u062a Runtime \u0628\u0631\u0627\u06cc ' + t.name + ' \u0634\u0646\u0627\u062e\u062a\u0647 \u0634\u062f.', action: 'need_api', target: t, description: p.params.description };
+      }
+    }
+
+
+    // Expose AI + context classes globally
+    window.AIIntentParser = AIIntentParser;
+    window.AIStateExecutor = AIStateExecutor;
+    window.ContextExtractor = ContextExtractor;
+
     // ── Persistence ──────────────────────────────────────────────────────
     function saveConversation() {
       try {
@@ -9691,6 +9984,38 @@ Rules:
       AIUIManager.renderMessage('user', message);
       saveConversation();
 
+      // ── Try Local AI Intent First ──────────────────────────────────────
+      try {
+        const parsed = AIIntentParser.recognize(message);
+        if (parsed && parsed.intent !== 'unknown') {
+          const result = AIStateExecutor.execute(parsed);
+          if (result && result.ok) {
+            AIUIManager.renderSystemNotice(result.message, 'success');
+            // If it needs a script applied
+            if (result.action === 'script' && result.script && result.target) {
+              const action = { targetId: result.target.id, targetName: result.target.name, mode: 'replace', language: 'javascript', code: result.script };
+              action.id = 'ai_local_' + Date.now().toString(36);
+              AIActionManager.actions.set(action.id, action);
+              AIActionManager.apply(action, false);
+            }
+            // If it needs external API for complex runtime
+            if (result.action !== 'need_api') {
+              AI_STATE.conversationHistory.push({ role: 'assistant', content: result.message });
+              saveConversation();
+              return;
+            }
+          } else if (result && !result.ok) {
+            AIUIManager.renderSystemNotice(result.message, 'info');
+            AI_STATE.conversationHistory.push({ role: 'assistant', content: result.message });
+            saveConversation();
+            return;
+          }
+        }
+      } catch (e) {
+        console.log('[AI Local] Intent parsing error, falling back to API:', e);
+      }
+
+      // ── Fall through to External AI API ────────────────────────────────
       if (!navigator.onLine) {
         AI_STATE.pendingOffline.push(message);
         persistOfflineQueue();
@@ -10075,7 +10400,11 @@ Rules:
         const value = input.value;
         input.value = '';
         input.style.height = 'auto';
-        handleUserSubmit(value);
+        if (window.CodeHotAgent && typeof window.CodeHotAgent.handleMessage === 'function') {
+          window.CodeHotAgent.handleMessage(value);
+        } else {
+          handleUserSubmit(value);
+        }
       };
 
       document.getElementById('ai-aiSendBtn').addEventListener('click', submit);
@@ -12098,12 +12427,1470 @@ Rules:
       });
 
       AssetsUIManager.renderAssets();
-      syncAssetActions();
+      if (typeof syncAssetActions === 'function') syncAssetActions();
     });
   
     })(); } catch (e) { console.error('[Shell] AssetsManagerModule failed to initialize:', e); }
 
-  
+    // ══════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
+    // ── V12 CODEHOT AI AGENT MODULE ──────────────────────────────
+    // A real local agent: live project context → target resolution →
+    // intent planning → structured tools → execution → verification.
+    // Single chat path (AIAssistantModule delegates its submit here).
+    // ══════════════════════════════════════════════════════════════
+    (function () {
+      'use strict';
+
+      const CAMERA_ID = '__codehot_camera__';
+      const CONVERSATION_KEY = 'codehot-ai-conversation';
+      const HISTORY_LIMIT = 200;
+
+      // ── SVG Icons (no emoji) ──────────────────────────────────────
+      const AI_ICONS = {
+        success: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4aff4a" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+        error: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff4a4a" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+        info: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>',
+        brain: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4c0 .5.1 1 .3 1.5A3.5 3.5 0 0 0 5 11a3.5 3.5 0 0 0 2 3.2V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2.8A3.5 3.5 0 0 0 19 11a3.5 3.5 0 0 0-3.3-3.5c.2-.5.3-1 .3-1.5a4 4 0 0 0-4-4z"/></svg>',
+        send: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>'
+      };
+
+      // ── Language / locale helpers ─────────────────────────────────
+      function appLanguage() {
+        try {
+          const s = JSON.parse(localStorage.getItem('codehot-settings') || '{}');
+          if (s && s.language === 'fa') return 'fa';
+        } catch (e) {}
+        return 'en';
+      }
+      const L = (fa, en) => (appLanguage() === 'fa' ? fa : en);
+
+      // ── Tiny text utilities ───────────────────────────────────────
+      const hasAny = (text, patterns) => patterns.some(p => text.includes(p));
+
+      function normalizeFa(text) {
+        return String(text || '')
+          .replace(/[يى]/g, 'ی')
+          .replace(/ك/g, 'ک')
+          .replace(/[ۀة]/g, 'ه')
+          .replace(/[أإآ]/g, 'ا')
+          .replace(/\u200c/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      function toEnDigits(text) {
+        const pNums = { '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9' };
+        let out = String(text);
+        for (const [p, e] of Object.entries(pNums)) out = out.split(p).join(e);
+        return out;
+      }
+
+      function parseNum(text) {
+        const n = toEnDigits(text);
+        const m = n.match(/(-?\d+(?:\.\d+)?)/);
+        return m ? parseFloat(m[1]) : null;
+      }
+
+      // Value for a specific axis in text: "Y=5", "y:5", "محور y برابر ۵"
+      function axisValue(text, axis) {
+        const t = toEnDigits(text);
+        const rx = new RegExp('(?:^|[^A-Za-z])' + axis + '\\s*(?:=|:|=|:)?\\s*(-?\\d+(?:\\.\\d+)?)', 'i');
+        const m = t.match(rx);
+        if (m) return parseFloat(m[1]);
+        return null;
+      }
+
+      function detectMultiplier(text) {
+        const t = toEnDigits(text);
+        const m = t.match(/(\d+(?:\.\d+)?)\s*(?:x|برابر|بار|×)/i);
+        if (m) return parseFloat(m[1]);
+        if (hasAny(text, ['دو برابر', 'دوبرابر', '2x', '2 برابر'])) return 2;
+        if (hasAny(text, ['سه برابر'])) return 3;
+        if (hasAny(text, ['نصف'])) return 0.5;
+        return null;
+      }
+
+      // Extract a quoted or capitalized candidate name ("Cube", 'Robot 2', «ماشین»)
+      function extractQuoted(text) {
+        const m = String(text).match(/["'«»“”]([^"'«»“”]{1,40})["'«»“”]/);
+        return m ? m[1].trim() : null;
+      }
+
+      // ── Live project context ──────────────────────────────────────
+      const AIContext = {
+        _history: [],
+        _lastTargets: [],
+        _language: appLanguage(),
+
+        _settings() {
+          try { return JSON.parse(localStorage.getItem('codehot-settings') || '{}') || {}; } catch (e) { return {}; }
+        },
+
+        sceneState() {
+          return (typeof window !== 'undefined' && window.SCENE_STATE) ? window.SCENE_STATE : null;
+        },
+
+        runtimeState() {
+          try {
+            if (window.CodeHotScene && typeof window.CodeHotScene.getRuntimeState === 'function') {
+              const rs = window.CodeHotScene.getRuntimeState();
+              if (rs) return rs;
+            }
+          } catch (e) {}
+          try {
+            const rt = window.CodeHotRuntime;
+            if (rt) return { isPlaying: !!rt.isPlaying() };
+          } catch (e) {}
+          return null;
+        },
+
+        scriptsMap() {
+          try {
+            return JSON.parse(localStorage.getItem('codehot-script-bindings') || '{}') || {};
+          } catch (e) { return {}; }
+        },
+
+        assetsList() {
+          let list = [];
+          try {
+            const raw = localStorage.getItem('codehot-assets');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.assets) ? parsed.assets : []);
+            }
+          } catch (e) {}
+          return list.filter(a => a && a.id);
+        },
+
+        animationsFor(objectId) {
+          try {
+            if (window.CodeHotAnimationStore && typeof window.CodeHotAnimationStore.getForObject === 'function') {
+              const found = window.CodeHotAnimationStore.getForObject(objectId);
+              if (Array.isArray(found)) return found;
+            }
+          } catch (e) {}
+          return [];
+        },
+
+        getSnapshot() {
+          const state = this.sceneState();
+          const objects = (state && Array.isArray(state.objects)) ? state.objects : [];
+          const scripts = this.scriptsMap();
+          const runtime = this.runtimeState();
+          const selectedId = state ? state.selectedId : null;
+
+          const objectView = objects.map(o => {
+            const anims = this.animationsFor(o.id);
+            return {
+              id: o.id,
+              name: o.name,
+              type: o.type,
+              position: o.position ? { x: o.position.x, y: o.position.y, z: o.position.z } : { x: 0, y: 0, z: 0 },
+              rotation: o.rotation ? { x: o.rotation.x, y: o.rotation.y, z: o.rotation.z } : { x: 0, y: 0, z: 0 },
+              scale: o.scale ? { x: o.scale.x, y: o.scale.y, z: o.scale.z } : { x: 1, y: 1, z: 1 },
+              visible: o.visible !== false,
+              assetId: o.assetId || null,
+              hasScript: !!(scripts[o.id] && scripts[o.id].code),
+              animations: anims.map(a => ({ id: a.id, name: a.name, clipName: a.clipName || a.name, duration: a.duration, loop: !!a.loop }))
+            };
+          });
+
+          const assets = this.assetsList().map(a => ({
+            id: a.id, name: a.name, type: a.type, size: a.size || 0
+          }));
+
+          let camera = null;
+          try {
+            if (window.CodeHotScene && typeof window.CodeHotScene.getCameraState === 'function') camera = window.CodeHotScene.getCameraState();
+          } catch (e) {}
+
+          const settings = this._settings();
+          return {
+            language: settings.language === 'fa' ? 'fa' : 'en',
+            theme: settings.theme || 'dark',
+            runtime: runtime ? { isPlaying: !!runtime.isPlaying, isPaused: !!runtime.isPaused } : { isPlaying: false, isPaused: false },
+            camera: camera || null,
+            objects: objectView,
+            totalObjects: objectView.length,
+            assets: assets,
+            totalAssets: assets.length,
+            selected: selectedId ? (objectView.find(o => o.id === selectedId) || null) : null,
+            selectedId: selectedId,
+            lastTargets: this._lastTargets.slice(-5),
+            projectKey: state ? 'codehot-scene' : null
+          };
+        },
+
+        findObjectByName(name, objects) {
+          const list = objects || this.getSnapshot().objects;
+          if (!name) return null;
+          const needle = normalizeFa(String(name)).toLowerCase().trim();
+          if (!needle) return null;
+
+          let exact = list.filter(o => normalizeFa(o.name).toLowerCase() === needle);
+          if (exact.length === 1) return exact[0];
+          if (exact.length > 1) return { ambiguous: exact.map(o => o.name) };
+
+          const contains = list.filter(o => normalizeFa(o.name).toLowerCase().includes(needle));
+          if (contains.length === 1) return contains[0];
+          if (contains.length > 1) return { ambiguous: contains.map(o => o.name) };
+
+          const contained = list.filter(o => needle.includes(normalizeFa(o.name).toLowerCase()));
+          if (contained.length === 1) return contained[0];
+          if (contained.length > 1) return { ambiguous: contained.map(o => o.name) };
+
+          return null;
+        },
+
+        findObjectsByType(typeWord, objects) {
+          const list = objects || this.getSnapshot().objects;
+          const typeMap = {
+            cube: ['cube', 'box', 'مکعب', 'مربع'], sphere: ['sphere', 'کره', 'گوی'], cylinder: ['cylinder', 'استوانه'],
+            cone: ['cone', 'مخروط'], plane: ['plane', 'صفحه', 'سطح'], model: ['model', 'glb', 'مدل', 'گروه', 'group'], camera: ['camera', 'دوربین']
+          };
+          const n = normalizeFa(typeWord).toLowerCase();
+          let wanted = null;
+          for (const [key, aliases] of Object.entries(typeMap)) {
+            if (aliases.some(a => n.includes(a) || a.includes(n))) { wanted = key; break; }
+          }
+          if (!wanted) return [];
+          return list.filter(o => o.type === wanted || (wanted === 'model' && o.type === 'group'));
+        },
+
+        isPronounRef(text) {
+          const t = normalizeFa(text);
+          return hasAny(t, ['این', 'اون', 'آن', 'این آبجکت', 'اون آبجکت', 'این یکی', 'selected', 'انتخاب شده', 'انتخاب‌شده', 'this ', 'it ', 'the selected', 'it’s']) ||
+            /^this\b/i.test(text) || /^it\b/i.test(text) || /^the selected/i.test(text);
+        },
+
+        // Resolve the object a request is about. Order:
+        // 1. explicit candidate name found in the sentence
+        // 2. explicit type word when exactly one object of that type exists
+        // 3. current scene selection (for pronouns / implicit references)
+        // 4. last acted-on object
+        resolveTarget(text, ctx) {
+          if (!ctx) ctx = this.getSnapshot();
+          const objects = ctx.objects;
+          if (!objects || objects.length === 0) return null;
+
+          const quoted = extractQuoted(text);
+          if (quoted) {
+            const byName = this.findObjectByName(quoted, objects);
+            if (byName) return byName;
+          }
+
+          // Fa pattern: <Name> رو / را / و  (e.g. "Cube رو ببر بالا", "ماشین رو حذف کن")
+          const t = normalizeFa(text);
+          const faMatch = t.match(/([\u0600-\u06FF\w][\u0600-\u06FF\w .\-_]{0,30}?)\s+(?:رو|را|و)\s+/);
+          if (faMatch) {
+            const candidate = faMatch[1].trim();
+            if (candidate.length > 1 && !hasAny(candidate, ['ببر', 'ببرش', 'بذار', 'بزار', 'بکن', 'کن', 'بچرخ', 'حذف', 'پاک', 'بساز'])) {
+              const byName = this.findObjectByName(candidate, objects);
+              if (byName) return byName;
+            }
+          }
+
+          // En pattern: "move Cube up", "delete the Cube", "rotate Sphere"
+          const enMatch = String(text).match(/\b(?:the\s+|a\s+)?([A-Z][A-Za-z0-9_.\- ]{1,30})\b/);
+          if (enMatch) {
+            const candidate = enMatch[1].trim();
+            if (!/^(Move|Rotate|Scale|Delete|Rename|Create|Make|Play|Stop|When|Camera|Help|Status|This|That|It)$/i.test(candidate)) {
+              const byName = this.findObjectByName(candidate, objects);
+              if (byName && !byName.ambiguous) return byName;
+              if (byName && byName.ambiguous) return byName;
+            }
+          }
+
+          // Type-based: user names a shape word, and there is exactly one
+          // object of that kind -> resolve to it.
+          const typeWords = (t.match(/\b(?:مکعب|مربع|کره|استوانه|مخروط|صفحه|cube|sphere|cylinder|cone|plane|model|مدل)\b/gi) || []);
+          for (const tw of typeWords) {
+            const byType = this.findObjectsByType(tw, objects);
+            if (byType.length === 1) return byType[0];
+            if (byType.length > 1) return { ambiguous: byType.map(o => o.name) };
+          }
+
+          // Pronouns + "the selected object" -> current selection
+          if (this.isPronounRef(text)) {
+            if (ctx.selected) return ctx.selected;
+            if (ctx.lastTargets && ctx.lastTargets.length) {
+              const last = ctx.lastTargets[ctx.lastTargets.length - 1];
+              const found = objects.find(o => o.id === last.id);
+              if (found) return found;
+            }
+            return { needSelection: true };
+          }
+
+          // Fall back to the current selection only when the request has no
+          // other explicit subject and something is selected.
+          if (ctx.selected) return ctx.selected;
+
+          // Last-resort: an explicit name may be the LAST word of the message
+          const words = String(text).trim().split(/\s+/).filter(w => w.length > 1);
+          for (let i = words.length - 1; i >= 0; i--) {
+            const byName = this.findObjectByName(words[i], objects);
+            if (byName && !byName.ambiguous && !hasAny(words[i].toLowerCase(), ['کن', 'بده', 'بذار', 'ببر', 'برو', 'حذف', 'بساز', 'create', 'delete', 'move', 'rotate', 'scale', 'help', 'status', 'animation', 'انیمیشن'])) return byName;
+          }
+
+          return null;
+        },
+
+        trackTarget(obj) {
+          if (obj && obj.id && obj.name) {
+            this._lastTargets.push({ id: obj.id, name: obj.name, ts: Date.now() });
+            if (this._lastTargets.length > 12) this._lastTargets.shift();
+          }
+        },
+
+        addConversation(role, text) {
+          this._history.push({ role: role, text: text, time: Date.now() });
+          if (this._history.length > 40) this._history.shift();
+        }
+      };
+      window.AIContext = AIContext;
+
+      // ── Execution primitives bound to the real editor state ───────
+      const SceneOps = {
+        manager() {
+          return window._sceneEditorManager || null;
+        },
+        scene() {
+          const m = this.manager();
+          return (m && m.scene) ? m.scene : null;
+        },
+        mesh(id) {
+          const s = this.scene();
+          if (!s) return null;
+          return s.children.find(c => c && c.userData && c.userData.id === id) || null;
+        },
+        objectData(id) {
+          const state = window.SCENE_STATE;
+          if (!state || !Array.isArray(state.objects)) return null;
+          return state.objects.find(o => o.id === id) || null;
+        },
+        undo(description) {
+          try {
+            const m = this.manager();
+            if (m && typeof m.pushUndoState === 'function') m.pushUndoState(description);
+          } catch (e) {}
+          try {
+            if (window.CodeHotCommandManager && typeof window.CodeHotCommandManager.record === 'function') {
+              window.CodeHotCommandManager.record(description);
+            }
+          } catch (e) {}
+        },
+        commit() {
+          const m = this.manager();
+          try { if (m && typeof m.saveToStorage === 'function') m.saveToStorage(); } catch (e) {}
+          try { if (m && typeof m.updateHierarchy === 'function') m.updateHierarchy(); } catch (e) {}
+          try { if (window.CodeHotEventBus && typeof window.CodeHotEventBus.emit === 'function') window.CodeHotEventBus.emit('ui:refresh'); } catch (e) {}
+          try { window.dispatchEvent(new CustomEvent('ui:refresh')); } catch (e) {}
+        },
+        emit(name, detail) {
+          try {
+            const m = this.manager();
+            if (m && typeof m.emitEvent === 'function') m.emitEvent(name, detail || {});
+          } catch (e) {}
+          try { window.dispatchEvent(new CustomEvent(name, { detail: detail || {} })); } catch (e) {}
+          try { if (window.CodeHotEventBus && typeof window.CodeHotEventBus.emit === 'function') window.CodeHotEventBus.emit(name, detail || {}); } catch (e) {}
+        },
+        isPlaying() {
+          try {
+            const rs = AIContext.runtimeState();
+            return !!(rs && rs.isPlaying);
+          } catch (e) { return false; }
+        },
+        runtime() {
+          try {
+            if (window.CodeHotScene && typeof window.CodeHotScene.getRuntime === 'function') return window.CodeHotScene.getRuntime();
+          } catch (e) {}
+          return null;
+        },
+
+        // Apply an edit-time transform (degrees for rotation, like the editor).
+        setTransform(id, change) {
+          const obj = this.objectData(id);
+          if (!obj) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          const m = this.manager();
+          const mesh = this.mesh(id);
+          this.undo('Transform ' + obj.name);
+
+          if (change.position) {
+            const p = change.position;
+            if (p.x !== undefined) obj.position.x = p.x;
+            if (p.y !== undefined) obj.position.y = p.y;
+            if (p.z !== undefined) obj.position.z = p.z;
+          }
+          if (change.rotation) {
+            const r = change.rotation;
+            if (r.x !== undefined) obj.rotation.x = r.x;
+            if (r.y !== undefined) obj.rotation.y = r.y;
+            if (r.z !== undefined) obj.rotation.z = r.z;
+          }
+          if (change.scale) {
+            const s = change.scale;
+            if (s.x !== undefined) obj.scale.x = s.x;
+            if (s.y !== undefined) obj.scale.y = s.y;
+            if (s.z !== undefined) obj.scale.z = s.z;
+          }
+          if (mesh) {
+            try {
+              const deg = THREE.MathUtils.degToRad;
+              mesh.position.set(obj.position.x, obj.position.y, obj.position.z);
+              mesh.rotation.set(deg(obj.rotation.x), deg(obj.rotation.y), deg(obj.rotation.z));
+              mesh.scale.set(obj.scale.x, obj.scale.y, obj.scale.z);
+            } catch (e) {}
+          }
+          this.emit('scene:objectTransformed', { id: id });
+          this.emit('sceneeditor:objectModified', { id: id });
+          this.commit();
+          if (m && typeof m.markDirty === 'function') { try { m.markDirty(); } catch (e) {} }
+          return { ok: true };
+        },
+
+        select(id) {
+          try {
+            if (window.CodeHotScene && typeof window.CodeHotScene.selectObject === 'function') {
+              return window.CodeHotScene.selectObject(id);
+            }
+          } catch (e) {}
+          const m = this.manager();
+          try { if (m && typeof m.selectObject === 'function') { m.selectObject(id); return true; } } catch (e) {}
+          return false;
+        },
+
+        scriptFor(id) {
+          try {
+            const scripts = JSON.parse(localStorage.getItem('codehot-script-bindings') || '{}') || {};
+            return scripts[id] || null;
+          } catch (e) { return null; }
+        },
+
+        saveScript(id, code, objectName) {
+          try {
+            const all = JSON.parse(localStorage.getItem('codehot-script-bindings') || '{}') || {};
+            if (code && String(code).trim()) all[id] = { objectName: objectName || 'Object', code: String(code) };
+            else delete all[id];
+            localStorage.setItem('codehot-script-bindings', JSON.stringify(all));
+          } catch (e) { return false; }
+          this.emit('script:changed', { objectId: id, code: String(code || '') });
+          try {
+            const objects = window.SCENE_STATE ? window.SCENE_STATE.objects.map(o => ({ id: o.id, name: o.name, type: o.type })) : [];
+            if (window.CodeHotScriptStore && typeof window.CodeHotScriptStore.set === 'function') {
+              window.CodeHotScriptStore.set(id, { objectName: objectName || 'Object', code: String(code) }, objects);
+            }
+          } catch (e) {}
+          return true;
+        },
+
+        // Runtime behavior scripts use the documented lifecycle:
+        // start(ctx, self) / update(ctx, self) / stop(ctx, self), ctx.delta is
+        // seconds, self.rotation is THREE Euler (radians), self.position is a
+        // THREE.Vector3. Scripts are normalized & validated by the runtime.
+        attachRuntimeScript(id, code, objectName) {
+          const rt = window.CodeHotRuntime;
+          if (rt && typeof rt.normalizeScriptSource === 'function') {
+            try { code = rt.normalizeScriptSource(code); } catch (e) {
+              return { ok: false, message: L('اسکریپت معتبر نیست: ', 'Invalid script: ') + (e.message || e) };
+            }
+          }
+          if (rt && typeof rt.validateScript === 'function') {
+            const check = rt.validateScript(code);
+            if (!check.ok) return { ok: false, message: L('اسکریپت معتبر نیست: ', 'Invalid script: ') + (check.error || '') };
+          }
+          const saved = this.saveScript(id, code, objectName);
+          if (!saved) return { ok: false, message: L('ذخیره‌ی اسکریپت انجام نشد.', 'Could not save the script.') };
+          // Reload running behaviors so the change applies immediately.
+          try {
+            if (rt && typeof rt.isPlaying === 'function' && rt.isPlaying()) {
+              if (typeof rt.reload === 'function') rt.reload();
+            }
+          } catch (e) {}
+          return { ok: true };
+        }
+      };
+
+      // ── Structured tools (all return { ok, message, data? }) ─────
+      const CodeHotTools = {
+        CREATE_OBJECT(params) {
+          const m = SceneOps.manager();
+          if (!m || typeof m.addObject !== 'function') return { ok: false, message: L('صحنه آماده نیست.', 'Scene is not ready.') };
+          const typeMap = { cube: 'cube', box: 'cube', مکعب: 'cube', مربع: 'cube', sphere: 'sphere', کره: 'sphere', گوی: 'sphere', cylinder: 'cylinder', استوانه: 'cylinder', cone: 'cone', مخروط: 'cone', plane: 'plane', صفحه: 'plane', سطح: 'plane' };
+          const rawType = String(params.type || 'cube').toLowerCase();
+          const geoType = typeMap[rawType] || typeMap[normalizeFa(rawType).toLowerCase()] || 'cube';
+          try {
+            m.addObject(geoType);
+          } catch (e) {
+            return { ok: false, message: L('خطا در ساخت آبجکت: ', 'Failed to create object: ') + (e.message || e) };
+          }
+          const objects = window.SCENE_STATE ? window.SCENE_STATE.objects : [];
+          const created = objects[objects.length - 1];
+          if (!created) return { ok: false, message: L('ساخت آبجکت انجام نشد.', 'Object was not created.') };
+
+          // Optional custom name + placement happen in one undo step with the create.
+          if (params.name && String(params.name).trim() && String(params.name).trim() !== created.name) {
+            created.name = String(params.name).trim();
+            const mesh = SceneOps.mesh(created.id);
+            if (mesh && mesh.userData) mesh.userData.name = created.name;
+            SceneOps.emit('scene:objectRenamed', { id: created.id });
+          }
+          const pos = { x: 0, y: 0, z: 0 };
+          if (params.x !== undefined) pos.x = params.x;
+          if (params.y !== undefined) pos.y = params.y;
+          if (params.z !== undefined) pos.z = params.z;
+          SceneOps.setTransform(created.id, { position: pos });
+          SceneOps.commit();
+          SceneOps.select(created.id);
+          SceneOps.emit('scene:objectAdded', { id: created.id, name: created.name, type: created.type });
+          return { ok: true, data: created, message: created.name + ' ' + L('ساخته شد.', 'created.') };
+        },
+
+        RENAME_OBJECT(params) {
+          const id = params.id;
+          const newName = String(params.newName || '').trim();
+          const obj = SceneOps.objectData(id);
+          if (!obj) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          if (!newName) return { ok: false, message: L('نام جدید مشخص نشده.', 'No new name given.') };
+          const oldName = obj.name;
+          SceneOps.undo('Rename ' + oldName);
+          obj.name = newName;
+          const mesh = SceneOps.mesh(id);
+          if (mesh && mesh.userData) mesh.userData.name = newName;
+          SceneOps.emit('scene:objectRenamed', { id: id, oldName: oldName, newName: newName });
+          SceneOps.commit();
+          return { ok: true, message: '"' + oldName + '" → "' + newName + '"' };
+        },
+
+        DELETE_OBJECT(params) {
+          const id = params.id;
+          const obj = SceneOps.objectData(id);
+          if (!obj) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          if (SceneOps.isPlaying()) return { ok: false, message: L('موقع Play نمی‌توان آبجکت حذف کرد. اول Stop بزن.', 'Cannot delete while playing. Stop first.') };
+          try {
+            if (window.CodeHotScene && typeof window.CodeHotScene.deleteObject === 'function') {
+              if (window.CodeHotScene.deleteObject(id)) {
+                return { ok: true, message: obj.name + ' ' + L('حذف شد.', 'deleted.') };
+              }
+            }
+          } catch (e) {}
+          // Fallback: remove from state + scene mesh.
+          const m = SceneOps.manager();
+          SceneOps.undo('Delete ' + obj.name);
+          const mesh = SceneOps.mesh(id);
+          if (mesh && mesh.parent) mesh.parent.remove(mesh);
+          try {
+            const state = window.SCENE_STATE;
+            state.objects = state.objects.filter(o => o.id !== id);
+            if (state.selectedId === id) state.selectedId = null;
+          } catch (e) {}
+          try {
+            if (window.CodeHotScriptStore && typeof window.CodeHotScriptStore.remove === 'function') {
+              window.CodeHotScriptStore.remove(id, window.SCENE_STATE.objects);
+            }
+          } catch (e) {}
+          SceneOps.commit();
+          return { ok: true, message: obj.name + ' ' + L('حذف شد.', 'deleted.') };
+        },
+
+        SET_TRANSFORM(params) {
+          const obj = SceneOps.objectData(params.id);
+          if (!obj) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          const change = params.change || {};
+          const res = SceneOps.setTransform(params.id, change);
+          if (!res.ok) return res;
+          const parts = [];
+          if (change.position) parts.push(L('موقعیت', 'position') + ': X' + obj.position.x.toFixed(2) + ' Y' + obj.position.y.toFixed(2) + ' Z' + obj.position.z.toFixed(2));
+          if (change.rotation) parts.push(L('چرخش', 'rotation') + ': X' + obj.rotation.x.toFixed(1) + '° Y' + obj.rotation.y.toFixed(1) + '° Z' + obj.rotation.z.toFixed(1) + '°');
+          if (change.scale) parts.push(L('اندازه', 'scale') + ': X' + obj.scale.x.toFixed(2) + ' Y' + obj.scale.y.toFixed(2) + ' Z' + obj.scale.z.toFixed(2));
+          return { ok: true, message: obj.name + ': ' + parts.join(' · ') };
+        },
+
+        SELECT_OBJECT(params) {
+          const ok = SceneOps.select(params.id);
+          const obj = SceneOps.objectData(params.id);
+          if (!ok || !obj) return { ok: false, message: L('انتخاب انجام نشد.', 'Could not select.') };
+          return { ok: true, message: obj.name + ' ' + L('انتخاب شد.', 'selected.') };
+        },
+
+        TOGGLE_VISIBLE(params) {
+          const obj = SceneOps.objectData(params.id);
+          if (!obj) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          SceneOps.undo('Visibility ' + obj.name);
+          obj.visible = params.visible !== undefined ? !!params.visible : !obj.visible;
+          const mesh = SceneOps.mesh(params.id);
+          if (mesh) mesh.visible = obj.visible;
+          SceneOps.emit('scene:objectVisibilityChanged', { id: params.id });
+          SceneOps.commit();
+          return { ok: true, message: obj.name + ' ' + (obj.visible ? L('نمایش داده شد.', 'is now visible.') : L('مخفی شد.', 'is now hidden.')) };
+        },
+
+        ATTACH_SCRIPT(params) {
+          const obj = SceneOps.objectData(params.id);
+          if (!obj) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          const res = SceneOps.attachRuntimeScript(params.id, params.code, obj.name);
+          if (!res.ok) return res;
+          return { ok: true, message: L('اسکریپت به ', 'Script attached to ') + obj.name + L(' متصل شد.', '.') };
+        },
+
+        PLAY_ANIMATION(params) {
+          const obj = SceneOps.objectData(params.id);
+          if (!obj) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          const anims = AIContext.animationsFor(params.id);
+          if (!anims.length) return { ok: false, message: obj.name + L(' هیچ انیمیشنی ندارد.', ' has no animations.') };
+          const anim = params.animation; // resolved by the planner
+          const rt = SceneOps.runtime();
+          try {
+            if (!SceneOps.isPlaying()) {
+              if (rt && typeof rt.start === 'function') rt.start();
+            }
+            const apiObj = rt ? rt.getObject(params.id) : null;
+            if (apiObj && apiObj.animation) {
+              if (apiObj.animation.play(anim.name)) {
+                return { ok: true, message: L('انیمیشن ', 'Animation ') + anim.name + L(' روی ', ' playing on ') + obj.name + L(' در حال پخش است.', '.') };
+              }
+            }
+            // Fallback: runtime script that starts the clip on Play.
+            const code = 'start(ctx, self) { self.animation.play("' + anim.name.replace(/"/g, '\\"') + '"); }\nupdate(ctx, self) {}\nstop(ctx, self) { try { self.animation.stop(); } catch (e) {} }';
+            const res = SceneOps.attachRuntimeScript(params.id, code, obj.name);
+            if (!res.ok) return res;
+            if (rt && typeof rt.start === 'function' && !SceneOps.isPlaying()) rt.start({ onlyId: params.id });
+            return { ok: true, message: L('وقتی Play بزنی، انیمیشن ', 'When you press Play, animation ') + anim.name + L(' روی ', ' will play on ') + obj.name + L(' پخش می‌شود.', '.') };
+          } catch (e) {
+            return { ok: false, message: L('خطا در پخش انیمیشن: ', 'Animation error: ') + (e.message || e) };
+          }
+        },
+
+        STOP_ANIMATION(params) {
+          const obj = SceneOps.objectData(params.id);
+          if (!obj) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          const rt = SceneOps.runtime();
+          try {
+            if (SceneOps.isPlaying() && rt) {
+              const apiObj = rt.getObject(params.id);
+              if (apiObj && apiObj.animation) apiObj.animation.stop();
+            }
+          } catch (e) {}
+          // Keep a runtime script only if one existed before.
+          const existing = SceneOps.scriptFor(params.id);
+          if (existing && /animation\.play|animation\.stop/.test(existing.code)) {
+            const code = 'start(ctx, self) {}\nupdate(ctx, self) {}\nstop(ctx, self) { try { self.animation.stop(); } catch (e) {} }';
+            SceneOps.attachRuntimeScript(params.id, code, obj.name);
+          }
+          return { ok: true, message: L('انیمیشن ', 'Animation ') + obj.name + L(' متوقف شد.', ' stopped.') };
+        },
+
+        SET_CAMERA(params) {
+          const m = SceneOps.manager();
+          if (!m || typeof m.applyCameraData !== 'function') return { ok: false, message: L('دوربین آماده نیست.', 'Camera is not ready.') };
+          try {
+            const cam = AIContext.runtimeState ? null : null;
+            const rs = AIContext.runtimeState();
+            const current = (window.CodeHotScene && typeof window.CodeHotScene.getCameraState === 'function') ? window.CodeHotScene.getCameraState() : null;
+            const data = {
+              position: {
+                x: params.x !== undefined ? params.x : (current ? current.position.x : 10),
+                y: params.y !== undefined ? params.y : (current ? current.position.y : 8),
+                z: params.z !== undefined ? params.z : (current ? current.position.z : 10)
+              },
+              target: {
+                x: params.tx !== undefined ? params.tx : (current ? current.target.x : 0),
+                y: params.ty !== undefined ? params.ty : (current ? current.target.y : 0),
+                z: params.tz !== undefined ? params.tz : (current ? current.target.z : 0)
+              },
+              fov: params.fov !== undefined ? params.fov : (current ? current.fov : 50),
+              near: current ? current.near : 0.1,
+              far: current ? current.far : 1000,
+              locked: !!(current && current.locked)
+            };
+            m.applyCameraData(data);
+            if (typeof m.saveToStorage === 'function') m.saveToStorage();
+            return { ok: true, message: L('دوربین تنظیم شد.', 'Camera updated.') };
+          } catch (e) {
+            return { ok: false, message: L('خطا در تنظیم دوربین: ', 'Camera error: ') + (e.message || e) };
+          }
+        },
+
+        CAMERA_FOLLOW(params) {
+          const target = SceneOps.objectData(params.id);
+          if (!target) return { ok: false, message: L('آبجکت پیدا نشد.', 'Object not found.') };
+          const quoted = target.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const code = 'start(ctx, self) {}\nupdate(ctx, self) {\n  var t = CodeHot.getObjectByName("' + quoted + '");\n  if (!t || !t.position) return;\n  self.setPosition(t.position.x, t.position.y + ' + (params.offsetY || 4) + ', t.position.z + ' + (params.offsetZ || 7) + ');\n  self.lookAt(t.position.x, t.position.y, t.position.z);\n}\nstop(ctx, self) {}';
+          const res = SceneOps.attachRuntimeScript(CAMERA_ID, code, 'Camera');
+          if (!res.ok) return res;
+          return { ok: true, message: L('دوربین موقع Play دنبال ', 'When you press Play the camera will follow ') + target.name + L(' می‌کند.', '.') };
+        }
+      };
+      window.CodeHotTools = CodeHotTools;
+
+      // ── Behavior script generator (runtime, not edit-time) ───────
+      function escapeStr(value) {
+        return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
+      }
+
+      const BehaviorScripts = {
+        rotateContinuous(axis, degPerSec) {
+          const deg = degPerSec || 90;
+          return 'start(ctx, self) {}\nupdate(ctx, self) {\n  var step = THREE.MathUtils.degToRad(' + deg + ') * (ctx.delta || 0.016);\n  self.rotation.' + axis + ' += step;\n}\nstop(ctx, self) {}';
+        },
+        moveContinuous(axis, unitsPerSec) {
+          const speed = unitsPerSec || 2;
+          return 'start(ctx, self) {}\nupdate(ctx, self) {\n  self.position.' + axis + ' += ' + speed + ' * (ctx.delta || 0.016);\n}\nstop(ctx, self) {}';
+        },
+        growContinuous(rate) {
+          const r = rate || 0.5;
+          return 'start(ctx, self) {}\nupdate(ctx, self) {\n  var s = 1 + (ctx.delta || 0.016) * ' + r + ';\n  self.scale.x *= s; self.scale.y *= s; self.scale.z *= s;\n}\nstop(ctx, self) {}';
+        },
+        rotateEveryN(seconds, deg) {
+          const s = Math.max(0.1, seconds || 1);
+          const d = deg || 90;
+          return 'start(ctx, self) { if (typeof self.__chTimer === "undefined") self.__chTimer = 0; }\nupdate(ctx, self) {\n  if (typeof self.__chTimer === "undefined") self.__chTimer = 0;\n  self.__chTimer += (ctx.delta || 0.016);\n  if (self.__chTimer >= ' + s + ') { self.__chTimer = 0; self.rotation.y += THREE.MathUtils.degToRad(' + d + '); }\n}\nstop(ctx, self) { self.__chTimer = 0; }';
+        },
+        jumpOnKey(key) {
+          const code = key || 'Space';
+          return 'start(ctx, self) {\n  self.__jumpOriginY = self.position.y;\n  self.__jumpVy = 0;\n  self.__jumpFn = function (e) {\n    if (e.code === "' + code + '" && !e.repeat && self.position.y <= self.__jumpOriginY + 0.05) { self.__jumpVy = 8; }\n  };\n  document.addEventListener("keydown", self.__jumpFn);\n}\nupdate(ctx, self) {\n  if (typeof self.__jumpVy === "undefined") return;\n  if (self.__jumpVy !== 0) {\n    self.position.y += self.__jumpVy * (ctx.delta || 0.016);\n    self.__jumpVy -= 22 * (ctx.delta || 0.016);\n    if (self.position.y <= self.__jumpOriginY) { self.position.y = self.__jumpOriginY; self.__jumpVy = 0; }\n  }\n}\nstop(ctx, self) {\n  if (self.__jumpFn) { document.removeEventListener("keydown", self.__jumpFn); self.__jumpFn = null; }\n  if (typeof self.__jumpOriginY === "number") self.position.y = self.__jumpOriginY;\n}';
+        },
+        animateOnPlay(animName) {
+          const n = escapeStr(animName);
+          return 'start(ctx, self) { self.animation.play("' + n + '"); }\nupdate(ctx, self) {}\nstop(ctx, self) { try { self.animation.stop(); } catch (e) {} }';
+        }
+      };
+
+      // ── Intent planning + agent core ──────────────────────────────
+      const CodeHotAgent = {
+        // Returns { intent, tool, params, response, ask?, error?, target? }
+        plan(text, ctx) {
+          const raw = String(text || '').trim();
+          const lower = raw.toLowerCase();
+          const t = normalizeFa(raw);
+
+          if (!raw) return { intent: 'unknown', response: L('چیزی ننوشتی.', 'You did not write anything.') };
+          if (hasAny(t, ['کمک', 'help', 'راهنما', 'چیکار می‌تونی', 'چه کارهایی'])) return { intent: 'help', response: this._helpText() };
+          if (hasAny(t, ['وضعیت', 'status', 'چی داریم', 'صحنه', 'context'])) return { intent: 'status', response: this._statusText(ctx) };
+          if (hasAny(t, ['مشکل', 'bug', 'خطا', 'error', 'درست کن'])) return { intent: 'diagnose', response: this._diagnoseText(ctx) };
+
+          const triggerRuntime = hasAny(t, ['وقتی play', 'وقتی پلی', 'موقع play', 'وقتی بازی', 'وقتی شروع', 'وقتی run', 'وقتی ران', 'وقتی اجرا', 'هنگام play', 'بعد از play', 'هنگام اجرا', 'شروع بازی', 'شروع بشه', 'when play', 'when the game', 'when game', 'when run', 'when it starts', 'on play', 'at runtime', 'during play']) ||
+            /وقتی\s+(?:play|بازی|شروع|run|اجرا)/i.test(raw);
+          const everyN = t.match(/(?:هر|every)\s*(\d+(?:\.\d+)?)\s*(?:ثانیه|second|s\b)/);
+          const continuous = hasAny(t, ['بچرخه', 'بچرخونه', 'بچرخون', 'بچرخان', 'بچرخد', 'بتونه', 'بتواند', 'بچرخ', 'حرکت کنه', 'حرکت بکنه', 'بره جلو', 'بره بالا', 'بره', 'بشه', 'بزرگ بشه', 'بزرگتر بشه', 'کوچیک بشه', 'کوچیکتر بشه', 'بپره', 'بپرد', 'دور خودش', 'مدام', 'rotate', 'spin', 'orbit', 'moves forward', 'move forward', 'grows', 'bounce', 'jump when', 'follow']) && hasAny(t, ['کنه', 'بشه', 'بچرخه', 'بره', 'بپره', 'مدام', 'continuously', 'keep ', 'every']);
+
+          // Camera intent (explicit or camera target)
+          const cameraIntent = hasAny(t, ['دوربین', 'camera', 'cam']) && hasAny(t, ['ببر', 'بذار', 'بزار', 'تنظیم', 'بچرخون', 'بچرخ', 'دنبال', 'عقب', 'پشت', 'move', 'set', 'follow', 'behind', 'position']) || /camera\s+(?:follow|move|set)/i.test(lower);
+
+          if (triggerRuntime || continuous || everyN) {
+            // Determine behavior kind from the action part (after the trigger).
+            const everySeconds = everyN ? parseFloat(everyN[1]) : null;
+            const anyTrig = triggerRuntime;
+            const behavior = this._planBehavior(raw, ctx, { continuous: true, anyTrig, everySeconds: everySeconds || null });
+            if (behavior) return behavior;
+          }
+
+          // Rename first — its phrase structure is very specific.
+          const renamePlan = this._planRename(raw, t, ctx);
+          if (renamePlan) return renamePlan;
+
+          if (hasAny(t, ['حذف', 'پاک کن', 'پاکش', 'delete', 'remove', 'حذفش'])) {
+            const obj = AIContext.resolveTarget(raw, ctx);
+            if (!obj) return this._needTarget('delete');
+            if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت با این نام پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') + '. ' + L('کدام را حذف کنم؟', 'Which should I delete?') };
+            if (obj.needSelection) return this._needSelection();
+            AIContext.trackTarget(obj);
+            return { intent: 'delete', tool: 'DELETE_OBJECT', params: { id: obj.id }, target: obj, response: obj.name };
+          }
+
+          if (hasAny(t, ['مخفی', 'قایم', 'پنهان', 'نمایش نده', 'نشون نده', 'hide', 'hidden', 'invisible']) && !hasAny(t, ['نمایش بده', 'نمایش بد', 'نشون بده', 'show', 'visible'])) {
+            const obj = AIContext.resolveTarget(raw, ctx);
+            if (!obj) return this._needTarget('hide');
+            if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') + '. ' + L('کدام را مخفی کنم؟', 'Which should I hide?') };
+            if (obj.needSelection) return this._needSelection();
+            AIContext.trackTarget(obj);
+            return { intent: 'visibility', tool: 'TOGGLE_VISIBLE', params: { id: obj.id, visible: false }, target: obj, response: obj.name };
+          }
+          if (hasAny(t, ['نمایش بده', 'نمایش بد', 'نشون بده', 'ظاهر کن', 'visible', 'show'])) {
+            const obj = AIContext.resolveTarget(raw, ctx);
+            if (!obj) return this._needTarget('show');
+            if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') + '. ' + L('کدام را نشان بدهم؟', 'Which should I show?') };
+            if (obj.needSelection) return this._needSelection();
+            AIContext.trackTarget(obj);
+            return { intent: 'visibility', tool: 'TOGGLE_VISIBLE', params: { id: obj.id, visible: true }, target: obj, response: obj.name };
+          }
+
+          // Animation intent (explicit word)
+          if (hasAny(t, ['انیمیشن', 'animation', 'anim', 'کلیپ', 'clip', 'ادا']) || hasAny(t, ['run کن', 'idle', 'walk', 'پخش کن'])) {
+            const animPlan = this._planAnimation(raw, t, ctx);
+            if (animPlan) return animPlan;
+          }
+
+          if (hasAny(t, ['اسکریپت', 'script', 'کد', 'کدش', 'برنامه', 'کدنویسی']) || /```/.test(raw)) {
+            const scriptPlan = this._planScript(raw, t, ctx);
+            if (scriptPlan) return scriptPlan;
+          }
+
+          // Create
+          if (hasAny(t, ['بساز', 'ساخت', 'ایجاد', 'create', 'add a', 'add an', 'make a', 'make an', 'new cube', 'new sphere'])) {
+            const createPlan = this._planCreate(raw, t);
+            if (createPlan) return createPlan;
+          }
+
+          // Edit-time transform intent (move/rotate/scale/position)
+          if (hasAny(t, ['انتخاب کن', 'select', 'سلکت', 'focus'])) {
+            const obj = AIContext.resolveTarget(raw, ctx);
+            if (!obj) return this._needTarget('select');
+            if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') };
+            AIContext.trackTarget(obj);
+            return { intent: 'select', tool: 'SELECT_OBJECT', params: { id: obj.id }, target: obj, response: obj.name };
+          }
+
+          if (cameraIntent) {
+            const camPlan = this._planCamera(raw, t, ctx);
+            if (camPlan) return camPlan;
+          }
+
+          if (hasAny(t, ['ببر', 'بذار', 'بزار', 'بکن', 'بکنش', 'بده', 'بده بالا', 'ببرش', 'برو بالا', 'برو پایین', 'برو راست', 'برو چپ', 'برو جلو', 'برو عقب', 'بذارش', 'move', 'moves to', 'put', 'place', 'set position', 'translate', 'بچرخون', 'بچرخونش', 'rotate', 'turn', 'بزرگ کن', 'بزرگتر', 'کوچیک کن', 'کوچیکتر', 'کوچک کن', 'کوچکتر', 'scale', 'بزرگ', 'کوچیک', 'اندازه'])) {
+            const transformPlan = this._planTransform(raw, t, ctx);
+            if (transformPlan) return transformPlan;
+          }
+
+          // Inspect a specific object or explain current selection
+          const infoWords = hasAny(t, ['کجاست', 'کجاستش', 'کجاییه', 'موقعیت', 'مختصات', 'چی هست', 'توضیح بده', 'info', 'inspect', 'where is']);
+          if (infoWords) {
+            const obj = AIContext.resolveTarget(raw, ctx);
+            if (obj && !obj.ambiguous && !obj.needSelection) {
+              AIContext.trackTarget(obj);
+              return { intent: 'inspect', tool: 'INSPECT_OBJECT', params: { id: obj.id }, target: obj, response: obj.name };
+            }
+            return { intent: 'status', response: this._statusText(ctx) };
+          }
+
+          return { intent: 'unknown', response: this._helpText() };
+        },
+
+        _needTarget(kind) {
+          return {
+            intent: 'ask',
+            ask: L('کدام آبجکت؟ اسمش را بگو یا اول آن را در صحنه انتخاب کن.', 'Which object? Say its name or select it in the scene first.')
+          };
+        },
+        _needSelection() {
+          return {
+            intent: 'ask',
+            ask: L('هیچ آبجکتی انتخاب نشده. اسم آبجکت را بگو یا اول آن را انتخاب کن.', 'Nothing is selected. Say the object name or select it first.')
+          };
+        },
+
+        _planRename(raw, t, ctx) {
+          // Persian patterns
+          let m = raw.match(/(?:اسم|نام)\s+([\u0600-\u06FF\w][\u0600-\u06FF\w .\-_]{0,40}?)\s+(?:رو|را|و)\s+(?:به|به اسم|)\s*([\u0600-\u06FF\w][\u0600-\u06FF\w .\-_]{0,40}?)\s*(?:کن|بده|تغییر|بده)/i);
+          if (m) {
+            const target = AIContext.resolveTarget(m[1], ctx);
+            if (target && !target.ambiguous && !target.needSelection) {
+              AIContext.trackTarget(target);
+              return { intent: 'rename', tool: 'RENAME_OBJECT', params: { id: target.id, newName: m[2].trim() }, target: target, response: target.name };
+            }
+          }
+          m = raw.match(/(?:اسم|نام)(?:ش|شو)?\s*(?:رو|را)?\s*(?:به|to)?\s*["']?([\u0600-\u06FF\w][\u0600-\u06FF\w .\-_]{0,40}?)["']?\s*(?:کن|بده|تغییر بده)/i);
+          if (m) {
+            const obj = AIContext.resolveTarget(raw, ctx);
+            if (obj && !obj.ambiguous && !obj.needSelection) {
+              AIContext.trackTarget(obj);
+              return { intent: 'rename', tool: 'RENAME_OBJECT', params: { id: obj.id, newName: m[1].trim() }, target: obj, response: obj.name };
+            }
+          }
+          // English: "rename Cube to Player", "rename it to Player", "name it Player"
+          let em = raw.match(/\b(?:rename|name)\s+(?:the\s+)?([A-Za-z0-9_.\- ]+?)\s+to\s+["']?([A-Za-z0-9_.\- ]{1,30})["']?/i);
+          if (em) {
+            const target = AIContext.resolveTarget(em[1], ctx);
+            if (target && !target.ambiguous && !target.needSelection) {
+              AIContext.trackTarget(target);
+              return { intent: 'rename', tool: 'RENAME_OBJECT', params: { id: target.id, newName: em[2].trim() }, target: target, response: target.name };
+            }
+          }
+          em = raw.match(/\b(?:rename|name)\s+(?:it|this|that|the selected)\s+to\s+["']?([A-Za-z0-9_.\- ]{1,30})["']?/i);
+          if (em) {
+            const obj = AIContext.resolveTarget(raw, ctx);
+            if (obj && !obj.ambiguous && !obj.needSelection) {
+              AIContext.trackTarget(obj);
+              return { intent: 'rename', tool: 'RENAME_OBJECT', params: { id: obj.id, newName: em[1].trim() }, target: obj, response: obj.name };
+            }
+          }
+          return null;
+        },
+
+        _planCreate(raw, t) {
+          let type = 'cube';
+          let name = null;
+          if (hasAny(t, ['sphere', 'کره', 'گوی', 'توپ'])) { type = 'sphere'; name = name || 'Sphere'; }
+          else if (hasAny(t, ['cylinder', 'استوانه'])) { type = 'cylinder'; name = name || 'Cylinder'; }
+          else if (hasAny(t, ['cone', 'مخروط'])) { type = 'cone'; name = name || 'Cone'; }
+          else if (hasAny(t, ['plane', 'صفحه', 'سطح'])) { type = 'plane'; name = name || 'Plane'; }
+          else if (hasAny(t, ['cube', 'مکعب', 'مربع', 'box'])) { type = 'cube'; name = name || 'Cube'; }
+          // fa: "یه کره به اسم Ball بساز" -> Ball (stop at the first Persian word)
+          const faNamed = raw.match(/(?:به نام|با نام|به اسم|با اسم)\s+["']?([^\s\u0600-\u06FF"']+)/i);
+          if (faNamed) name = faNamed[1].trim();
+          // en: "create a cone named Rocket"
+          if (!faNamed) {
+            const enNamed = raw.match(/\b(?:named?|called)\s+["']?([A-Za-z0-9][A-Za-z0-9 .\-_]{0,40})["']?/i);
+            if (enNamed) name = enNamed[1].trim();
+          }
+          const params = { type: type, name: name };
+          const x = axisValue(t, 'x'); const y = axisValue(t, 'y'); const z = axisValue(t, 'z');
+          if (x !== null) params.x = x;
+          if (y !== null) params.y = y;
+          if (z !== null) params.z = z;
+          return { intent: 'create', tool: 'CREATE_OBJECT', params: params, response: (name || type) + ' ' + L('ساخته خواهد شد.', 'will be created.') };
+        },
+
+        _planAnimation(raw, t, ctx) {
+          // eslint-disable-next-line no-unused-vars
+          const animTerms = ['idle', 'walk', 'run', 'jump', 'attack', 'dance', 'swim', 'sit', 'death', 'بیکار', 'ایستاده', 'راه رفتن', 'دویدن', 'پرش', 'حمله', 'رقص'];
+          const term = animTerms.find(a => t.includes(a) || raw.toLowerCase().includes(a));
+          const obj = AIContext.resolveTarget(raw, ctx);
+          if (!obj) return this._needTarget('animation');
+          if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') };
+          if (obj.needSelection) return this._needSelection();
+          AIContext.trackTarget(obj);
+
+          const anims = AIContext.animationsFor(obj.id);
+          if (!anims.length) {
+            return { intent: 'noanim', error: L('برای ', 'No animations found for ') + obj.name + L(' هیچ انیمیشنی ثبت نشده. اول یک مدل GLB دارای انیمیشن وارد کن.', '. Import a GLB model that has animations first.') };
+          }
+          // Find clip by exact/contains of the term (case-insensitive).
+          let anim = null;
+          if (term) {
+            const tl = normalizeFa(term).toLowerCase();
+            anim = anims.find(a => normalizeFa(a.name).toLowerCase() === tl) ||
+              anims.find(a => normalizeFa(a.name).toLowerCase().includes(tl)) ||
+              anims.find(a => tl.includes(normalizeFa(a.name).toLowerCase())) || null;
+          }
+          if (!anim) {
+            return {
+              intent: 'ask',
+              ask: L('انیمیشن پیدا نشد. انیمیشن‌های ', 'No matching clip. Available for ') + obj.name + L(' این‌ها هستند: ', ': ') + anims.map(a => a.name).join('، ') + '. ' + L('کدام را پخش کنم؟', 'Which one should I play?')
+            };
+          }
+          const stopOnly = hasAny(t, ['استاپ', 'متوقف', 'قطع', 'بایست', 'stop', 'نگه دار']);
+          const onPlay = hasAny(t, ['وقتی play', 'موقع play', 'هنگام play', 'وقتی بازی', 'شروع', 'وقتی run', 'وقتی اجرا', 'when play', 'on play', 'when the game starts', 'when run']);
+          if (stopOnly) return { intent: 'animation_stop', tool: 'STOP_ANIMATION', params: { id: obj.id, animation: anim }, target: obj, response: obj.name };
+          if (onPlay) {
+            const existing = SceneOps.scriptFor(obj.id);
+            const code = BehaviorScripts.animateOnPlay(anim.name);
+            return {
+              intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code },
+              target: obj, response: obj.name, meta: 'anim-on-play',
+              info: existing ? L('این آبجکت اسکریپت داشت؛ برای پخش انیمیشن، اسکریپت زمان اجرا به‌روزرسانی شد.', 'This object already had a script; its runtime script was updated to play the animation.') : null
+            };
+          }
+          return { intent: 'animation', tool: 'PLAY_ANIMATION', params: { id: obj.id, animation: anim }, target: obj, response: obj.name };
+        },
+
+        _planScript(raw, t, ctx) {
+          const fence = raw.match(/```(?:js|javascript)?\s*([\s\S]*?)```/);
+          if (fence && fence[1].trim()) {
+            const obj = AIContext.resolveTarget(raw, ctx);
+            if (!obj) return this._needTarget('script');
+            if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') };
+            if (obj.needSelection) return this._needSelection();
+            AIContext.trackTarget(obj);
+            return { intent: 'script', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: fence[1].trim() }, target: obj, response: obj.name };
+          }
+          const obj = AIContext.resolveTarget(raw, ctx);
+          if (!obj) return { intent: 'ask', ask: L('کدت را در یک بلاک کد (``` ... ```) بنویس و بگو به کدام آبجکت وصل شود.', 'Write the code in a code block (``` ... ```) and name the object to attach it to.') };
+          AIContext.trackTarget(obj);
+          const existing = SceneOps.scriptFor(obj.id);
+          return {
+            intent: 'script_info',
+            response: L('برای ', '') + obj.name + L(' اسکریپت بنویس:', ':') + '\n```\nstart(ctx, self) { }\nupdate(ctx, self) {\n  // ctx.delta = ثانیه بین فریم‌ها\n  // self.position / self.rotation / self.scale / self.animation\n}\nstop(ctx, self) { }\n```' + (existing ? L('\n(فعلاً یک اسکریپت دارد.)', '\n(This object already has a script.)') : '')
+          };
+        },
+
+        _planBehavior(raw, ctx, flags) {
+          const t = normalizeFa(raw);
+          const anyTrig = flags.anyTrig;
+          const obj = AIContext.resolveTarget(raw, ctx);
+          if (!obj) return this._needTarget('behavior');
+          if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') };
+          if (obj.needSelection) return this._needSelection();
+          AIContext.trackTarget(obj);
+
+          const lower = raw.toLowerCase();
+          // Jump
+          if (hasAny(t, ['بپره', 'بپرد', 'پرش', 'jump']) && hasAny(t, ['وقتی', 'when', 'کلید', 'key', 'space', 'فاصله'])) {
+            const code = BehaviorScripts.jumpOnKey('Space');
+            return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'jump' };
+          }
+          // Rotate every N seconds
+          if (hasAny(t, ['هر', 'every']) && hasAny(t, ['ثانیه', 'second']) && hasAny(t, ['بچرخ', 'rotate', 'چرخش', 'بچرخه'])) {
+            const secs = (raw.match(/(?:هر|every)\s*(\d+(?:\.\d+)?)\s*(?:ثانیه|second)/i) || [])[1];
+            const deg = axisValue(t, 'd') !== null ? axisValue(t, 'd') : (parseNum(toEnDigits(raw).replace(/(?:هر|every)\s*\d+(?:\.\d+)?\s*(?:ثانیه|second)/i, '')) || 90);
+            const code = BehaviorScripts.rotateEveryN(secs ? parseFloat(secs) : 1, deg);
+            return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'rotate-every' };
+          }
+          // Continuous rotate
+          if (hasAny(t, ['بچرخه', 'بچرخون', 'بچرخونه', 'بچرخان', 'بچرخد', 'دور خودش', 'دور خودش بچرخ', 'rotate', 'spin', 'orbit'])) {
+            const axis = hasAny(t, ['x']) ? 'x' : hasAny(t, ['z']) ? 'z' : 'y';
+            const numVal = parseNum(toEnDigits(raw).replace(/(هر|every)\s*\d+(\.\d+)?\s*(ثانیه|second)/i, ''));
+            const speed = numVal !== null ? numVal : 90;
+            const code = BehaviorScripts.rotateContinuous(axis, speed);
+            return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'rotate' };
+          }
+          // Growth
+          if (hasAny(t, ['بزرگ بشه', 'بزرگتر بشه', 'بزرگ‌تر بشه', 'کم‌کم بزرگ', 'گنده بشه', 'کمکم بزرگ', 'grow', 'gets bigger', 'grows'])) {
+            const code = BehaviorScripts.growContinuous(0.5);
+            return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'grow' };
+          }
+          // Continuous movement (forward/up/left/right/back)
+          if (hasAny(t, ['حرکت کنه', 'حرکت بکنه', 'بره جلو', 'بره بالا', 'بره پایین', 'بره', 'به جلو', 'move forward', 'keep moving', 'moves forward', 'go forward', 'drives forward'])) {
+            let axis = 'z'; let sign = 1;
+            if (hasAny(t, ['جلو', 'forward', 'به جلو'])) { axis = 'z'; sign = -1; }
+            else if (hasAny(t, ['عقب', 'back', 'backward'])) { axis = 'z'; sign = 1; }
+            else if (hasAny(t, ['بالا', 'up'])) { axis = 'y'; sign = 1; }
+            else if (hasAny(t, ['پایین', 'down'])) { axis = 'y'; sign = -1; }
+            else if (hasAny(t, ['راست', 'right'])) { axis = 'x'; sign = 1; }
+            else if (hasAny(t, ['چپ', 'left'])) { axis = 'x'; sign = -1; }
+            else if (/[xyz]\s*(?:=|:)/i.test(raw)) { axis = (raw.match(/\b([xyz])\s*=/i) || [])[1] || 'z'; }
+            const numVal = parseNum(toEnDigits(raw).replace(/(هر|every)\s*\d+(\.\d+)?\s*(ثانیه|second)/i, ''));
+            const speed = numVal !== null ? numVal : 2;
+            const code = BehaviorScripts.moveContinuous(axis, sign * speed);
+            return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'move' };
+          }
+          return null;
+        },
+
+        _planTransform(raw, t, ctx) {
+          const obj = AIContext.resolveTarget(raw, ctx);
+          if (!obj) return this._needTarget('transform');
+          if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') };
+          if (obj.needSelection) return this._needSelection();
+          AIContext.trackTarget(obj);
+
+          const change = {};
+
+          // 1) explicit axes "X=2 Y=3", "Y=5"
+          const axes = ['x', 'y', 'z'];
+          const absPos = {};
+          let anyAbs = false;
+          for (const a of axes) {
+            const v = axisValue(t, a);
+            if (v !== null) { absPos[a] = v; anyAbs = true; }
+          }
+          if (anyAbs && (hasAny(t, ['بذار', 'بزار', 'بکن', 'بذارش', 'روی', 'در', 'ببر', 'move', 'put', 'place', 'set', 'به مختصات']) || /[xyz]\s*(=|:)/.test(raw))) {
+            change.position = absPos;
+            return { intent: 'transform', tool: 'SET_TRANSFORM', params: { id: obj.id, change: change }, target: obj, response: obj.name };
+          }
+
+          // 2) Relative movement words
+          const move = {};
+          if (hasAny(t, ['بالا', 'برو بالا', 'ببر بالا', 'بالاتر'])) move.y = (obj.position.y || 0) + 1;
+          else if (hasAny(t, ['پایین', 'برو پایین', 'ببر پایین', 'پایین‌تر', 'پایینتر'])) move.y = (obj.position.y || 0) - 1;
+          if (hasAny(t, ['راست', 'برو راست', 'ببر راست', 'سمت راست'])) move.x = (obj.position.x || 0) + 1;
+          else if (hasAny(t, ['چپ', 'برو چپ', 'ببر چپ', 'سمت چپ'])) move.x = (obj.position.x || 0) - 1;
+          if (hasAny(t, ['جلو', 'برو جلو', 'به جلو', 'ببر جلو'])) move.z = (obj.position.z || 0) - 1;
+          else if (hasAny(t, ['عقب', 'برو عقب', 'به عقب', 'ببر عقب'])) move.z = (obj.position.z || 0) + 1;
+
+          // absolute placement "Y=5" without an axis-value word above
+          if (!anyAbs) {
+            for (const a of axes) {
+              const v = axisValue(t, a);
+              if (v !== null) { move[a] = v; }
+            }
+          }
+
+          // Generic number after "ببر/برو": treat as up-distance in Y
+          if (!Object.keys(move).length) {
+            const num = parseNum(toEnDigits(raw));
+            if (num !== null && /(ببر|برو|move|up|raise)/i.test(raw)) move.y = (obj.position.y || 0) + num;
+          }
+
+          const rot = {};
+          const rotateIntent = hasAny(t, ['بچرخون', 'بچرخونش', 'بچرخان', 'rotate', 'turn', 'چرخش']) && !hasAny(t, ['بچرخه', 'دور خودش', 'کنه', 'بشه']);
+          if (rotateIntent) {
+            const num = parseNum(toEnDigits(raw));
+            const deg = num !== null ? num : 45;
+            const ax = axisValue(t, 'x') !== null && hasAny(t, ['x', 'محور x']) ? 'x' : (axisValue(t, 'z') !== null && hasAny(t, ['z', 'محور z']) ? 'z' : 'y');
+            rot[ax] = (obj.rotation[ax] || 0) + deg;
+          }
+
+          const scaleIntent = hasAny(t, ['بزرگ کن', 'بزرگتر کن', 'بزرگ‌تر کن', 'کوچیک کن', 'کوچیکتر کن', 'کوچک کن', 'کوچکتر کن', 'scale up', 'scale down', 'make it bigger', 'make it smaller', 'بزرگش', 'کوچیکش', 'بزرگ', 'کوچیک', 'کوچک']);
+          if (scaleIntent) {
+            const mult = detectMultiplier(t);
+            const factor = mult !== null ? mult : (hasAny(t, ['کوچیک', 'کوچک', 'small']) ? 0.67 : 1.5);
+            const cur = obj.scale && obj.scale.x ? obj.scale.x : 1;
+            const next = cur * factor;
+            change.scale = { x: next, y: next, z: next };
+          }
+
+          if (Object.keys(move).length) {
+            const p = obj.position;
+            change.position = {
+              x: move.x !== undefined ? move.x : (p ? p.x : 0),
+              y: move.y !== undefined ? move.y : (p ? p.y : 0),
+              z: move.z !== undefined ? move.z : (p ? p.z : 0)
+            };
+          }
+          if (Object.keys(rot).length) change.rotation = rot;
+
+          if (Object.keys(change).length === 0) return null;
+          return { intent: 'transform', tool: 'SET_TRANSFORM', params: { id: obj.id, change: change }, target: obj, response: obj.name };
+        },
+
+        _planCamera(raw, t, ctx) {
+          // Camera follow: "دوربین دنبال ماشین باشه" / "camera follow the car"
+          if (hasAny(t, ['دنبال', 'دنبالش', 'پشت سر', 'follow'])) {
+            const obj = AIContext.resolveTarget(raw.replace(/(دوربین|camera)/gi, ''), ctx);
+            if (!obj) return this._needTarget('camera');
+            if (obj.ambiguous) return { intent: 'ask', ask: L('چند آبجکت پیدا شد: ', 'Multiple objects match: ') + obj.ambiguous.join('، ') };
+            if (obj.needSelection) return this._needSelection();
+            AIContext.trackTarget(obj);
+            return { intent: 'camera_follow', tool: 'CAMERA_FOLLOW', params: { id: obj.id, offsetY: 4, offsetZ: 7 }, target: obj, response: obj.name };
+          }
+          const params = {};
+          const axes = ['x', 'y', 'z'];
+          for (const a of axes) {
+            const v = axisValue(t, a);
+            if (v !== null) params[a] = v;
+          }
+          if (hasAny(t, ['بالا'])) params.y = (params.y !== undefined ? params.y : 8) + 2;
+          else if (hasAny(t, ['پایین'])) params.y = (params.y !== undefined ? params.y : 8) - 2;
+          if (Object.keys(params).length) return { intent: 'camera', tool: 'SET_CAMERA', params: params, response: L('دوربین جابه‌جا می‌شود.', 'Camera will move.') };
+          return null;
+        },
+
+        _statusText(ctx) {
+          const objList = ctx.objects.length
+            ? ctx.objects.map(o => '  • ' + o.name + ' (' + o.type + ')' + (o.hasScript ? ' · ' + L('اسکریپت دارد', 'has script') : '') + (o.animations.length ? ' · ' + L('انیمیشن: ', 'anim: ') + o.animations.map(a => a.name).join(', ') : '')).join('\n')
+            : '  (' + L('خالی', 'empty') + ')';
+          const assetList = ctx.assets.length ? ctx.assets.map(a => '  • ' + a.name + ' (' + a.type + ')').join('\n') : '  (' + L('هیچ', 'none') + ')';
+          const sel = ctx.selected ? ctx.selected.name : L('هیچ', 'none');
+          return L('وضعیت پروژه', 'Project status') + ':\n\n' +
+            L('آبجکت‌ها', 'Objects') + ' (' + ctx.totalObjects + '):\n' + objList + '\n\n' +
+            L('دارایی‌ها', 'Assets') + ' (' + ctx.totalAssets + '):\n' + assetList + '\n\n' +
+            L('زمان اجرا', 'Runtime') + ': ' + (ctx.runtime.isPlaying ? L('در حال اجرا (Play)', 'Playing') : L('حالت ویرایش', 'Editor')) + '\n' +
+            L('انتخاب‌شده', 'Selected') + ': ' + sel + '\n' +
+            L('دوربین', 'Camera') + ': ' + (ctx.camera ? 'X' + Number(ctx.camera.position.x).toFixed(1) + ' Y' + Number(ctx.camera.position.y).toFixed(1) + ' Z' + Number(ctx.camera.position.z).toFixed(1) : '-');
+        },
+
+        _diagnoseText(ctx) {
+          const lines = [];
+          const rs = ctx.runtime;
+          lines.push(L('بررسی سریع', 'Quick check') + ':');
+          lines.push('  • Scene: ' + ctx.totalObjects + ' ' + L('آبجکت', 'objects') + (ctx.totalObjects ? '' : ' (' + L('خالی است', 'empty') + ')'));
+          lines.push('  • ' + L('انتخاب', 'Selection') + ': ' + (ctx.selected ? ctx.selected.name : L('هیچ', 'none')));
+          lines.push('  • ' + L('زمان اجرا', 'Runtime') + ': ' + (rs.isPlaying ? L('روشن', 'running') : L('خاموش', 'stopped')));
+          try {
+            const errors = JSON.parse(localStorage.getItem('codehot-console-logs') || '[]');
+            const errs = (Array.isArray(errors) ? errors : []).filter(e => e && (e.level === 'error' || e.kind === 'error')).slice(-5);
+            if (errs.length) {
+              lines.push(L('آخرین خطاها', 'Last errors') + ':');
+              errs.forEach(e => lines.push('  • ' + ((e.message || e.text || '').toString().slice(0, 140))));
+            } else {
+              lines.push('  • ' + L('خطای ثبت‌شده‌ای نیست.', 'No logged errors.'));
+            }
+          } catch (e) {}
+          return lines.join('\n');
+        },
+
+        _helpText() {
+          const fa = [
+            'من دستیار CodeHot هستم و خودم کارها را در پروژه‌ات انجام می‌دهم. مثلاً:',
+            '',
+            '• ساخت آبجکت: «یک مکعب بساز»، «یه کره به اسم Ball بساز»',
+            '• جابه‌جایی ویرایشی: «Cube رو ببر بالا»، «ماشین رو روی Y=5 بذار»',
+            '• چرخش/اندازه: «Cube رو ۹۰ درجه بچرخون»، «این کاراکتر رو بزرگ‌تر کن»',
+            '• نام: «اسم این آبجکت رو Player کن»، «rename Cube to Player»',
+            '• حذف: «مربع رو حذف کن»، «این رو از صحنه پاک کن»',
+            '• انیمیشن: «انیمیشن Run این مدل رو پخش کن»، «وقتی بازی شروع شد Idle پخش بشه»',
+            '• رفتار زمان اجرا: «وقتی Play شد ماشین حرکت کنه»، «این آبجکت هر ۳ ثانیه بچرخه»،',
+            '  «وقتی Space زده شد کاراکتر بپره»، «دوربین موقع Play دنبال ماشین باشه»',
+            '• اتصال اسکریپت: کد را بین ``` ... ``` بنویس و بگو به کدام آبجکت وصل شود',
+            '• وضعیت: «وضعیت پروژه رو بگو»',
+            '',
+            'برای اینکه دقیق‌تر عمل کنم، آبجکت موردنظر را در صحنه انتخاب کن یا اسم دقیقش را بگو.'
+          ].join('\n');
+          const en = [
+            'I am the CodeHot agent and I perform actions in your project myself. Examples:',
+            '',
+            '• Create: "create a cube", "make a sphere named Ball"',
+            '• Edit-time move: "move Cube up", "put the car at Y=5"',
+            '• Rotate/scale: "rotate Cube 90 degrees", "make this character bigger"',
+            '• Rename: "rename Cube to Player"',
+            '• Delete: "delete the sphere", "remove this from the scene"',
+            '• Animation: "play the Run animation on this model", "play Idle when the game starts"',
+            '• Runtime behavior: "when Play, the car moves", "rotate this object every 3 seconds",',
+            '  "make the character jump when Space is pressed", "camera follows the car during Play"',
+            '• Scripts: paste code between ``` ... ``` and name the target object',
+            '• Status: "project status"',
+            '',
+            'For best results select the object in the scene or say its exact name.'
+          ].join('\n');
+          return L(fa, en);
+        },
+
+        // Execute a plan object; returns a final message string.
+        executePlan(plan, ctx) {
+          if (!plan) return L('متوجه نشدم.', 'I did not understand.');
+          if (plan.intent === 'ask') return plan.ask || plan.response || '';
+          if (plan.intent === 'help' || plan.intent === 'status' || plan.intent === 'diagnose' || plan.intent === 'script_info') return plan.response || '';
+          if (plan.error) return plan.error;
+          if (plan.intent === 'unknown') return plan.response || this._helpText();
+
+          const tool = CodeHotTools[plan.tool];
+          if (!tool) return plan.response || '';
+
+          const res = tool(plan.params || {});
+          AIContext.trackTarget(plan.target || null);
+
+          // Build the final natural-language confirmation.
+          const targetName = plan.target ? plan.target.name : '';
+          if (plan.intent === 'transform') {
+            if (res.ok) return '✅ ' + res.message;
+            return '⚠️ ' + res.message;
+          }
+          if (plan.intent === 'rename') return res.ok ? '✅ ' + res.message : '⚠️ ' + res.message;
+          if (plan.intent === 'delete') return res.ok ? '🗑️ ' + res.message : '⚠️ ' + res.message;
+          if (plan.intent === 'create') return res.ok ? '✅ ' + (plan.params && plan.params.name ? plan.params.name : targetName) + ' ' + L('ساخته شد.', 'created.') + (plan.params && (plan.params.x !== undefined || plan.params.y !== undefined || plan.params.z !== undefined) ? L(' در مختصات خواسته‌شده.', ' at the requested position.') : '') : '⚠️ ' + res.message;
+          if (plan.intent === 'visibility') return res.ok ? (res.ok && res.message) : '⚠️ ' + res.message;
+          if (plan.intent === 'select') return res.ok ? '✅ ' + res.message : '⚠️ ' + res.message;
+          if (plan.intent === 'animation' || plan.intent === 'animation_stop') return res.ok ? '🎬 ' + res.message : '⚠️ ' + res.message;
+          if (plan.intent === 'camera' || plan.intent === 'camera_follow') return res.ok ? '🎥 ' + res.message : '⚠️ ' + res.message;
+          if (plan.intent === 'behavior') {
+            const metaLabel = {
+              rotate: L('چرخش پیوسته', 'Continuous rotation'),
+              'rotate-every': L('چرخش دوره‌ای', 'Periodic rotation'),
+              move: L('حرکت پیوسته', 'Continuous movement'),
+              grow: L('رشد تدریجی', 'Gradual growth'),
+              jump: L('پرش با کلید', 'Jump on key'),
+              'anim-on-play': L('پخش انیمیشن در شروع', 'Animation on Play')
+            }[plan.meta] || L('رفتار زمان اجرا', 'Runtime behavior');
+            if (res.ok) return '⚡ ' + metaLabel + ' ' + L('به ', 'added to ') + targetName + L(' اضافه شد.', '.') + (plan.info ? '\n' + plan.info : '') + L('\nحالا Play را بزن تا ببینی.', '\nPress Play to see it.');
+            return '⚠️ ' + res.message;
+          }
+          if (plan.intent === 'script') return res.ok ? '📜 ' + res.message + L(' (با شروع Play اجرا می‌شود)', ' (runs when you press Play)') : '⚠️ ' + res.message;
+          if (plan.intent === 'inspect') {
+            if (!res.ok) return res.message;
+            return res.message;
+          }
+          return res.ok ? ('✅ ' + res.message) : ('⚠️ ' + res.message);
+        },
+
+        // Full agent turn: understand -> resolve -> plan -> execute -> answer.
+        async processRequest(text) {
+          const ctx = AIContext.getSnapshot();
+          AIContext.addConversation('user', String(text));
+          try {
+            const plan = this.plan(String(text), ctx);
+            const response = this.executePlan(plan, ctx);
+            // Keep the context fresh for the next turn.
+            AIContext.trackTarget(plan && plan.target ? plan.target : null);
+            AIContext.addConversation('assistant', response);
+            return response;
+          } catch (e) {
+            const msg = L('خطای داخلی: ', 'Internal error: ') + (e && e.message ? e.message : e);
+            console.error('[CodeHotAgent]', e);
+            AIContext.addConversation('assistant', msg);
+            return msg;
+          }
+        },
+
+        async handleMessage(text) {
+          const message = String(text || '').trim();
+          if (!message) return '';
+          const input = document.getElementById('ai-aiUserInput');
+          const btn = document.getElementById('ai-aiSendBtn');
+          if (input) input.disabled = true;
+          if (btn) btn.disabled = true;
+          ChatStore.add('user', message);
+          ChatUI.addMessage('user', message);
+          const response = await this.processRequest(message);
+          ChatUI.addMessage('assistant', response);
+          if (input) input.disabled = false;
+          if (btn) btn.disabled = false;
+          return response;
+        },
+
+        classify(text) {
+          const plan = this.plan(text, AIContext.getSnapshot());
+          return { type: plan.intent, response: plan.response || plan.ask || '', actions: plan.tool ? [{ tool: plan.tool, params: plan.params || {} }] : [], plan: plan };
+        }
+      };
+
+      // ── Chat rendering + history (bilingual, single writer) ───────
+      const ChatStore = {
+        load() {
+          try {
+            const raw = localStorage.getItem(CONVERSATION_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed.messages) ? parsed.messages : [];
+          } catch (e) { return []; }
+        },
+        save(messages) {
+          try {
+            localStorage.setItem(CONVERSATION_KEY, JSON.stringify({ version: 1, messages: messages.slice(-HISTORY_LIMIT) }));
+          } catch (e) {}
+        },
+        add(role, content) {
+          const all = this.load();
+          all.push({ role: role, content: String(content) });
+          this.save(all);
+        },
+        lastAssistantWasError() {
+          const all = this.load();
+          for (let i = all.length - 1; i >= 0; i--) {
+            if (all[i].role === 'assistant') return /^⚠️|^خطای|Internal error|⚠/.test(all[i].content || '');
+            if (all[i].role === 'user') return false;
+          }
+          return false;
+        }
+      };
+
+      const ChatUI = {
+        escapeHtml(str) {
+          const div = document.createElement('div');
+          div.textContent = String(str == null ? '' : str);
+          return div.innerHTML;
+        },
+        clearEmpty() {
+          const e = document.querySelector('#ai-aiMessages .ai-ai-empty-state');
+          if (e) e.remove();
+        },
+        renderMarkdownLite(text) {
+          const raw = String(text == null ? '' : text).replace(/\r\n/g, '\n');
+          const lines = raw.split('\n');
+          const out = [];
+          let i = 0;
+          const inline = (value) => {
+            let html = this.escapeHtml(value);
+            const tokens = [];
+            const stash = (c) => { const k = '@@CH' + tokens.length + '@@'; tokens.push(c); return k; };
+            html = html.replace(/`([^`\n]+)`/g, (_, c) => stash('<code>' + c + '</code>'));
+            html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+            tokens.forEach((c, idx) => { html = html.split('@@CH' + idx + '@@').join(c); });
+            return html;
+          };
+          while (i < lines.length) {
+            const line = lines[i];
+            if (!line.trim()) { i++; continue; }
+            if (/^\s*```/.test(line)) {
+              const block = [];
+              i++;
+              while (i < lines.length && !/^\s*```/.test(lines[i])) { block.push(lines[i]); i++; }
+              i++;
+              out.push('<pre class="ai-ai-code-block-inline"><code>' + this.escapeHtml(block.join('\n')) + '</code></pre>');
+              continue;
+            }
+            if (/^\s*[-•*]\s+/.test(line)) {
+              const items = [];
+              while (i < lines.length && /^\s*[-•*]\s+/.test(lines[i])) {
+                items.push('<li>' + inline(lines[i].replace(/^\s*[-•*]\s+/, '')) + '</li>');
+                i++;
+              }
+              out.push('<ul>' + items.join('') + '</ul>');
+              continue;
+            }
+            if (/^\s{0,3}#{1,3}\s+/.test(line)) {
+              const lvl = line.match(/^\s{0,3}(#{1,3})\s+/)[1].length + 2;
+              out.push('<h' + lvl + '>' + inline(line.replace(/^\s{0,3}#{1,3}\s+/, '')) + '</h' + lvl + '>');
+              i++;
+              continue;
+            }
+            out.push('<p>' + inline(line) + '</p>');
+            i++;
+          }
+          return out.join('');
+        },
+        addMessage(role, content) {
+          this.clearEmpty();
+          const container = document.getElementById('ai-aiMessages');
+          if (!container) return;
+          const bubble = document.createElement('div');
+          bubble.className = 'ai-ai-message ai-ai-message-' + role;
+          if (role === 'assistant') bubble.innerHTML = this.renderMarkdownLite(content);
+          else bubble.textContent = content;
+          container.appendChild(bubble);
+          container.scrollTop = container.scrollHeight;
+        },
+        addNotice(text, kind) {
+          this.clearEmpty();
+          const container = document.getElementById('ai-aiMessages');
+          if (!container) return;
+          const notice = document.createElement('div');
+          notice.className = 'ai-ai-system-notice ai-ai-system-notice-' + (kind || 'info');
+          notice.innerHTML = '<span>' + this.escapeHtml(text) + '</span>';
+          container.appendChild(notice);
+          container.scrollTop = container.scrollHeight;
+        },
+        renderHistory() {
+          const container = document.getElementById('ai-aiMessages');
+          if (!container) return;
+          const messages = ChatStore.load();
+          if (!messages.length) {
+            if (!container.children.length) {
+              container.innerHTML = '<div class="ai-ai-empty-state">' + this.escapeHtml(L('از من بخواه تا آبجکت بسازم، جابه‌جا کنم، اسم بگذارم، انیمیشن پخش کنم یا رفتار زمان اجرا اضافه کنم.', 'Ask me to create objects, move them, rename, play animations, or add runtime behavior.')) + '</div>';
+            }
+            return;
+          }
+          // Only render when the panel is empty (AIAssistantModule may already
+          // have restored the same history on load).
+          if (container.children.length > 0) return;
+          messages.forEach(m => this.addMessage(m.role, m.content));
+        }
+      };
+
+      // ── Legacy-compatible facade ──────────────────────────────────
+      const CodeHotLocalAgent = {
+        process: (text) => CodeHotAgent.processRequest(text),
+        handleMessage: (text) => CodeHotAgent.handleMessage(text),
+        processRequest: (text) => CodeHotAgent.processRequest(text),
+        classify: (text) => CodeHotAgent.classify(text),
+        getContext: () => AIContext.getSnapshot(),
+        plan: (text) => CodeHotAgent.plan(text, AIContext.getSnapshot()),
+        help: () => CodeHotAgent._helpText(),
+        tools: CodeHotTools
+      };
+
+      window.CodeHotAgent = CodeHotAgent;
+      window.CodeHotLocalAgent = CodeHotLocalAgent;
+      window.AIExecutor = {
+        execute: (intent) => {
+          if (!intent) return '';
+          if (intent.plan) return CodeHotAgent.executePlan(intent.plan, AIContext.getSnapshot());
+          if (intent.actions && intent.actions.length) {
+            const results = intent.actions.map(a => {
+              const tool = CodeHotTools[a.tool];
+              return tool ? tool(a.params || {}) : { ok: false, message: 'Unknown tool' };
+            });
+            return results.map(r => r.message).join('\n');
+          }
+          return intent.response || '';
+        }
+      };
+      window.AIIntents = { classify: (text) => CodeHotAgent.classify(text) };
+      // Testable entry point used by AIAssistantModule's submit path.
+      window.handleUserSubmit = (text) => CodeHotAgent.handleMessage(String(text));
+
+      // AIChatManager kept as a safe no-op shell (other code may reference it).
+      const AIChatManager = {
+        messages: [],
+        isProcessing: false,
+        init() { /* DOM bindings removed: AIAssistantModule delegates to CodeHotAgent */ },
+        async sendMessage() {
+          const input = document.getElementById('ai-aiUserInput');
+          const text = (input ? input.value : '').trim();
+          if (!text) return;
+          input.value = '';
+          await CodeHotAgent.handleMessage(text);
+        }
+      };
+      window.AIChatManager = AIChatManager;
+
+      document.addEventListener('DOMContentLoaded', function () {
+        // Restore the persisted conversation (if the earlier module did not).
+        ChatUI.renderHistory();
+      });
+    })();
+
     // ── V11 Keyboard Shortcuts ─────────────────────────────────
     document.addEventListener('keydown', (e) => {
       const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
