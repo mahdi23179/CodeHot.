@@ -18,8 +18,6 @@
   if (agent.__v12Escalation) return; // idempotent
   agent.__v12Escalation = true;
 
-  var originalProcess = agent.processRequest;
-
   var WORKER_URL = global.CodeHotAIEndpoint || 'https://nokhbe.m46680279.workers.dev/';
   // Free-model workers occasionally take >45s. A timeout abort must not kill
   // a multi-step request: give the model real time, then retry transient
@@ -41,14 +39,14 @@
     fail: function (m) { return fa() ? '⚠️ اتصال به مدل هوش مصنوعی برقرار نشد: ' + m : '⚠️ Could not reach the AI model: ' + m; },
     noModel: function () { return fa() ? '⚠️ پاسخی از مدل هوش مصنوعی دریافت نشد.' : '⚠️ The AI model returned no content.'; },
     notFound: function (n) {
-      return fa()
+      return (fa()
         ? '⚠️ آبجکتی به نام «' + n + '» در صحنه وجود ندارد؛ هیچ آبجکتی حذف یا تغییر نکردم. اسم دقیق آبجکت را بگو یا اول آن را انتخاب کن.'
-        : '⚠️ No object named "' + n + '" exists in the scene. Nothing was changed. Say the exact object name or select it first.';
+        : '⚠️ No object named "' + n + '" exists in the scene. Nothing was changed. Say the exact object name or select it first.') + ' | ENTITY_SAFETY (deterministic, not AI):';
     },
     typeMissing: function (t) {
-      return fa()
+      return (fa()
         ? '⚠️ هیچ آبجکتی از نوع «' + t + '» در صحنه نیست؛ عملیاتی انجام نشد.'
-        : '⚠️ No object of type "' + t + '" exists in the scene. Nothing was changed.';
+        : '⚠️ No object of type "' + t + '" exists in the scene. Nothing was changed.') + ' | ENTITY_SAFETY (deterministic, not AI):';
     },
     noAction: function () {
       return fa()
@@ -88,6 +86,7 @@
     var cmds = (caps.commands || []).join(', ');
     return [
       'You are the CodeHot editor AI agent operating INSIDE the CodeHot 3D editor.',
+      'Every assistant reply MUST come from you (the model). Never fabricate results; if you cannot act, say so honestly.',
       'SCENE STATE below is the REAL current state, read from the running editor.',
       'Never invent objects, ids, names, or animation clips.',
       'If the user asks about an object/clip that is not in SCENE STATE, say clearly that it does not exist. NEVER pick a different object instead.',
@@ -114,6 +113,7 @@
       'Multi-step requests: emit the blocks in order. If step 1 creates an object referenced by later steps, give it NAME:"X" in CREATE_OBJECT and target OBJECT:"X" afterwards.',
       'To rename an object: @@RENAME_OBJECT with OBJECT:"OldName" (or ID) and NEW_NAME:"NewName". NEW_NAME is required and must be quoted.',
       'For "put A next to B": read B\'s position from SCENE STATE and MOVE A to a spot about 2 units away from B using absolute X/Y/Z in MOVE_OBJECT.',
+      'Movement is @@MOVE_OBJECT with OBJECT/ID plus absolute X/Y/Z (or DELTA:true for offsets). Rotation is @@ROTATE_OBJECT with X/Y/Z in DEGREES (absolute; add DELTA:true to rotate by). There is no TRANSFORM_OBJECT command.',
       '',
       'Script format for "rotate/move when Play":',
       '@@CREATE_SCRIPT',
@@ -295,86 +295,15 @@
     try { global.localStorage.removeItem(HIST_KEY); } catch (e) {}
   };
 
-  /* ── Classification: deterministic vs model escalation ───────── */
-  // The local planner's keyword shortcuts are NOT trusted for complex
-  // requests: multi-goal, relative placement, verification demands, behavior
-  // requests, rename-with-report requests, and anything unknown/ask go to the
-  // REAL model.
-  function classifyComplex(text) {
-    var t = String(text || '');
-    if (!t.trim()) return false;
-    var sentences = t.split(/[.!؟?\n]+(?:\s|$)/).map(function (s) { return s.trim(); }).filter(Boolean);
-    var hasCreate = /بساز|ایجاد|create|make a|add a|new (cube|sphere|cylinder|cone|plane)/i.test(t);
-    var hasMutate = /حذف|پاک کن|delete|remove|move|ببر|بذار|بزار|rotate|بچرخون|scale|بزرگ کن|کوچیک کن|rename|قرار بده|next to|کنار/i.test(t);
-    var hasRename = /اسمش را|اسمشو|نامش را|نامشو|اسم\s+\S+\s+(?:را|رو)|نام\s+\S+\s+(?:را|رو)|rename|\bname it\b|\bname the\b|\bnamed\b|\bcalled\b/i.test(t);
-    var hasBehavior = /بچرخد|بچرخه|دور خودش|spin|rotate when|when play|وقتی play|وقتی پلی|موقع play|وقتی اجرا|وقتی بازی|هر \d+ ثانیه|اسکریپت|script/i.test(t);
-    var hasSave = /ذخیره|save/i.test(t);
-    var hasVerify = /بررسی کن|بخوان|query|وضعیت را|state را|verify|تأیید|تایید|check/i.test(t);
-    var hasQuestion = /؟|\?$|\bwhere\b|\bwhat\b|\bhow\b|\bwhy\b|\bstatus\b/i.test(t);
-    var goals = [hasCreate, hasMutate, hasRename, hasBehavior, hasSave, hasVerify, hasQuestion].filter(Boolean).length;
-    if (goals >= 2) return true;
-    // Create + "name it X" is composite (create then rename): the local
-    // planner cannot parse «اسمش را X بگذار», so it would silently drop the
-    // name. Such requests must reach the real model (DeepBlue rule).
-    if (hasCreate && hasRename) return true;
-    if (sentences.length >= 2 && (hasMutate || hasCreate)) return true;
-    if (/کنار|قرار بده|next to/i.test(t)) return true; // relative placement needs model reasoning
-    if (hasBehavior) return true; // behavior requests are safest via model
-    return false;
-  }
+  /* ── Classification (removed) ─────────────────────────────────── */
+  // V12: routing is model-first for every user message. There is no local
+  // planner answer path anymore, so complexity classification is not used.
 
   /* ── Entity safety: explicit missing names never fall back ───── */
   var SHAPE_WORDS = ['cube', 'box', 'مکعب', 'مربع', 'sphere', 'کره', 'گوی', 'توپ', 'cylinder', 'استوانه', 'cone', 'مخروط', 'plane', 'صفحه', 'سطح', 'model', 'مدل', 'گروه', 'group', 'glb'];
   var META_WORDS = ['اسم', 'اسمش', 'اسمشو', 'نام', 'نامش', 'انیمیشن', 'انیمیشنش', 'اسکریپت', 'دوربین', 'camera', 'scene', 'صحنه', 'state', 'project', 'پروژه', 'name', 'animation', 'script', 'it', 'this', 'that', 'them', 'him', 'her', 'object', 'objects', 'آبجکت', 'آبجکتش'];
   var VERB_WORDS = ['ببر', 'ببرش', 'بذار', 'بذارش', 'بزار', 'بزارش', 'بکن', 'بکنش', 'کن', 'برو', 'بیار', 'بگیر', 'حذف', 'پاک', 'بساز', 'بچرخ', 'بده', 'بدهش', 'delete', 'remove', 'move', 'rotate', 'create', 'make', 'play', 'stop', 'select', 'rename', 'hide', 'show'];
 
-  var EXIST_MARKER = /وجود دارند|وجود دارد|هستند یا نه|هست یا نه|موجود هستند|هنوز وجود|do .* exist|are they (still )?(there|ok)|exist or not|still exist/i;
-
-  // "Do X, Y, Z still exist?" questions are answered per-object from live
-  // state. Suppressed when the message is really a create/mutate/save request
-  // where the existence wording is incidental.
-  function isExistenceQuestion(text) {
-    var t = String(text || '');
-    if (!EXIST_MARKER.test(t)) return null;
-    if (/بساز|ایجاد|حذف کن|پاک کن|ببر|بذار|بزار|rename|اسمش را|اسکریپت|ذخیره|save\b|create|delete\b|move\b|بچرخ/i.test(t)) return null;
-    var names = explicitNamesInText(t).filter(function (n) {
-      return !META_WORDS.concat(VERB_WORDS).some(function (w) { return eqName(w, n); });
-    });
-    return names.length >= 2 ? names : null;
-  }
-
-  function existenceReport(names) {
-    var faLang = fa();
-    var live = ctxSummary();
-    var objects = live.objects || [];
-    var lines = [];
-    lines.push(faLang ? 'بررسی واقعی وجود آبجکت‌ها (خوانده‌شده از وضعیت فعلی صحنه):' : 'Real object existence check (read from the current scene state):');
-    names.forEach(function (n) {
-      var hit = objects.find(function (o) { return eqName(o.name, n); });
-      if (hit) {
-        lines.push('• ' + hit.name + ': ✓ ' + (faLang ? 'موجود است' : 'FOUND') + ' (' + hit.type + ') ' + fmtPos(hit.position) + (hit.hasScript ? (faLang ? ' · اسکریپت دارد' : ' · script') : ''));
-      } else {
-        lines.push('• ' + n + ': ✗ ' + (faLang ? 'در صحنه موجود نیست (حذف شده یا هرگز ساخته نشده)' : 'NOT FOUND in the current scene (deleted or never created)'));
-      }
-    });
-    lines.push(faLang ? 'تعداد آبجکت‌های فعلی صحنه: ' + objects.length : 'Current scene object count: ' + objects.length);
-    return lines.join('\n');
-  }
-
-  // First explicitly named object that is not in the live scene (excluding
-  // shape/meta/verb words). Used to stop actions with an honest NOT-FOUND.
-  function missingExplicitName(text) {
-    var live = ctxSummary();
-    var names = (live.objects || []).map(function (o) { return o.name; });
-    var mentioned = explicitNamesInText(text).filter(function (n) {
-      return !SHAPE_WORDS.some(function (s) { return eqName(s, n); }) &&
-        !META_WORDS.concat(VERB_WORDS).some(function (w) { return eqName(w, n); });
-    });
-    for (var i = 0; i < mentioned.length; i++) {
-      if (!names.some(function (n) { return eqName(n, mentioned[i]); })) return mentioned[i];
-    }
-    return null;
-  }
 
   function eqName(a, b) {
     var x = String(a || '').replace(/[\u200c\u200d]/g, '').trim().toLowerCase();
@@ -382,7 +311,7 @@
     return !!x && x === y;
   }
 
-  // Explicit object names written in the text (quoted, Persian <X> را/رو,
+
   // capitalized Latin token). Only real-looking object names are returned.
   function explicitNamesInText(text) {
     var raw = String(text || '');
@@ -402,41 +331,7 @@
     return out;
   }
 
-  // A mutation plan must be blocked when the user explicitly named an object
-  // that does not exist in the live scene (no invented/nearest/selection
-  // fallback), or when a shape word matches zero objects of that type.
-  function mutationBlockReason(rawText, plan) {
-    if (!plan) return null;
-    var MUT = ['delete', 'rename', 'transform', 'visibility', 'select', 'animation', 'animation_stop', 'behavior', 'script', 'camera_follow'];
-    if (MUT.indexOf(plan.intent) === -1) return null;
-    var live = ctxSummary();
-    var names = (live.objects || []).map(function (o) { return o.name; });
-    var mentioned = explicitNamesInText(rawText);
-    for (var i = 0; i < mentioned.length; i++) {
-      var nm = mentioned[i];
-      var isShape = SHAPE_WORDS.some(function (s) { return eqName(s, nm); });
-      if (isShape) continue;
-      // V12 fix: for a rename, the NEW name must not be treated as a missing
-      // target — it does not exist yet by definition. Only the source object
-      // has to exist.
-      if (plan.intent === 'rename' && plan.params && plan.params.newName && eqName(plan.params.newName, nm)) continue;
-      var exists = names.some(function (n) { return eqName(n, nm); });
-      if (!exists) return { kind: 'name', name: nm };
-    }
-    // Shape word typed explicitly but no object of that kind exists.
-    var norm = String(rawText || '').toLowerCase();
-    var shapeHit = SHAPE_WORDS.filter(function (s) { return /[\u0600-\u06FF]/.test(s) ? norm.indexOf(s) !== -1 : new RegExp('\\b' + s + '\\b', 'i').test(norm); });
-    for (var j = 0; j < shapeHit.length; j++) {
-      var alias = shapeHit[j];
-      var TYPE_OF = { cube: 'cube', box: 'cube', 'مکعب': 'cube', 'مربع': 'cube', sphere: 'sphere', 'کره': 'sphere', 'گوی': 'sphere', 'توپ': 'sphere', cylinder: 'cylinder', 'استوانه': 'cylinder', cone: 'cone', 'مخروط': 'cone', plane: 'plane', 'صفحه': 'plane', 'سطح': 'plane' };
-      var want = TYPE_OF[alias] || alias;
-      var count = (live.objects || []).filter(function (o) { return o.type === want; }).length;
-      if (!count) return { kind: 'type', name: alias };
-    }
-    return null;
-  }
 
-  /* ── Deterministic live-state verification summary ───────────── */
   function fmtPos(v) {
     return v && typeof v === 'object'
       ? 'X' + Number(v.x || 0).toFixed(2) + ' Y' + Number(v.y || 0).toFixed(2) + ' Z' + Number(v.z || 0).toFixed(2)
@@ -478,41 +373,24 @@
       return own.map(function (p) { return (p.ok ? '✅ ' : '⚠️ ') + (p.command ? p.command + ': ' : '') + (p.message || ''); }).join('\n\n');
     }
 
-    // 2) Local deterministic plan first (fast, offline, exact) — but only when
-    // the request is a single, fully-specified goal the planner really knows.
+    // 2) V12: NO local answers. plan() is used for entity-safety only; its
+    //    result is never shown to the user as an AI reply.
     var plan = null;
     try { plan = agent.plan(rawText, global.AIContext && global.AIContext.getSnapshot ? global.AIContext.getSnapshot() : null); } catch (e) { plan = null; }
-    var unknownish = !plan || plan.intent === 'unknown' || plan.intent === 'ask';
-    var infoOnly = !!(plan && (plan.intent === 'help' || plan.intent === 'status' || plan.intent === 'diagnose' || plan.intent === 'script_info' || plan.intent === 'inspect' || plan.intent === 'noanim' || plan.error));
-    var complex = classifyComplex(rawText);
 
-    // Existence checks ("do X, Y, Z still exist?") are answered per-object
-    // from LIVE state — never as a generic status dump, never from stale
-    // conversation memory.
-    var exNames = isExistenceQuestion(rawText);
-    if (exNames) return existenceReport(exNames);
+    // Existence checks ("do X, Y, Z still exist?") also go to the model — the
+    // model sees the same live SCENE STATE in its prompt. No canned report.
+    // (isExistenceQuestion/existenceReport removed with the canned paths.)
 
-    // Deterministic NOT-FOUND: an explicitly named, non-existent target stops
-    // the action (no selection fallback, no nearest-object guess, no model
-    // improvisation) with an honest error.
-    if (plan && plan.intent === 'ask' && plan.ask) {
-      var missing = missingExplicitName(rawText);
-      if (missing) return STR.notFound(missing);
-    }
+    // V12: no bridge-level target gating. The REAL model decides from the
+    // live SCENE STATE (system prompt forbids substitute targets), and every
+    // model-issued command is then executed and verified by the Command
+    // Protocol, which fails honestly on unresolved targets.
 
-    if (!complex && !unknownish && plan && !plan.error) {
-      // Entity-safety gate: an explicitly named missing target must stop the
-      // action instead of silently acting on the selection or another object.
-      var block = mutationBlockReason(rawText, plan);
-      if (block && block.kind === 'name') return STR.notFound(block.name);
-      if (block && block.kind === 'type') return STR.typeMissing(block.name);
-      return originalProcess.call(agent, rawText);
-    }
-    if (infoOnly && !complex) {
-      return originalProcess.call(agent, rawText);
-    }
-
-    // 3) Escalate to the REAL model through the Worker (no fake fallback).
+    // 3) Escalate EVERYTHING to the REAL model through the Worker.
+    //    V12 removal: the local planner may no longer ANSWER the user —
+    //    it is not the AI, and its canned template replies impersonated one.
+    //    plan() results are used only by the model via the scene context.
     pushHistory('user', rawText);
     var ctx = ctxSummary();
     var messages = [{ role: 'system', content: buildSystemPrompt(ctx) }]
@@ -523,12 +401,12 @@
     try {
       content = await transport(messages);
     } catch (err) {
-      var failMsg = STR.fail((err && err.message) ? err.message : String(err));
+      var failMsg = STR.fail((err && err.message) ? err.message : String(err)) + ' | SYSTEM_ERROR (no canned reply): model call attempted and failed.';
       try { global.AIContext.addConversation('assistant', failMsg); } catch (e) {}
       return failMsg; // REAL error surfaced; nothing faked.
     }
     if (!content || !String(content).trim()) {
-      var none = STR.noModel();
+      var none = STR.noModel() + ' | SYSTEM_ERROR (no canned reply): model call attempted, empty response.';
       try { global.AIContext.addConversation('assistant', none); } catch (e) {}
       return none;
     }

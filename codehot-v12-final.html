@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CodeHot V12 FINAL | QA-passed 2026-09-12 | audit stages S1-S5 green (v12-audit.mjs) -->
+<!-- CodeHot V12.1 | model-first agent (no canned AI replies) | regression S1-S5 green 2026-09-12 -->
 <html>
 <head>
   <meta charset="UTF-8">
@@ -10110,38 +10110,10 @@ Rules:
       AIUIManager.renderMessage('user', message);
       saveConversation();
 
-      // ── Try Local AI Intent First ──────────────────────────────────────
-      try {
-        const parsed = AIIntentParser.recognize(message);
-        if (parsed && parsed.intent !== 'unknown') {
-          const result = AIStateExecutor.execute(parsed);
-          if (result && result.ok) {
-            AIUIManager.renderSystemNotice(result.message, 'success');
-            // If it needs a script applied
-            if (result.action === 'script' && result.script && result.target) {
-              const action = { targetId: result.target.id, targetName: result.target.name, mode: 'replace', language: 'javascript', code: result.script };
-              action.id = 'ai_local_' + Date.now().toString(36);
-              AIActionManager.actions.set(action.id, action);
-              AIActionManager.apply(action, false);
-            }
-            // If it needs external API for complex runtime
-            if (result.action !== 'need_api') {
-              AI_STATE.conversationHistory.push({ role: 'assistant', content: result.message });
-              saveConversation();
-              return;
-            }
-          } else if (result && !result.ok) {
-            AIUIManager.renderSystemNotice(result.message, 'info');
-            AI_STATE.conversationHistory.push({ role: 'assistant', content: result.message });
-            saveConversation();
-            return;
-          }
-        }
-      } catch (e) {
-        console.log('[AI Local] Intent parsing error, falling back to API:', e);
-      }
-
-      // ── Fall through to External AI API ────────────────────────────────
+      // ── V12: canned local-intent replies REMOVED. Every user message
+      // goes to the REAL model path (sendToAI). Regex "local AI" answers
+      // impersonating an assistant are prohibited by the V12 contract.
+      // ── External AI API ────────────────────────────────────────────────
       if (!navigator.onLine) {
         AI_STATE.pendingOffline.push(message);
         persistOfflineQueue();
@@ -12331,6 +12303,11 @@ Rules:
 
         // Animation API cache — stored on RuntimeEngine instance so APIs persist across
         // multiple getObject() calls (which return fresh API objects each time).
+        // Guard: if WebGL failed at boot, CodeHotScene/RUNTIME never initialize —
+        // skip the animation-API injection instead of throwing here.
+        if (!window.CodeHotScene || typeof window.CodeHotScene.getRuntimeEngine !== 'function' || !window.CodeHotScene.getRuntimeEngine()) {
+          console.warn('[AnimAPI] RuntimeEngine unavailable (WebGL init failed?) — animation API injection skipped');
+        } else {
         const RuntimeEngine = window.CodeHotScene.getRuntimeEngine();
         const RUNTIME_STATE = window.CodeHotScene.getRuntimeState();
         const _origCreateObjectApi = RuntimeEngine.prototype.createObjectApi;
@@ -12413,6 +12390,7 @@ Rules:
           }
           return _origStop.call(this);
         };
+        } // end AnimAPI injection guard (skipped when RuntimeEngine is unavailable)
 
       window.addEventListener('sceneeditor:modelLoadFailed', (event) => {
         const detail = event.detail || {};
@@ -13324,10 +13302,9 @@ Rules:
           const lower = raw.toLowerCase();
           const t = normalizeFa(raw);
 
-          if (!raw) return { intent: 'unknown', response: L('چیزی ننوشتی.', 'You did not write anything.') };
-          if (hasAny(t, ['کمک', 'help', 'راهنما', 'چیکار می‌تونی', 'چه کارهایی'])) return { intent: 'help', response: this._helpText() };
-          if (hasAny(t, ['وضعیت', 'status', 'چی داریم', 'صحنه', 'context'])) return { intent: 'status', response: this._statusText(ctx) };
-          if (hasAny(t, ['مشکل', 'bug', 'خطا', 'error', 'درست کن'])) return { intent: 'diagnose', response: this._diagnoseText(ctx) };
+          // V12: no canned help/status/diagnose answers — the REAL model
+          // answers these from live SCENE STATE in its prompt.
+          if (!raw) return { intent: 'unknown' };
 
           const triggerRuntime = hasAny(t, ['وقتی play', 'وقتی پلی', 'موقع play', 'وقتی بازی', 'وقتی شروع', 'وقتی run', 'وقتی ران', 'وقتی اجرا', 'هنگام play', 'بعد از play', 'هنگام اجرا', 'شروع بازی', 'شروع بشه', 'when play', 'when the game', 'when game', 'when run', 'when it starts', 'on play', 'at runtime', 'during play']) ||
             /وقتی\s+(?:play|بازی|شروع|run|اجرا)/i.test(raw);
@@ -13419,10 +13396,10 @@ Rules:
               AIContext.trackTarget(obj);
               return { intent: 'inspect', tool: 'INSPECT_OBJECT', params: { id: obj.id }, target: obj, response: obj.name };
             }
-            return { intent: 'status', response: this._statusText(ctx) };
+            return { intent: 'status' };
           }
 
-          return { intent: 'unknown', response: this._helpText() };
+          return { intent: 'unknown' };
         },
 
         _needTarget(kind) {
@@ -13718,121 +13695,20 @@ Rules:
           return null;
         },
 
-        _statusText(ctx) {
-          const objList = ctx.objects.length
-            ? ctx.objects.map(o => '  • ' + o.name + ' (' + o.type + ')' + (o.hasScript ? ' · ' + L('اسکریپت دارد', 'has script') : '') + (o.animations.length ? ' · ' + L('انیمیشن: ', 'anim: ') + o.animations.map(a => a.name).join(', ') : '')).join('\n')
-            : '  (' + L('خالی', 'empty') + ')';
-          const assetList = ctx.assets.length ? ctx.assets.map(a => '  • ' + a.name + ' (' + a.type + ')').join('\n') : '  (' + L('هیچ', 'none') + ')';
-          const sel = ctx.selected ? ctx.selected.name : L('هیچ', 'none');
-          return L('وضعیت پروژه', 'Project status') + ':\n\n' +
-            L('آبجکت‌ها', 'Objects') + ' (' + ctx.totalObjects + '):\n' + objList + '\n\n' +
-            L('دارایی‌ها', 'Assets') + ' (' + ctx.totalAssets + '):\n' + assetList + '\n\n' +
-            L('زمان اجرا', 'Runtime') + ': ' + (ctx.runtime.isPlaying ? L('در حال اجرا (Play)', 'Playing') : L('حالت ویرایش', 'Editor')) + '\n' +
-            L('انتخاب‌شده', 'Selected') + ': ' + sel + '\n' +
-            L('دوربین', 'Camera') + ': ' + (ctx.camera ? 'X' + Number(ctx.camera.position.x).toFixed(1) + ' Y' + Number(ctx.camera.position.y).toFixed(1) + ' Z' + Number(ctx.camera.position.z).toFixed(1) : '-');
-        },
-
-        _diagnoseText(ctx) {
-          const lines = [];
-          const rs = ctx.runtime;
-          lines.push(L('بررسی سریع', 'Quick check') + ':');
-          lines.push('  • Scene: ' + ctx.totalObjects + ' ' + L('آبجکت', 'objects') + (ctx.totalObjects ? '' : ' (' + L('خالی است', 'empty') + ')'));
-          lines.push('  • ' + L('انتخاب', 'Selection') + ': ' + (ctx.selected ? ctx.selected.name : L('هیچ', 'none')));
-          lines.push('  • ' + L('زمان اجرا', 'Runtime') + ': ' + (rs.isPlaying ? L('روشن', 'running') : L('خاموش', 'stopped')));
-          try {
-            const errors = JSON.parse(localStorage.getItem('codehot-console-logs') || '[]');
-            const errs = (Array.isArray(errors) ? errors : []).filter(e => e && (e.level === 'error' || e.kind === 'error')).slice(-5);
-            if (errs.length) {
-              lines.push(L('آخرین خطاها', 'Last errors') + ':');
-              errs.forEach(e => lines.push('  • ' + ((e.message || e.text || '').toString().slice(0, 140))));
-            } else {
-              lines.push('  • ' + L('خطای ثبت‌شده‌ای نیست.', 'No logged errors.'));
-            }
-          } catch (e) {}
-          return lines.join('\n');
-        },
-
-        _helpText() {
-          const fa = [
-            'من دستیار CodeHot هستم و خودم کارها را در پروژه‌ات انجام می‌دهم. مثلاً:',
-            '',
-            '• ساخت آبجکت: «یک مکعب بساز»، «یه کره به اسم Ball بساز»',
-            '• جابه‌جایی ویرایشی: «Cube رو ببر بالا»، «ماشین رو روی Y=5 بذار»',
-            '• چرخش/اندازه: «Cube رو ۹۰ درجه بچرخون»، «این کاراکتر رو بزرگ‌تر کن»',
-            '• نام: «اسم این آبجکت رو Player کن»، «rename Cube to Player»',
-            '• حذف: «مربع رو حذف کن»، «این رو از صحنه پاک کن»',
-            '• انیمیشن: «انیمیشن Run این مدل رو پخش کن»، «وقتی بازی شروع شد Idle پخش بشه»',
-            '• رفتار زمان اجرا: «وقتی Play شد ماشین حرکت کنه»، «این آبجکت هر ۳ ثانیه بچرخه»،',
-            '  «وقتی Space زده شد کاراکتر بپره»، «دوربین موقع Play دنبال ماشین باشه»',
-            '• اتصال اسکریپت: کد را بین ``` ... ``` بنویس و بگو به کدام آبجکت وصل شود',
-            '• وضعیت: «وضعیت پروژه رو بگو»',
-            '',
-            'برای اینکه دقیق‌تر عمل کنم، آبجکت موردنظر را در صحنه انتخاب کن یا اسم دقیقش را بگو.'
-          ].join('\n');
-          const en = [
-            'I am the CodeHot agent and I perform actions in your project myself. Examples:',
-            '',
-            '• Create: "create a cube", "make a sphere named Ball"',
-            '• Edit-time move: "move Cube up", "put the car at Y=5"',
-            '• Rotate/scale: "rotate Cube 90 degrees", "make this character bigger"',
-            '• Rename: "rename Cube to Player"',
-            '• Delete: "delete the sphere", "remove this from the scene"',
-            '• Animation: "play the Run animation on this model", "play Idle when the game starts"',
-            '• Runtime behavior: "when Play, the car moves", "rotate this object every 3 seconds",',
-            '  "make the character jump when Space is pressed", "camera follows the car during Play"',
-            '• Scripts: paste code between ``` ... ``` and name the target object',
-            '• Status: "project status"',
-            '',
-            'For best results select the object in the scene or say its exact name.'
-          ].join('\n');
-          return L(fa, en);
-        },
-
-        // Execute a plan object; returns a final message string.
+        // V12: ALL canned natural-language replies removed. This legacy
+        // executor is unreachable on the active path (the agent bridge's real
+        // model escalation replaced processRequest); it exists only so legacy
+        // callers can still execute a plan's tool. It NEVER fabricates an
+        // AI-style reply: it returns the tool's raw execution message only.
         executePlan(plan, ctx) {
-          if (!plan) return L('متوجه نشدم.', 'I did not understand.');
-          if (plan.intent === 'ask') return plan.ask || plan.response || '';
-          if (plan.intent === 'help' || plan.intent === 'status' || plan.intent === 'diagnose' || plan.intent === 'script_info') return plan.response || '';
-          if (plan.error) return plan.error;
-          if (plan.intent === 'unknown') return plan.response || this._helpText();
-
+          if (!plan || plan.error) return '';
+          if (plan.intent === 'unknown' || plan.intent === 'ask') return '';
+          if (plan.intent === 'help' || plan.intent === 'status' || plan.intent === 'diagnose' || plan.intent === 'script_info') return '';
           const tool = CodeHotTools[plan.tool];
-          if (!tool) return plan.response || '';
-
+          if (!tool) return '';
           const res = tool(plan.params || {});
           AIContext.trackTarget(plan.target || null);
-
-          // Build the final natural-language confirmation.
-          const targetName = plan.target ? plan.target.name : '';
-          if (plan.intent === 'transform') {
-            if (res.ok) return '✅ ' + res.message;
-            return '⚠️ ' + res.message;
-          }
-          if (plan.intent === 'rename') return res.ok ? '✅ ' + res.message : '⚠️ ' + res.message;
-          if (plan.intent === 'delete') return res.ok ? '🗑️ ' + res.message : '⚠️ ' + res.message;
-          if (plan.intent === 'create') return res.ok ? '✅ ' + (plan.params && plan.params.name ? plan.params.name : targetName) + ' ' + L('ساخته شد.', 'created.') + (plan.params && (plan.params.x !== undefined || plan.params.y !== undefined || plan.params.z !== undefined) ? L(' در مختصات خواسته‌شده.', ' at the requested position.') : '') : '⚠️ ' + res.message;
-          if (plan.intent === 'visibility') return res.ok ? (res.ok && res.message) : '⚠️ ' + res.message;
-          if (plan.intent === 'select') return res.ok ? '✅ ' + res.message : '⚠️ ' + res.message;
-          if (plan.intent === 'animation' || plan.intent === 'animation_stop') return res.ok ? '🎬 ' + res.message : '⚠️ ' + res.message;
-          if (plan.intent === 'camera' || plan.intent === 'camera_follow') return res.ok ? '🎥 ' + res.message : '⚠️ ' + res.message;
-          if (plan.intent === 'behavior') {
-            const metaLabel = {
-              rotate: L('چرخش پیوسته', 'Continuous rotation'),
-              'rotate-every': L('چرخش دوره‌ای', 'Periodic rotation'),
-              move: L('حرکت پیوسته', 'Continuous movement'),
-              grow: L('رشد تدریجی', 'Gradual growth'),
-              jump: L('پرش با کلید', 'Jump on key'),
-              'anim-on-play': L('پخش انیمیشن در شروع', 'Animation on Play')
-            }[plan.meta] || L('رفتار زمان اجرا', 'Runtime behavior');
-            if (res.ok) return '⚡ ' + metaLabel + ' ' + L('به ', 'added to ') + targetName + L(' اضافه شد.', '.') + (plan.info ? '\n' + plan.info : '') + L('\nحالا Play را بزن تا ببینی.', '\nPress Play to see it.');
-            return '⚠️ ' + res.message;
-          }
-          if (plan.intent === 'script') return res.ok ? '📜 ' + res.message + L(' (با شروع Play اجرا می‌شود)', ' (runs when you press Play)') : '⚠️ ' + res.message;
-          if (plan.intent === 'inspect') {
-            if (!res.ok) return res.message;
-            return res.message;
-          }
-          return res.ok ? ('✅ ' + res.message) : ('⚠️ ' + res.message);
+          return (res && res.message) ? res.message : '';
         },
 
         // Full agent turn: understand -> resolve -> plan -> execute -> answer.
@@ -14011,7 +13887,6 @@ Rules:
         classify: (text) => CodeHotAgent.classify(text),
         getContext: () => AIContext.getSnapshot(),
         plan: (text) => CodeHotAgent.plan(text, AIContext.getSnapshot()),
-        help: () => CodeHotAgent._helpText(),
         tools: CodeHotTools
       };
 

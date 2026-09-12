@@ -363,7 +363,12 @@
         var rot = {};
         ['x', 'y', 'z'].forEach(function (k) {
           var v = num(params[k.toUpperCase()]);
-          if (v !== null) rot[k] = (params.DELTA === true) ? t.object.rotation[k] + v : v; // degrees, editor convention
+          if (v !== null) {
+            // Degrees, editor convention: SCENE_STATE.rotation is stored in
+            // degrees and converted to radians only when meshes are built
+            // (see degToRad at mesh construction). Keep the boundary honest.
+            rot[k] = (params.DELTA === true) ? t.object.rotation[k] + v : v;
+          }
         });
         if (Object.keys(rot).length) change.rotation = rot;
       } else { // scale — absolute
@@ -377,6 +382,22 @@
     };
   }
   Registry.register({ name: 'MOVE_OBJECT', undoable: true, target: 'object', params: { X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' }, DELTA: { type: 'boolean' } }, executor: transformExecutor('move') });
+
+  // Read-only QUERY commands. The system prompt advertises @@QUERY_SCENE and
+  // @@QUERY_SCRIPTS to the model; these registry entries make that contract
+  // real (previously @@QUERY_* blocks failed with unknown_command). Queries
+  // never mutate the scene and are excluded from undo/history mutation flags.
+  function queryExecutor(qname) {
+    return function () {
+      var res = global.CodeHotQuerySystem ? global.CodeHotQuerySystem.run(qname) : { ok: false, error: 'query_system_unavailable' };
+      if (!res || !res.ok) return { ok: false, message: 'Query failed: ' + ((res && (res.error || res.message)) || 'unknown') };
+      return { ok: true, query: qname, data: res.data };
+    };
+  }
+  Registry.register({ name: 'QUERY_SCENE', query: true, params: {}, executor: queryExecutor('QUERY_SCENE') });
+  Registry.register({ name: 'QUERY_SCRIPTS', query: true, params: {}, executor: queryExecutor('QUERY_SCRIPTS') });
+  Registry.register({ name: 'QUERY_OBJECTS', query: true, params: {}, executor: queryExecutor('QUERY_OBJECTS') });
+
   Registry.register({ name: 'ROTATE_OBJECT', undoable: true, target: 'object', params: { X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' }, DELTA: { type: 'boolean' } }, executor: transformExecutor('rotate') });
   Registry.register({ name: 'SCALE_OBJECT', undoable: true, target: 'object', params: { X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' }, UNIFORM: { type: 'number' } }, executor: transformExecutor('scale') });
   Registry.register({
