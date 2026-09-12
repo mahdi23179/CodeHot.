@@ -165,6 +165,29 @@
   };
 
   agent.processRequest = async function (text) {
+    // V14: @@COMMAND blocks route through the Command Protocol
+    // (Parser -> Validator -> Registry -> Executor). The chat is just one
+    // producer of commands; natural language keeps using the agent's own
+    // plan/execute path below, unchanged.
+    var rawText = String(text || '').trim();
+    if (rawText.startsWith('@@') && global.CodeHotCommandProtocol && typeof global.CodeHotCommandProtocol.runScript === 'function') {
+      try {
+        var results = global.CodeHotCommandProtocol.runScript(rawText, 'chat');
+        var reply = results.map(function (r) {
+          var body = (r.command ? r.command + ': ' : '') + (r.message || '');
+          if (r.ok && r.data && r.query) {
+            try { body += '\n```json\n' + JSON.stringify(r.data, null, 2).slice(0, 2000) + '\n```'; } catch (e) {}
+          }
+          return (r.ok ? '✅ ' : '⚠️ ') + body;
+        }).join('\n\n');
+        try { AIContext.addConversation('assistant', reply); } catch (e) {}
+        return reply;
+      } catch (e) {
+        var errReply = '⚠️ ' + (global.L && typeof global.L === 'function' ? global.L('خطای Command Protocol: ', 'Command Protocol error: ') : 'Command Protocol error: ') + (e && e.message ? e.message : e);
+        try { AIContext.addConversation('assistant', errReply); } catch (e2) {}
+        return errReply;
+      }
+    }
     var before = query();
     var plan = null;
     try { plan = typeof originalPlan === 'function' ? originalPlan.call(agent, String(text), (global.AIContext && global.AIContext.getSnapshot ? global.AIContext.getSnapshot() : before)) : null; } catch (e) {}
