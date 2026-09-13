@@ -108,6 +108,7 @@
       'Command syntax rules:',
       '- Strings: PARAM:"value". Numbers plain: X:5, Y:-2. Booleans: true/false.',
       '- Targeting: OBJECT:"Name" by name, ID:"<real id>" by id, SELECTED:true, TYPE:"cube" only when exactly one object of that type exists.',
+      '- NEVER invent or reuse an ID. Only use ID values that appear verbatim in SCENE STATE; when unsure, target by OBJECT:"Name".',
       '- If a step targets a name that is not in SCENE STATE and you did not create it in an earlier block, STOP and answer in words that the object does not exist.',
       '',
       'Multi-step requests: emit the blocks in order. If step 1 creates an object referenced by later steps, give it NAME:"X" in CREATE_OBJECT and target OBJECT:"X" afterwards.',
@@ -170,6 +171,23 @@
       blocks.push('@@' + m[1].toUpperCase() + '\n' + normalizeBody(inline.join('\n')).join('\n') + '\n@@END');
     }
     if (blocks.length) return blocks;
+    // Tolerance: function-call syntax "COMMAND(...)" possibly wrapped in
+    // [ ] or <|tool_call|> markers — some free models emit this shape.
+    if (!blocks.length) {
+      var reFn = /\[?\b([A-Z][A-Z0-9_]{2,})\s*\(\s*([^\)\n]{0,600}?)\s*\)\s*\]?/g;
+      while ((m = reFn.exec(raw)) !== null) {
+        var fnName = m[1].toUpperCase();
+        if (fnName === 'END') continue;
+        var args = m[2].split(/,(?![^\"]*\")/).map(function (p) { return p.trim(); }).filter(Boolean);
+        var body = args.map(function (p) {
+          var pm = p.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([\s\S]+)$/);
+          if (!pm) return null;
+          var v = pm[2].trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
+          return /^[\-0-9.]+$/.test(v) ? (pm[1].toUpperCase() + ': ' + v) : (pm[1].toUpperCase() + ': "' + v + '"');
+        }).filter(Boolean);
+        blocks.push('@@' + fnName + '\n' + body.join('\n') + '\n@@END');
+      }
+    }
     // Tolerance: <tool_call>COMMAND\nKEY: value</tool_call>.
     var reTool = /<tool_call>\s*([A-Za-z_][A-Za-z0-9_]*)\s*\r?\n?([\s\S]*?)<\/tool_call>/g;
     while ((m = reTool.exec(raw)) !== null) {
@@ -184,7 +202,20 @@
   // executor unescapes it back to real JavaScript source.
   function hardenBlocks(blocks) {
     return (blocks || []).map(function (b) {
-      var s = String(b);
+      var s = String(b)
+        .replace(/^\s*\[\s*<\|tool_call\|>\s*/i, '')
+        .replace(/\s*<\|tool_call\|>\s*\]\s*$/i, '')
+        .replace(/^\s*<\|tool_call\|>\s*/i, '')
+        .replace(/\s*<\|tool_call\|>\s*$/i, '')
+        .replace(/^\s*\[\s*/, '')
+        .replace(/\s*\]\s*$/, '');
+      // Models often write RENAME_OBJECT(NAME:"Old", NEW_NAME:"New") — the
+      // protocol requires the target selector (OBJECT/ID/TYPE), not NAME.
+      var rn = s.match(/^@@RENAME_OBJECT\n([\s\S]*?)@@END$/);
+      if (rn && /(^|\n)NAME\s*:/i.test(rn[1]) && !/(^|\n)(OBJECT|ID|TYPE|SELECTED)\s*:/i.test(rn[1])) {
+        var nm = rn[1].match(/(?:^|\n)NAME\s*:\s*"?([^"\n]+)"?/);
+        if (nm) s = s.replace(/NAME\s*:\s*"?[^"\n]+"?/i, 'OBJECT: "' + nm[1].trim() + '"');
+      }
       // RENAME_OBJECT uses NEW_NAME; the model sometimes writes NAME:"X".
       // On a rename there is no other meaning for NAME, so alias it.
       if (/@@\s*RENAME_OBJECT\b/.test(s)) {
@@ -208,6 +239,7 @@
       .replace(/@@\s*[A-Za-z_][A-Za-z0-9_]*[\t ]*\r?\n[\s\S]*?(?:@@END|(?=@@\s*[A-Za-z_][A-Za-z0-9_]*[\t ]*\r?\n)|$)/g, '')
       .replace(/@@\s*[A-Za-z_][A-Za-z0-9_]*\s+[^@\n]*?@@END/g, '')
       .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '')
+      .replace(/\[?\b[A-Z][A-Z0-9_]{2,}\s*\(\s*[^\)\n]{0,600}?\s*\)\s*\]?/g, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
   }

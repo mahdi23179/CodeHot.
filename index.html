@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CodeHot V12.1 | model-first agent (no canned AI replies) | regression S1-S5 green 2026-09-12 -->
+<!-- CodeHot V12.3 | empty-bubble & name-collision fixed | real-browser tested 2026-09-13 -->
 <html>
 <head>
   <meta charset="UTF-8">
@@ -5857,6 +5857,14 @@ ThemeManager.load();
         // and left an untracked mesh in the scene. Never call addObject(type) without this fix.
         const resolvedColor = (typeof color === 'number') ? color : this.randomColor();
         const id = 'obj_' + Math.random().toString(36).substr(2, 9);
+        // V12.3 fix (name-collision bug): names are the agent's address space —
+        // OBJECT:"Cube" resolved ambiguously when two objects shared a name and
+        // every later command on that name failed. Keep object names unique by
+        // auto-suffixing (Cube, Cube2, Cube3...).
+        const baseName = type.charAt(0).toUpperCase() + type.slice(1);
+        const taken = new Set(SCENE_STATE.objects.map(function (o) { return String(o.name || '').toLowerCase(); }));
+        let uniqueName = baseName, uniqN = 1;
+        while (taken.has(uniqueName.toLowerCase())) { uniqN++; uniqueName = baseName + uniqN; }
         const geometry = this.getGeometry(type);
         const material = new THREE.MeshStandardMaterial({
           color: resolvedColor,
@@ -5868,7 +5876,7 @@ ThemeManager.load();
         mesh.receiveShadow = true;
         mesh.userData = {
           id: id,
-          name: type.charAt(0).toUpperCase() + type.slice(1),
+          name: uniqueName,
           type: type,
           color: resolvedColor
         };
@@ -10047,8 +10055,10 @@ Rules:
     function saveConversation() {
       try {
         localStorage.setItem(CONFIG.CONVERSATION_KEY, JSON.stringify({
+          // V12.3: empty assistant messages are never persisted.
           version: 1,
-          messages: AI_STATE.conversationHistory.slice(-CONFIG.HISTORY_LIMIT)
+          messages: AI_STATE.conversationHistory.filter(m =>
+            m && typeof m.content === 'string' && (m.role !== 'assistant' || m.content.trim())).slice(-CONFIG.HISTORY_LIMIT)
         }));
       } catch (e) {}
     }
@@ -10059,7 +10069,11 @@ Rules:
         if (!data) return;
         const parsed = JSON.parse(data);
         if (parsed && Array.isArray(parsed.messages)) {
-          AI_STATE.conversationHistory = parsed.messages;
+          // V12.3 fix (empty-bubble bug): legacy builds could persist empty
+          // assistant messages; drop them at the loader so a stale failed
+          // reply never renders as a permanent empty AI bubble.
+          AI_STATE.conversationHistory = parsed.messages.filter(m =>
+            m && typeof m.content === 'string' && (m.role !== 'assistant' || m.content.trim()));
         }
       } catch (e) {}
     }
@@ -13060,7 +13074,12 @@ Rules:
 
           // Optional custom name + placement happen in one undo step with the create.
           if (params.name && String(params.name).trim() && String(params.name).trim() !== created.name) {
-            created.name = String(params.name).trim();
+            // V12.3: model-provided names go through the same uniqueness rule.
+            var wantName = String(params.name).trim();
+            var taken2 = new Set(objects.filter(function (o) { return o !== created; }).map(function (o) { return String(o.name || '').toLowerCase(); }));
+            var finalName = wantName, n2 = 1;
+            while (taken2.has(finalName.toLowerCase())) { n2++; finalName = wantName + n2; }
+            created.name = finalName;
             const mesh = SceneOps.mesh(created.id);
             if (mesh && mesh.userData) mesh.userData.name = created.name;
             SceneOps.emit('scene:objectRenamed', { id: created.id });
@@ -13739,11 +13758,24 @@ Rules:
           if (btn) btn.disabled = true;
           ChatStore.add('user', message);
           ChatUI.addMessage('user', message);
-          const response = await this.processRequest(message);
+          // V12.3 fix (empty-bubble bug): a model call can take a while or
+          // fail. Show a real loading state, surface ANY failure as an honest
+          // error reply, and never render or persist an empty AI bubble.
+          ChatUI.showTyping();
+          let response = '';
+          try {
+            response = await this.processRequest(message);
+          } catch (err) {
+            response = L('⚠️ خطا در پردازش درخواست: ', '⚠️ Error while processing the request: ') + String((err && err.message) || err) + ' | SYSTEM_ERROR';
+          }
+          if (!String(response || '').trim()) {
+            response = L('⚠️ پاسخی از مدل هوش مصنوعی دریافت نشد. | SYSTEM_ERROR', '⚠️ The AI model returned no content. | SYSTEM_ERROR');
+          }
+          ChatUI.hideTyping();
           // V12 fix: persist assistant replies too. Previously only user
           // messages reached codehot-ai-conversation, so reopening the chat
           // or reloading the page silently dropped every agent answer.
-          ChatStore.add('assistant', response || '');
+          ChatStore.add('assistant', response);
           ChatUI.addMessage('assistant', response);
           if (input) input.disabled = false;
           if (btn) btn.disabled = false;
@@ -13758,17 +13790,25 @@ Rules:
 
       // ── Chat rendering + history (bilingual, single writer) ───────
       const ChatStore = {
+        // V12.3 fix (empty-bubble bug): legacy builds could persist empty
+        // assistant messages (failed/'' replies), which rendered as permanent
+        // empty AI bubbles after reload. Sanitize at the store's two choke
+        // points so an empty assistant message can never load or persist.
+        _clean(messages) {
+          return (Array.isArray(messages) ? messages : []).filter(m =>
+            m && typeof m.content === 'string' && (m.role !== 'assistant' || m.content.trim()));
+        },
         load() {
           try {
             const raw = localStorage.getItem(CONVERSATION_KEY);
             if (!raw) return [];
             const parsed = JSON.parse(raw);
-            return Array.isArray(parsed.messages) ? parsed.messages : [];
+            return this._clean(parsed.messages);
           } catch (e) { return []; }
         },
         save(messages) {
           try {
-            localStorage.setItem(CONVERSATION_KEY, JSON.stringify({ version: 1, messages: messages.slice(-HISTORY_LIMIT) }));
+            localStorage.setItem(CONVERSATION_KEY, JSON.stringify({ version: 1, messages: this._clean(messages).slice(-HISTORY_LIMIT) }));
           } catch (e) {}
         },
         add(role, content) {
@@ -13861,6 +13901,24 @@ Rules:
           notice.innerHTML = '<span>' + this.escapeHtml(text) + '</span>';
           container.appendChild(notice);
           container.scrollTop = container.scrollHeight;
+        },
+        // V12.3 fix (empty-bubble bug): real loading state while the model
+        // call is in flight. Reuses the existing typing-indicator CSS so the
+        // user always sees activity instead of a silent empty bubble.
+        showTyping() {
+          const container = document.getElementById('ai-aiMessages');
+          if (!container) return;
+          this.hideTyping();
+          const el = document.createElement('div');
+          el.className = 'ai-ai-message ai-ai-message-assistant ai-ai-typing-wrap';
+          el.id = 'ai-aiTypingIndicator';
+          el.innerHTML = '<div class="ai-ai-typing"><span></span><span></span><span></span></div>';
+          container.appendChild(el);
+          container.scrollTop = container.scrollHeight;
+        },
+        hideTyping() {
+          const el = document.getElementById('ai-aiTypingIndicator');
+          if (el) el.remove();
         },
         renderHistory() {
           const container = document.getElementById('ai-aiMessages');
