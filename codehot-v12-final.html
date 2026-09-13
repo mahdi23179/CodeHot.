@@ -1,12 +1,9 @@
 <!DOCTYPE html>
-<!-- CodeHot V12.3 | empty-bubble & name-collision fixed | real-browser tested 2026-09-13 -->
+<!-- CodeHot V12.4 | standalone single-file engine (local-file AI fixed) | real-browser tested 2026-09-13 -->
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>CodeHot</title>
-  <script src="codehot-agent-protocol.js" defer></script>
-  <script src="codehot-command-protocol.js" defer></script>
-  <script src="codehot-agent-bridge.js" defer></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -14040,5 +14037,1742 @@ Rules:
     });
 
 </script>
+    <script>
+    /* codehot-standalone-engine-v1:embedded-do-not-edit single-file engine: three engine files embedded verbatim below so the app works standalone (file://, content://, any host) with no sibling JS. */
+    /* ==== begin codehot-agent-protocol.js ==== */
+/* CodeHot Agent Protocol V13
+ * Compatibility boundary around the existing live CodeHot agent.
+ * It does not invent entities and it never uses a display name as identity.
+ */
+(function (global) {
+  'use strict';
+  if (!global || !global.CodeHotAgent) return;
+
+  var agent = global.CodeHotAgent;
+  var originalProcess = agent.processRequest;
+  var originalPlan = agent.plan;
+  var HISTORY_KEY = 'codehot-agent-history';
+  var HISTORY_LIMIT = 100;
+
+  function copy(value) {
+    try { return JSON.parse(JSON.stringify(value)); } catch (e) { return null; }
+  }
+  function safeArray(value) { return Array.isArray(value) ? value : []; }
+  function num(value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; }
+  function same(a, b) { return a === b || (num(a) !== null && num(b) !== null && Math.abs(a - b) < 0.0001); }
+  function stateObjects() {
+    var data = null;
+    try {
+      if (global.CodeHotScene && typeof global.CodeHotScene.getSceneData === 'function') data = global.CodeHotScene.getSceneData();
+    } catch (e) {}
+    if (!data && global.SCENE_STATE) data = global.SCENE_STATE;
+    return data || { objects: [], selectedId: null };
+  }
+  function readScripts() {
+    try { return JSON.parse(global.localStorage.getItem('codehot-script-bindings') || '{}') || {}; } catch (e) { return {}; }
+  }
+  function readAssets() {
+    try {
+      if (global.CodeHotAssets && typeof global.CodeHotAssets.getAll === 'function') return copy(global.CodeHotAssets.getAll()) || [];
+    } catch (e) {}
+    try {
+      var raw = global.localStorage.getItem('codehot-assets');
+      var parsed = raw ? JSON.parse(raw) : [];
+      return safeArray(parsed && parsed.assets ? parsed.assets : parsed);
+    } catch (e) { return []; }
+  }
+  function readAnimations() {
+    try {
+      if (global.CodeHotAnimationStore && typeof global.CodeHotAnimationStore.getAll === 'function') return copy(global.CodeHotAnimationStore.getAll()) || [];
+    } catch (e) {}
+    return [];
+  }
+  function runtimeState() {
+    try {
+      if (global.CodeHotScene && typeof global.CodeHotScene.getRuntimeState === 'function') {
+        var value = global.CodeHotScene.getRuntimeState();
+        if (value) return { isPlaying: !!value.isPlaying, isPaused: !!value.isPaused, state: value.state || null };
+      }
+    } catch (e) {}
+    return { isPlaying: false, isPaused: false, state: 'editor' };
+  }
+  function query() {
+    var scene = stateObjects();
+    var objects = safeArray(scene.objects).map(function (object) {
+      var scripts = readScripts();
+      var animations = readAnimations().filter(function (animation) {
+        return safeArray(animation.linkedObjectIds).indexOf(object.id) !== -1 || animation.sourceObjectId === object.id;
+      });
+      return {
+        id: object.id,
+        name: object.name,
+        type: object.type,
+        parentId: object.parentId || null,
+        position: copy(object.position) || { x: 0, y: 0, z: 0 },
+        rotation: copy(object.rotation) || { x: 0, y: 0, z: 0 },
+        scale: copy(object.scale) || { x: 1, y: 1, z: 1 },
+        visible: object.visible !== false,
+        enabled: object.enabled !== false,
+        assetId: object.assetId || null,
+        hasScript: !!(scripts[object.id] && scripts[object.id].code),
+        script: scripts[object.id] ? { objectName: scripts[object.id].objectName || object.name, code: scripts[object.id].code || '' } : null,
+        animations: animations.map(function (animation) { return { id: animation.id, name: animation.name, clipName: animation.clipName || null, duration: animation.duration || 0, loop: animation.loop !== false }; })
+      };
+    });
+    var selectedId = scene.selectedId || null;
+    var assets = readAssets().map(function (asset) { return { id: asset.id, name: asset.name, type: asset.type, payloadKey: asset.payloadKey || null, linkedObjectIds: safeArray(asset.linkedObjectIds).slice() }; });
+    return {
+      version: 'codehot-agent-context-v13',
+      scene: { id: 'codehot-scene', name: 'Main Scene', selectedId: selectedId, objects: objects },
+      selection: selectedId ? objects.find(function (object) { return object.id === selectedId; }) || null : null,
+      assets: assets,
+      animations: readAnimations().map(function (animation) { return { id: animation.id, name: animation.name, sourceObjectId: animation.sourceObjectId || null, linkedObjectIds: safeArray(animation.linkedObjectIds).slice(), duration: animation.duration || 0 }; }),
+      runtime: runtimeState(),
+      settings: (function () { try { return copy(JSON.parse(global.localStorage.getItem('codehot-settings') || '{}')) || {}; } catch (e) { return {}; } }()),
+      capabilities: capabilities()
+    };
+  }
+  function capabilities() {
+    var scene = global.CodeHotScene || {};
+    var tools = global.CodeHotTools || {};
+    return {
+      query: ['scene', 'selection', 'assets', 'animations', 'scripts', 'runtime', 'settings'],
+      commands: Object.keys(tools),
+      officialSceneApi: ['getSceneData', 'selectObject', 'deleteObject', 'addModelAsset', 'saveToStorage'].filter(function (name) { return typeof scene[name] === 'function'; }),
+      officialRuntimeApi: ['start', 'pause', 'resume', 'stop', 'reload', 'getObject'].filter(function (name) { return global.CodeHotRuntime && typeof global.CodeHotRuntime[name] === 'function'; }),
+      identity: 'object.id'
+    };
+  }
+  function findObject(snapshot, id) { return snapshot.scene.objects.find(function (object) { return object.id === id; }) || null; }
+  function mutation(plan) { return !!(plan && ['create', 'delete', 'rename', 'transform', 'visibility', 'select', 'animation', 'animation_stop', 'camera', 'camera_follow', 'behavior', 'script'].indexOf(plan.intent) !== -1); }
+  function verify(plan, before, after, result) {
+    var check = { ok: true, reason: 'read-only or no deterministic assertion', targetId: plan && plan.target ? plan.target.id : null };
+    if (!mutation(plan)) return check;
+    if (!result || /^(?:⚠️|خطای|Internal error)/.test(String(result))) return { ok: false, reason: 'agent reported failure', targetId: check.targetId };
+    var params = plan.params || {};
+    var target = params.id ? findObject(after, params.id) : null;
+    if (plan.intent === 'create') {
+      check.ok = after.scene.objects.length === before.scene.objects.length + 1;
+      if (params.name) check.ok = check.ok && !!after.scene.objects.find(function (object) { return object.name === params.name; });
+      check.reason = check.ok ? 'created object is present' : 'created object was not found after execution';
+    } else if (plan.intent === 'delete') {
+      check.ok = !target;
+      check.reason = check.ok ? 'object identity is absent' : 'deleted object still exists';
+    } else if (plan.intent === 'rename') {
+      check.ok = !!target && target.name === params.newName;
+      check.reason = check.ok ? 'identity retained and label changed' : 'renamed object does not match requested label';
+    } else if (plan.intent === 'transform') {
+      var change = params.change || {};
+      check.ok = !!target;
+      ['position', 'rotation', 'scale'].forEach(function (key) {
+        if (change[key]) Object.keys(change[key]).forEach(function (axis) { check.ok = check.ok && same(target[key] && target[key][axis], change[key][axis]); });
+      });
+      check.reason = check.ok ? 'live state matches requested transform' : 'live state does not match requested transform';
+    } else if (plan.intent === 'visibility') {
+      check.ok = !!target && target.visible === !!params.visible;
+      check.reason = check.ok ? 'visibility matches live state' : 'visibility did not persist';
+    } else if (plan.intent === 'script' || plan.intent === 'behavior') {
+      check.ok = !!target && target.hasScript;
+      check.reason = check.ok ? 'script binding is present for the same object id' : 'script binding is missing';
+    } else if (plan.intent === 'animation' || plan.intent === 'animation_stop') {
+      check.ok = !!target;
+      check.reason = check.ok ? 'animation target identity remains present' : 'animation target disappeared';
+    }
+    return check;
+  }
+  function history() { try { return safeArray(JSON.parse(global.localStorage.getItem(HISTORY_KEY) || '[]')); } catch (e) { return []; } }
+  function saveHistory(entry) { try { global.localStorage.setItem(HISTORY_KEY, JSON.stringify(history().concat(entry).slice(-HISTORY_LIMIT))); } catch (e) {} }
+  function refresh() { try { if (global.CodeHotEventBus && typeof global.CodeHotEventBus.emit === 'function') global.CodeHotEventBus.emit('ui:refresh'); } catch (e) {} }
+  function recover() {
+    try {
+      if (global.CodeHotCommandManager && typeof global.CodeHotCommandManager.undo === 'function') { global.CodeHotCommandManager.undo(); refresh(); return true; }
+    } catch (e) {}
+    return false;
+  }
+
+  var protocol = {
+    version: '13.0.0',
+    query: query,
+    capabilities: capabilities,
+    history: history,
+    clearHistory: function () { try { global.localStorage.removeItem(HISTORY_KEY); } catch (e) {} },
+    resolveTarget: function (text) {
+      var snapshot = query();
+      try {
+        if (global.AIContext && typeof global.AIContext.resolveTarget === 'function') return global.AIContext.resolveTarget(text, { objects: snapshot.scene.objects, selected: snapshot.selection, selectedId: snapshot.scene.selectedId, lastTargets: [] });
+      } catch (e) {}
+      return null;
+    },
+    async execute(text) { return agent.processRequest(text); }
+  };
+
+  agent.processRequest = async function (text) {
+    // V14: @@COMMAND blocks route through the Command Protocol
+    // (Parser -> Validator -> Registry -> Executor). The chat is just one
+    // producer of commands; natural language keeps using the agent's own
+    // plan/execute path below, unchanged.
+    var rawText = String(text || '').trim();
+    if (rawText.startsWith('@@') && global.CodeHotCommandProtocol && typeof global.CodeHotCommandProtocol.runScript === 'function') {
+      try {
+        var results = global.CodeHotCommandProtocol.runScript(rawText, 'chat');
+        var reply = results.map(function (r) {
+          var body = (r.command ? r.command + ': ' : '') + (r.message || '');
+          if (r.ok && r.data && r.query) {
+            try { body += '\n```json\n' + JSON.stringify(r.data, null, 2).slice(0, 2000) + '\n```'; } catch (e) {}
+          }
+          return (r.ok ? '✅ ' : '⚠️ ') + body;
+        }).join('\n\n');
+        try { AIContext.addConversation('assistant', reply); } catch (e) {}
+        return reply;
+      } catch (e) {
+        var errReply = '⚠️ ' + (global.L && typeof global.L === 'function' ? global.L('خطای Command Protocol: ', 'Command Protocol error: ') : 'Command Protocol error: ') + (e && e.message ? e.message : e);
+        try { AIContext.addConversation('assistant', errReply); } catch (e2) {}
+        return errReply;
+      }
+    }
+    var before = query();
+    var plan = null;
+    try { plan = typeof originalPlan === 'function' ? originalPlan.call(agent, String(text), (global.AIContext && global.AIContext.getSnapshot ? global.AIContext.getSnapshot() : before)) : null; } catch (e) {}
+    var response = await originalProcess.call(agent, text);
+    var after = query();
+    var verification = verify(plan, before, after, response);
+    var recovered = false;
+    if (!verification.ok && mutation(plan) && !/^(?:⚠️|خطای|Internal error)/.test(String(response))) recovered = recover();
+    saveHistory({ id: 'agent_' + Date.now().toString(36), time: Date.now(), request: String(text), plan: plan ? { intent: plan.intent, tool: plan.tool, targetId: plan.target && plan.target.id || null, params: copy(plan.params) } : null, before: before, after: query(), response: String(response), verification: verification, recovered: recovered });
+    if (!verification.ok && !/^(?:⚠️|خطای|Internal error)/.test(String(response))) return String(response) + '\n⚠️ Verify: ' + verification.reason + (recovered ? ' ' + 'تغییر نامعتبر برگشت داده شد.' : '');
+    return response;
+  };
+  protocol.execute = function (text) { return agent.processRequest(text); };
+  global.CodeHotAgentProtocol = protocol;
+  global.CodeHotQuery = { snapshot: query, capabilities: capabilities, resolveTarget: protocol.resolveTarget };
+  global.CodeHotAgentHistory = { list: history, clear: protocol.clearHistory };
+})(typeof window !== 'undefined' ? window : null);
+
+    /* ==== end codehot-agent-protocol.js ==== */
+    /* ==== begin codehot-command-protocol.js ==== */
+/* CodeHot Command Protocol V14
+ * Two pillars for the CodeHot AI Agent, built only on APIs that really exist:
+ *   1. Command Protocol   — AI/Chat -> Command -> Parser -> Validator -> Executor -> CodeHot Core
+ *   2. Query Layer        — AI/Chat -> Query -> Real CodeHot State (source of truth)
+ *
+ * Rules honored:
+ *   - No invented state. Every executor calls a real API verified in index.html
+ *     (CodeHotTools, CodeHotScene, _sceneEditorManager, ThemeManager, ProjectState...).
+ *   - Identity is object.id. Display names are resolved through the entity resolver, never used as identity.
+ *   - Chat is just one producer of commands: any source can call
+ *     CodeHotCommandProtocol.dispatch(...) or runScript("@@...@@END").
+ *   - A command is registered only when it has a real executor (no imaginary SET_DIRECTION:
+ *     direction in CodeHot is derived from language, there is no independent direction API).
+ */
+(function (global) {
+  'use strict';
+  if (!global) return;
+
+  var VERSION = '14.0.0';
+  var HISTORY_KEY = 'codehot-command-protocol-history';
+  var HISTORY_LIMIT = 100;
+
+  /* ── Small utils ─────────────────────────────────────────────── */
+  function copy(v) { try { return JSON.parse(JSON.stringify(v)); } catch (e) { return null; } }
+  function num(v) { return typeof v === 'number' && Number.isFinite(v) ? v : null; }
+  function requestId() { return 'cmd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function normalizeFa(s) {
+    return String(s == null ? '' : s)
+      .replace(/[\u200c\u200d\u200e\u200f]/g, ' ')
+      .replace(/\u064a/g, '\u06cc').replace(/\u0643/g, '\u06a9')
+      .replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  /* ── Read-only access to the real stores ─────────────────────── */
+  function sceneData() {
+    try {
+      if (global.CodeHotScene && typeof global.CodeHotScene.getSceneData === 'function') {
+        var d = global.CodeHotScene.getSceneData();
+        if (d && Array.isArray(d.objects)) return { objects: d.objects, selectedId: d.selectedId || null };
+      }
+    } catch (e) {}
+    try {
+      if (global.SCENE_STATE && Array.isArray(global.SCENE_STATE.objects)) {
+        return { objects: global.SCENE_STATE.objects, selectedId: global.SCENE_STATE.selectedId || null };
+      }
+    } catch (e) {}
+    return { objects: [], selectedId: null };
+  }
+  function readScripts() {
+    try {
+      if (global.CodeHotScriptStore && typeof global.CodeHotScriptStore.getAll === 'function') {
+        var all = global.CodeHotScriptStore.getAll(sceneData().objects);
+        if (all && typeof all === 'object') return all;
+      }
+    } catch (e) {}
+    try { return JSON.parse(global.localStorage.getItem('codehot-script-bindings') || '{}') || {}; } catch (e) { return {}; }
+  }
+  function readAssets() {
+    try {
+      if (global.CodeHotAssets && typeof global.CodeHotAssets.getAll === 'function') return copy(global.CodeHotAssets.getAll()) || [];
+    } catch (e) {}
+    try {
+      var raw = global.localStorage.getItem('codehot-assets');
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.assets) ? parsed.assets : []);
+    } catch (e) { return []; }
+  }
+  function readAnimations() {
+    try {
+      if (global.CodeHotAnimationStore && typeof global.CodeHotAnimationStore.getAll === 'function') return copy(global.CodeHotAnimationStore.getAll()) || [];
+    } catch (e) {}
+    return [];
+  }
+  function runtimeState() {
+    try {
+      if (global.CodeHotScene && typeof global.CodeHotScene.getRuntimeState === 'function') {
+        var rs = global.CodeHotScene.getRuntimeState();
+        if (rs) return { isPlaying: !!rs.isPlaying, isPaused: !!rs.isPaused, state: rs.state || (rs.isPlaying ? (rs.isPaused ? 'paused' : 'running') : 'editor') };
+      }
+    } catch (e) {}
+    return { isPlaying: false, isPaused: false, state: 'editor' };
+  }
+  function cameraState() {
+    try {
+      if (global.CodeHotScene && typeof global.CodeHotScene.getCameraState === 'function') return copy(global.CodeHotScene.getCameraState());
+    } catch (e) {}
+    return null;
+  }
+  function manager() { return global._sceneEditorManager || null; }
+  function readSettings() {
+    try { return JSON.parse(global.localStorage.getItem('codehot-settings') || '{}') || {}; } catch (e) { return {}; }
+  }
+  function readConsoleLogs(limit) {
+    try {
+      var arr = JSON.parse(global.localStorage.getItem('codehot-console-logs') || '[]');
+      if (!Array.isArray(arr)) return [];
+      return arr.slice(-(limit || 50)).map(function (e) {
+        return { time: e.time || e.timestamp || null, level: e.level || e.type || 'log', text: String(e.message || e.text || e.args || '') };
+      });
+    } catch (e) { return []; }
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     1. QUERY LAYER — CodeHotQuerySystem (source of truth)
+     ════════════════════════════════════════════════════════════ */
+  function objectView(o) {
+    var scripts = readScripts();
+    return {
+      id: o.id,
+      name: o.name,
+      type: o.type,
+      parentId: o.parentId || null,
+      position: copy(o.position) || { x: 0, y: 0, z: 0 },
+      rotation: copy(o.rotation) || { x: 0, y: 0, z: 0 },
+      scale: copy(o.scale) || { x: 1, y: 1, z: 1 },
+      visible: o.visible !== false,
+      assetId: o.assetId || null,
+      hasScript: !!(scripts[o.id] && scripts[o.id].code),
+      animations: readAnimations()
+        .filter(function (a) { return (a.linkedObjectIds || []).indexOf(o.id) !== -1 || a.sourceObjectId === o.id; })
+        .map(function (a) { return { id: a.id, name: a.name, clipName: a.clipName || null, duration: a.duration || 0, loop: a.loop !== false }; })
+    };
+  }
+  function queryScene() {
+    var scene = sceneData();
+    return { id: 'codehot-scene', name: 'Main Scene', selectedId: scene.selectedId, objectCount: scene.objects.length, objects: scene.objects.map(objectView) };
+  }
+
+  var QuerySystem = {
+    version: 'codehot-query-v14',
+    run(name, arg) {
+      var fn = this.queries[String(name || '').toUpperCase()];
+      if (!fn) return { ok: false, error: 'unknown_query', query: name, available: Object.keys(this.queries) };
+      try {
+        return { ok: true, query: name, data: fn.call(this, arg) };
+      } catch (e) {
+        return { ok: false, query: name, error: 'query_failed', message: String(e && e.message || e) };
+      }
+    },
+    queries: {
+      QUERY_PROJECT: function () {
+        var ps = global.CodeHotProjectState;
+        var data = null;
+        try { data = ps && ps._data ? copy(ps._data) : null; } catch (e) {}
+        return {
+          name: 'CodeHot Project', protocolVersion: VERSION,
+          scenes: data && Array.isArray(data.scenes) ? data.scenes.map(function (s) { return { id: s.id, name: s.name, objects: (s.objects || []).length }; }) : [{ id: 'default', name: 'Scene 1', objects: sceneData().objects.length }],
+          activeSceneId: data ? data.activeSceneId : 'default',
+          totals: {
+            objects: sceneData().objects.length, assets: readAssets().length,
+            animations: readAnimations().length, scripts: Object.keys(readScripts()).length
+          },
+          savedAt: data ? data.timestamp : null
+        };
+      },
+      QUERY_SCENE: function () { return queryScene(); },
+      QUERY_OBJECTS: function () {
+        return { count: sceneData().objects.length, objects: sceneData().objects.map(function (o) { var v = objectView(o); return { id: v.id, name: v.name, type: v.type, position: v.position, visible: v.visible, hasScript: v.hasScript }; }) };
+      },
+      QUERY_OBJECT: function (spec) {
+        var res = Resolver.resolve(spec, queryScene());
+        if (!res.ok) return { error: res.reason, matches: res.matches || null, lookedFor: res.lookedFor || null };
+        var full = sceneData().objects.find(function (o) { return o.id === res.object.id; });
+        var s = readScripts()[res.object.id];
+        return { object: objectView(full || res.object), script: s ? copy(s) : null };
+      },
+      QUERY_SELECTION: function () {
+        var scene = sceneData();
+        if (!scene.selectedId) return { selected: null };
+        var o = scene.objects.find(function (x) { return x.id === scene.selectedId; });
+        return { selectedId: scene.selectedId, selected: o ? objectView(o) : null };
+      },
+      QUERY_ASSETS: function () {
+        return { count: readAssets().length, assets: readAssets().map(function (a) { return { id: a.id, name: a.name, type: a.type, size: a.size || 0, payloadKey: a.payloadKey || null, linkedObjectIds: (a.linkedObjectIds || []).slice() }; }) };
+      },
+      QUERY_ANIMATIONS: function () {
+        return { count: readAnimations().length, animations: readAnimations().map(function (a) { return { id: a.id, name: a.name, sourceObjectId: a.sourceObjectId || null, linkedObjectIds: (a.linkedObjectIds || []).slice(), clipName: a.clipName || null, duration: a.duration || 0, loop: a.loop !== false }; }) };
+      },
+      QUERY_SCRIPTS: function () {
+        var map = readScripts();
+        return { count: Object.keys(map).length, scripts: Object.keys(map).map(function (id) {
+          var s = map[id] || {};
+          var obj = sceneData().objects.find(function (o) { return o.id === id; });
+          return { objectId: id, objectName: obj ? obj.name : (s.objectName || null), codeLength: String(s.code || '').length, code: s.code || '' };
+        }) };
+      },
+      QUERY_CAMERA: function () {
+        var c = cameraState();
+        return { camera: c || null, locked: !!(c && c.locked) };
+      },
+      QUERY_RUNTIME: function () {
+        var rs = runtimeState();
+        var rt = global.CodeHotRuntime;
+        return { isPlaying: rs.isPlaying, isPaused: rs.isPaused, state: rs.state, canEdit: !rs.isPlaying, time: rt ? (function () { try { return rt.getTime(); } catch (e) { return 0; } })() : 0 };
+      },
+      QUERY_THEME: function () {
+        var tm = global.CodeHotThemeManager;
+        return { theme: (tm && typeof tm.getCurrent === 'function') ? tm.getCurrent() : (readSettings().theme || 'dark') };
+      },
+      QUERY_LANGUAGE: function () { return { language: readSettings().language === 'en' ? 'en' : 'fa' }; },
+      QUERY_SETTINGS: function () {
+        var s = readSettings();
+        return { settings: s, theme: (global.CodeHotThemeManager && global.CodeHotThemeManager.getCurrent) ? global.CodeHotThemeManager.getCurrent() : (s.theme || 'dark'), direction: document.documentElement.dir || 'ltr' };
+      },
+      QUERY_UI: function () {
+        var active = null;
+        try { var el = document.querySelector('.tab-panel.tp-active'); active = el ? el.dataset.tab : null; } catch (e) {}
+        return { activeTab: active, theme: (global.CodeHotThemeManager && global.CodeHotThemeManager.getCurrent) ? global.CodeHotThemeManager.getCurrent() : null, direction: document.documentElement.dir || 'ltr' };
+      },
+      QUERY_LOGS: function (arg) {
+        var h = history();
+        var limit = Math.max(1, Math.min(50, num(arg && arg.limit) || 10));
+        var logs = readConsoleLogs(50);
+        return {
+          protocol: h.slice(-limit),
+          console: logs,
+          errors: logs.filter(function (e) { return e.level === 'error' || e.level === 'pageerror'; }).slice(-5)
+        };
+      },
+      QUERY_UNDO: function () {
+        var m = manager();
+        var s = global.SCENE_STATE || {};
+        return {
+          canUndo: !!m && typeof m.undo === 'function' && (!s.undoStack || s.undoStack.length > 0),
+          canRedo: !!m && typeof m.redo === 'function' && (!s.redoStack || s.redoStack.length > 0)
+        };
+      },
+      QUERY_CAPABILITIES: function () { return Protocol.capabilities(); }
+    }
+  };
+
+  /* ════════════════════════════════════════════════════════════
+     2. ENTITY RESOLVER — id / name / selection / type / last
+     Never invents entities. Returns the real object record.
+     ════════════════════════════════════════════════════════════ */
+  var Resolver = {
+    resolve(spec, scene) {
+      scene = scene || queryScene();
+      var objects = scene.objects || [];
+      if (!spec) return { ok: false, reason: 'no-target' };
+      if (typeof spec === 'string') spec = { name: spec };
+
+      if (spec.id) {
+        var byId = objects.find(function (o) { return o.id === spec.id; });
+        return byId ? { ok: true, object: byId } : { ok: false, reason: 'not-found', lookedFor: spec.id };
+      }
+      if (spec.selection === true) {
+        if (scene.selectedId) {
+          var sel = objects.find(function (o) { return o.id === scene.selectedId; });
+          if (sel) return { ok: true, object: sel };
+        }
+        return { ok: false, reason: 'no-selection' };
+      }
+      if (spec.last === true) {
+        try {
+          var last = (global.AIContext && global.AIContext._lastTargets && global.AIContext._lastTargets.length) ? global.AIContext._lastTargets[global.AIContext._lastTargets.length - 1] : null;
+          if (last) {
+            var found = objects.find(function (o) { return o.id === last.id; });
+            if (found) return { ok: true, object: found };
+          }
+        } catch (e) {}
+        return { ok: false, reason: 'no-previous-target' };
+      }
+      if (spec.type) {
+        var TYPE_ALIASES = {
+          cube: ['cube', 'box', 'مکعب', 'مربع'], sphere: ['sphere', 'کره', 'گوی'],
+          cylinder: ['cylinder', 'استوانه'], cone: ['cone', 'مخروط'],
+          plane: ['plane', 'صفحه', 'سطح'], model: ['model', 'glb', 'مدل', 'group', 'گروه']
+        };
+        var wanted = null, n = normalizeFa(spec.type);
+        Object.keys(TYPE_ALIASES).forEach(function (k) { if (TYPE_ALIASES[k].some(function (a) { return a === n; })) wanted = k; });
+        if (!wanted) return { ok: false, reason: 'unknown-type', lookedFor: spec.type };
+        var byType = objects.filter(function (o) { return o.type === wanted || (wanted === 'model' && o.type === 'group'); });
+        if (byType.length === 1) return { ok: true, object: byType[0] };
+        if (byType.length > 1) return { ok: false, reason: 'ambiguous', matches: byType.map(function (o) { return { id: o.id, name: o.name }; }) };
+        return { ok: false, reason: 'not-found', lookedFor: spec.type };
+      }
+      if (spec.name) {
+        var needle = normalizeFa(spec.name);
+        var exact = objects.filter(function (o) { return normalizeFa(o.name) === needle; });
+        if (exact.length === 1) return { ok: true, object: exact[0] };
+        if (exact.length > 1) return { ok: false, reason: 'ambiguous', matches: exact.map(function (o) { return { id: o.id, name: o.name }; }) };
+        var contains = objects.filter(function (o) { return normalizeFa(o.name).indexOf(needle) !== -1; });
+        if (contains.length === 1) return { ok: true, object: contains[0] };
+        if (contains.length > 1) return { ok: false, reason: 'ambiguous', matches: contains.map(function (o) { return { id: o.id, name: o.name }; }) };
+        return { ok: false, reason: 'not-found', lookedFor: spec.name };
+      }
+      return { ok: false, reason: 'no-target' };
+    }
+  };
+
+  /* ════════════════════════════════════════════════════════════
+     3. COMMAND REGISTRY — one entry per real executor
+     ════════════════════════════════════════════════════════════ */
+  function fail(msg) { return { ok: false, message: msg }; }
+  function toolsReady() { return !!(global.CodeHotTools && typeof global.CodeHotTools.CREATE_OBJECT === 'function'); }
+  function playingGuard() { return runtimeState().isPlaying ? fail('Cannot edit while playing. Stop first. / در زمان Play امکان ویرایش نیست.') : null; }
+
+  function requireTarget(params) {
+    var res = Resolver.resolve(params.__target, queryScene());
+    if (!res.ok) {
+      if (res.reason === 'ambiguous') return { error: fail('Multiple matches: ' + res.matches.map(function (m) { return m.name; }).join(', ')) };
+      if (res.reason === 'no-selection') return { error: fail('Nothing is selected and no target was given. / چیزی انتخاب نشده و هدفی مشخص نشده است.') };
+      if (res.reason === 'no-previous-target') return { error: fail('No previous target. / هدف قبلی وجود ندارد.') };
+      return { error: fail('Target not found: ' + JSON.stringify(res.lookedFor != null ? res.lookedFor : (params.__target || ''))) };
+    }
+    return { id: res.object.id, object: res.object, res: res };
+  }
+
+  var Registry = {
+    commands: {},
+    register(def) { this.commands[def.name] = def; return this; },
+    get(name) { return this.commands[String(name || '').toUpperCase()] || null; },
+    names() { return Object.keys(this.commands); }
+  };
+
+  // ── Scene object commands (executors = CodeHotTools / SceneEditorManager) ──
+  Registry.register({
+    name: 'CREATE_OBJECT', undoable: true,
+    params: { TYPE: { type: 'string', enum: ['cube', 'sphere', 'cylinder', 'cone', 'plane'] }, NAME: { type: 'string' }, X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' } },
+    executor(params) {
+      var g = playingGuard(); if (g) return g;
+      if (!toolsReady()) return fail('CodeHotTools unavailable');
+      var p = { type: params.TYPE || 'cube' };
+      if (params.NAME) p.name = params.NAME;
+      ['x', 'y', 'z'].forEach(function (k) { if (num(params[k.toUpperCase()]) !== null) p[k] = params[k.toUpperCase()]; });
+      return global.CodeHotTools.CREATE_OBJECT(p);
+    }
+  });
+  Registry.register({
+    name: 'DELETE_OBJECT', undoable: true, target: 'object',
+    params: {},
+    executor(params) {
+      var g = playingGuard(); if (g) return g;
+      var t = requireTarget(params); if (t.error) return t.error;
+      return global.CodeHotTools.DELETE_OBJECT({ id: t.id });
+    }
+  });
+  Registry.register({
+    name: 'RENAME_OBJECT', undoable: true, target: 'object',
+    params: { NEW_NAME: { type: 'string', required: true } },
+    executor(params) {
+      var g = playingGuard(); if (g) return g;
+      var t = requireTarget(params); if (t.error) return t.error;
+      return global.CodeHotTools.RENAME_OBJECT({ id: t.id, newName: params.NEW_NAME });
+    }
+  });
+  function transformExecutor(kind) {
+    return function (params) {
+      var g = playingGuard(); if (g) return g;
+      var t = requireTarget(params); if (t.error) return t.error;
+      var change = {};
+      if (kind === 'move') {
+        var pos = {};
+        ['x', 'y', 'z'].forEach(function (k) {
+          var v = num(params[k.toUpperCase()]);
+          if (v !== null) pos[k] = (params.DELTA === true) ? t.object.position[k] + v : v;
+        });
+        if (Object.keys(pos).length) change.position = pos;
+      } else if (kind === 'rotate') {
+        var rot = {};
+        ['x', 'y', 'z'].forEach(function (k) {
+          var v = num(params[k.toUpperCase()]);
+          if (v !== null) {
+            // Degrees, editor convention: SCENE_STATE.rotation is stored in
+            // degrees and converted to radians only when meshes are built
+            // (see degToRad at mesh construction). Keep the boundary honest.
+            rot[k] = (params.DELTA === true) ? t.object.rotation[k] + v : v;
+          }
+        });
+        if (Object.keys(rot).length) change.rotation = rot;
+      } else { // scale — absolute
+        var scl = {};
+        ['x', 'y', 'z'].forEach(function (k) { var v = num(params[k.toUpperCase()]); if (v !== null) scl[k] = v; });
+        if (num(params.UNIFORM) !== null) scl = { x: params.UNIFORM, y: params.UNIFORM, z: params.UNIFORM };
+        if (Object.keys(scl).length) change.scale = scl;
+      }
+      if (!Object.keys(change).length) return fail('No axis values given. / هیچ محوری مشخص نشده.');
+      return global.CodeHotTools.SET_TRANSFORM({ id: t.id, change: change });
+    };
+  }
+  Registry.register({ name: 'MOVE_OBJECT', undoable: true, target: 'object', params: { X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' }, DELTA: { type: 'boolean' } }, executor: transformExecutor('move') });
+
+  // Read-only QUERY commands. The system prompt advertises @@QUERY_SCENE and
+  // @@QUERY_SCRIPTS to the model; these registry entries make that contract
+  // real (previously @@QUERY_* blocks failed with unknown_command). Queries
+  // never mutate the scene and are excluded from undo/history mutation flags.
+  function queryExecutor(qname) {
+    return function () {
+      var res = global.CodeHotQuerySystem ? global.CodeHotQuerySystem.run(qname) : { ok: false, error: 'query_system_unavailable' };
+      if (!res || !res.ok) return { ok: false, message: 'Query failed: ' + ((res && (res.error || res.message)) || 'unknown') };
+      return { ok: true, query: qname, data: res.data };
+    };
+  }
+  Registry.register({ name: 'QUERY_SCENE', query: true, params: {}, executor: queryExecutor('QUERY_SCENE') });
+  Registry.register({ name: 'QUERY_SCRIPTS', query: true, params: {}, executor: queryExecutor('QUERY_SCRIPTS') });
+  Registry.register({ name: 'QUERY_OBJECTS', query: true, params: {}, executor: queryExecutor('QUERY_OBJECTS') });
+
+  Registry.register({ name: 'ROTATE_OBJECT', undoable: true, target: 'object', params: { X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' }, DELTA: { type: 'boolean' } }, executor: transformExecutor('rotate') });
+  Registry.register({ name: 'SCALE_OBJECT', undoable: true, target: 'object', params: { X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' }, UNIFORM: { type: 'number' } }, executor: transformExecutor('scale') });
+  Registry.register({
+    name: 'SELECT_OBJECT', undoable: false, target: 'object', params: {},
+    executor(params) {
+      var t = requireTarget(params); if (t.error) return t.error;
+      var res = global.CodeHotTools.SELECT_OBJECT({ id: t.id });
+      if (res.ok) return res;
+      try { if (global.CodeHotScene.selectObject(t.id)) return { ok: true, message: t.object.name + ' selected. / انتخاب شد.' }; } catch (e) {}
+      return res;
+    }
+  });
+  Registry.register({
+    name: 'FOCUS_OBJECT', undoable: false, target: 'object', params: {},
+    executor(params) {
+      var t = requireTarget(params); if (t.error) return t.error;
+      var sel = global.CodeHotTools.SELECT_OBJECT({ id: t.id });
+      try {
+        var m = manager();
+        if (m && typeof m.focusObject === 'function') { m.focusObject(t.id); return { ok: true, message: 'Focused on ' + t.object.name + ' / روی ' + t.object.name + ' فوکوس شد.' }; }
+      } catch (e) {}
+      return sel.ok ? sel : fail('Focus unavailable / فوکوس ممکن نیست.');
+    }
+  });
+
+  // ── Camera commands (real API: CodeHotTools.SET_CAMERA -> manager.applyCameraData) ──
+  function cameraExecutor(mode) {
+    return function (params) {
+      if (!global.CodeHotTools || typeof global.CodeHotTools.SET_CAMERA !== 'function') return fail('Camera API unavailable');
+      var p = {};
+      if (mode === 'position' || mode === 'all') { ['x', 'y', 'z'].forEach(function (k) { var v = num(params[k.toUpperCase()]); if (v !== null) p[k] = v; }); }
+      if (mode === 'target' || mode === 'all') { ['tx', 'ty', 'tz'].forEach(function (k) { var v = num(params[k.toUpperCase()]); if (v !== null) p[k] = v; }); }
+      if (mode === 'fov') { var f = num(params.FOV); if (f === null) return fail('FOV value required'); p.fov = clamp(f, 15, 120); }
+      else if (mode === 'all') { var fov = num(params.FOV); if (fov !== null) p.fov = clamp(fov, 15, 120); }
+      if (!Object.keys(p).length) return fail('No camera values given');
+      return global.CodeHotTools.SET_CAMERA(p);
+    };
+  }
+  Registry.register({ name: 'SET_CAMERA_POSITION', undoable: false, params: { X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' } }, executor: cameraExecutor('position') });
+  Registry.register({ name: 'SET_CAMERA_TARGET', undoable: false, params: { TX: { type: 'number' }, TY: { type: 'number' }, TZ: { type: 'number' } }, executor: cameraExecutor('target') });
+  Registry.register({ name: 'SET_CAMERA_FOV', undoable: false, params: { FOV: { type: 'number', required: true, min: 15, max: 120 } }, executor: cameraExecutor('fov') });
+  Registry.register({ name: 'SET_CAMERA', undoable: false, params: { X: { type: 'number' }, Y: { type: 'number' }, Z: { type: 'number' }, TX: { type: 'number' }, TY: { type: 'number' }, TZ: { type: 'number' }, FOV: { type: 'number', min: 15, max: 120 } }, executor: cameraExecutor('all') });
+
+  // ── App commands ──
+  Registry.register({
+    name: 'SET_THEME', undoable: false,
+    params: { VALUE: { type: 'string', required: true, enum: ['dark', 'light'] } },
+    executor(params) {
+      var tm = global.CodeHotThemeManager;
+      if (!tm || typeof tm.apply !== 'function') return fail('ThemeManager unavailable');
+      tm.apply(params.VALUE); // real API: applies CSS vars, persists, emits theme:changed
+      try {
+        var s = readSettings(); s.theme = params.VALUE;
+        global.localStorage.setItem('codehot-settings', JSON.stringify(s));
+        if (global.CodeHotProjectState && global.CodeHotProjectState._data && global.CodeHotProjectState._data.settings) global.CodeHotProjectState._data.settings.theme = params.VALUE;
+      } catch (e) {}
+      try { document.body.dataset.theme = params.VALUE; } catch (e) {}
+      return { ok: true, message: 'Theme set to ' + params.VALUE + ' / تم روی ' + params.VALUE + ' تنظیم شد.' };
+    }
+  });
+  Registry.register({
+    name: 'SET_LANGUAGE', undoable: false,
+    params: { VALUE: { type: 'string', required: true, enum: ['fa', 'en'] } },
+    executor(params) {
+      // Real application path: settings store + dir/lang (same as SettingsUIManager.applyLanguage).
+      try {
+        var s = readSettings(); s.language = params.VALUE;
+        global.localStorage.setItem('codehot-settings', JSON.stringify(s));
+        if (global.CodeHotProjectState && global.CodeHotProjectState._data && global.CodeHotProjectState._data.settings) global.CodeHotProjectState._data.settings.language = params.VALUE;
+        document.documentElement.dir = params.VALUE === 'fa' ? 'rtl' : 'ltr';
+        document.documentElement.lang = params.VALUE;
+      } catch (e) { return fail('Could not apply language: ' + (e.message || e)); }
+      try {
+        if (global.CodeHotEventBus && global.CodeHotEventBus.emit) {
+          global.CodeHotEventBus.emit('settings:changed', { key: 'language', value: params.VALUE });
+          global.CodeHotEventBus.emit('ui:refresh');
+        }
+      } catch (e) {}
+      return { ok: true, message: 'Language set to ' + params.VALUE + ' / زبان روی ' + params.VALUE + ' تنظیم شد.' };
+    }
+  });
+  Registry.register({
+    name: 'SET_DIRECTION', undoable: false,
+    params: { VALUE: { type: 'string', required: true, enum: ['rtl', 'ltr'] } },
+    executor(params) {
+      // V12: direction is an independent preference (never a side effect of language).
+      try {
+        var s = readSettings(); s.direction = params.VALUE;
+        global.localStorage.setItem('codehot-settings', JSON.stringify(s));
+        document.documentElement.dir = params.VALUE;
+      } catch (e) { return fail('Could not set direction: ' + (e.message || e)); }
+      try {
+        if (global.CodeHotEventBus && global.CodeHotEventBus.emit) {
+          global.CodeHotEventBus.emit('settings:changed', { key: 'direction', value: params.VALUE });
+          global.CodeHotEventBus.emit('ui:refresh');
+        }
+      } catch (e) {}
+      return { ok: true, message: 'Direction set to ' + params.VALUE + ' / جهت صفحه روی ' + params.VALUE + ' تنظیم شد.' };
+    }
+  });
+  Registry.register({
+    name: 'SAVE_PROJECT', undoable: false, params: {},
+    executor() {
+      var saved = { scene: false, project: false };
+      try { if (global.CodeHotScene && typeof global.CodeHotScene.saveToStorage === 'function') { global.CodeHotScene.saveToStorage(); saved.scene = true; } } catch (e) {}
+      try {
+        var ps = global.CodeHotProjectState;
+        if (ps && ps._data) {
+          var scene = sceneData();
+          if (ps._data.scenes && ps._data.scenes[0]) {
+            ps._data.scenes[0].objects = scene.objects;
+            ps._data.scenes[0].camera = cameraState();
+          }
+          try { var raw = global.localStorage.getItem('codehot-script-bindings'); if (raw) ps._data.scripts = JSON.parse(raw); } catch (e) {}
+          try { var raw2 = global.localStorage.getItem('codehot-animation-state'); if (raw2) ps._data.animations = JSON.parse(raw2); } catch (e) {}
+          ps.save();
+          saved.project = true;
+        }
+      } catch (e) {}
+      return saved.scene || saved.project
+        ? { ok: true, message: 'Project saved / پروژه ذخیره شد.' + (!saved.project || !saved.scene ? ' (' + (saved.project ? 'project state' : 'scene') + ')' : '') }
+        : fail('Nothing to save / چیزی برای ذخیره نبود.');
+    }
+  });
+  Registry.register({
+    name: 'UNDO', undoable: false, params: {},
+    executor() {
+      var m = manager();
+      if (m && typeof m.undo === 'function') {
+        if (global.SCENE_STATE && Array.isArray(global.SCENE_STATE.undoStack) && global.SCENE_STATE.undoStack.length === 0) return fail('Nothing to undo / چیزی برای برگرداندن نیست.');
+        try { m.undo(); return { ok: true, message: 'Undone / برگشت.' }; } catch (e) { return fail('Undo failed: ' + (e.message || e)); }
+      }
+      if (global.CodeHotCommandManager && typeof global.CodeHotCommandManager.undo === 'function') {
+        return global.CodeHotCommandManager.undo() ? { ok: true, message: 'Undone / برگشت.' } : fail('Nothing to undo / چیزی برای برگرداندن نیست.');
+      }
+      return fail('Undo unavailable');
+    }
+  });
+  Registry.register({
+    name: 'REDO', undoable: false, params: {},
+    executor() {
+      var m = manager();
+      if (m && typeof m.redo === 'function') {
+        if (global.SCENE_STATE && Array.isArray(global.SCENE_STATE.redoStack) && global.SCENE_STATE.redoStack.length === 0) return fail('Nothing to redo / چیزی برای اجرای مجدد نیست.');
+        try { m.redo(); return { ok: true, message: 'Redone / اجرای مجدد شد.' }; } catch (e) { return fail('Redo failed: ' + (e.message || e)); }
+      }
+      return fail('Redo unavailable');
+    }
+  });
+
+  // ── Runtime lifecycle commands (real API: CodeHotRuntime.start/stop) ──
+  // V12: PAUSE/RESUME are REAL runtime states (RuntimeEngine.pause/resume,
+  // state machine RUNNING<->PAUSED). The animation player is only a fallback
+  // for builds without runtime pause, and PAUSE/RESUME honestly fail when
+  // nothing is playing.
+  Registry.register({
+    name: 'PLAY', undoable: false, params: {},
+    executor() {
+      var rt = global.CodeHotRuntime;
+      if (!rt || typeof rt.start !== 'function') return fail('Runtime unavailable');
+      if (runtimeState().isPlaying) return { ok: true, message: 'Already playing / در حال اجراست.' };
+      // Resume-first semantics: Play on a paused runtime continues it.
+      if (typeof rt.isPaused === 'function' && rt.isPaused()) {
+        var resumedEarly = false;
+        try { resumedEarly = rt.resume() === true; } catch (e) {}
+        if (resumedEarly) return { ok: true, message: 'Resumed / ادامه پخش.' };
+      }
+      var started = false;
+      try { started = rt.start() === true; } catch (e) { return fail('Play failed: ' + (e.message || e)); }
+      return started ? { ok: true, message: 'Play / اجرا شروع شد.' } : fail('Play failed: runtime refused to start.');
+    }
+  });
+  Registry.register({
+    name: 'STOP', undoable: false, params: {},
+    executor() {
+      var rt = global.CodeHotRuntime;
+      if (!rt || typeof rt.stop !== 'function') return fail('Runtime unavailable');
+      if (!runtimeState().isPlaying) return { ok: true, message: 'Not playing / در حال اجرا نیست.' };
+      try { rt.stop(); } catch (e) { return fail('Stop failed: ' + (e.message || e)); }
+      var after = runtimeState();
+      return after.isPlaying ? fail('Stop did not take effect / توقف اعمال نشد.') : { ok: true, message: 'Stopped / متوقف شد.' }; 
+    }
+  });
+  Registry.register({
+    name: 'PAUSE', undoable: false, params: {},
+    executor() {
+      var rt = global.CodeHotRuntime;
+      // Preferred: real runtime pause (freezes simulation time).
+      if (rt && typeof rt.pause === 'function') {
+        if (!runtimeState().isPlaying) return fail('Not playing / در حال اجرا نیست.');
+        if (typeof rt.isPaused === 'function' && rt.isPaused()) return { ok: true, message: 'Already paused / قبلاً متوقف شده است.' };
+        var okRt = false;
+        try { okRt = rt.pause() === true; } catch (e) { return fail('Pause failed: ' + (e.message || e)); }
+        return okRt ? { ok: true, message: 'Paused / متوقف موقت.' } : fail('Pause did not take effect.');
+      }
+      // Fallback: animation player pause in builds without runtime pause.
+      var am = global.CodeHotAnimationBridge || null;
+      var pauseFn = (am && typeof am.pause === 'function') ? am.pause : null;
+      if (!pauseFn) return fail('Pause is unavailable in this build / توقف موقت در این نسخه پشتیبانی نمی‌شود.');
+      var ok = false;
+      try { ok = pauseFn() === true; } catch (e) { return fail('Pause failed: ' + (e.message || e)); }
+      return ok ? { ok: true, message: 'Paused / متوقف موقت.' } : fail('Nothing to pause / چیزی برای توقف موقت نیست.');
+    }
+  });
+  Registry.register({
+    name: 'RESUME', undoable: false, params: {},
+    executor() {
+      var rt = global.CodeHotRuntime;
+      // Preferred: real runtime resume.
+      if (rt && typeof rt.resume === 'function') {
+        if (!runtimeState().isPlaying) return fail('Not playing / در حال اجرا نیست.');
+        if (typeof rt.isPaused === 'function' && !rt.isPaused()) return { ok: true, message: 'Not paused / متوقف نشده بود.' };
+        var okRt = false;
+        try { okRt = rt.resume() === true; } catch (e) { return fail('Resume failed: ' + (e.message || e)); }
+        return okRt ? { ok: true, message: 'Resumed / ادامه پخش.' } : fail('Resume did not take effect.');
+      }
+      // Fallback: animation player resume.
+      var am = global.CodeHotAnimationBridge || null;
+      var resumeFn = (am && typeof am.resume === 'function') ? am.resume : null;
+      if (!resumeFn) return fail('Resume is unavailable in this build / ادامه پخش در این نسخه پشتیبانی نمی‌شود.');
+      var ok = false;
+      try { ok = resumeFn() === true; } catch (e) { return fail('Resume failed: ' + (e.message || e)); }
+      return ok ? { ok: true, message: 'Resumed / ادامه پخش.' } : fail('Nothing to resume / چیزی برای ادامه نیست.');
+    }
+  });
+
+  // ── Script commands (real API: CodeHotScriptStore + CodeHotRuntime.validateScript) ──
+  // Model-emitted CODE values arrive with escaped newlines ("\n"). The real
+  // script source must contain actual line breaks, so unescape the common
+  // sequences before validation/storage.
+  function unescapeScriptCode(code) {
+    return String(code || '')
+      .replace(/\\r\\n/g, '\n').replace(/\\r/g, '\n').replace(/\\n/g, '\n').replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"').replace(/\\'/g, "'");
+  }
+  function storeScript(id, code, objectName) {
+    // Contract: { objectId, objectName, code, updatedAt } — writer/reader agree.
+    return global.CodeHotScriptStore.set(id, { objectId: id, objectName: objectName, code: code, updatedAt: Date.now() }, sceneData().objects);
+  }
+  function validateAndStore(id, code, objectName) {
+    var rt = global.CodeHotRuntime;
+    if (rt && typeof rt.validateScript === 'function') {
+      var check = rt.validateScript(code);
+      if (!check.ok) return fail('Script validation failed: ' + (check.error || 'syntax error'));
+    }
+    var saved = storeScript(id, code, objectName);
+    if (!saved) return fail('Could not persist script binding.');
+    // V12 fix: reload must be called as a METHOD. Capturing the bare function
+    // reference (var refreshApi = rt.reload; refreshApi()) ran it with `this`
+    // undefined, so the live behavior was never replaced while playing.
+    try {
+      if (runtimeState().isPlaying && global.CodeHotRuntime && typeof global.CodeHotRuntime.reload === 'function') {
+        global.CodeHotRuntime.reload();
+      }
+    } catch (e) {}
+    try { if (global.CodeHotEventBus && global.CodeHotEventBus.emit) global.CodeHotEventBus.emit('script:changed', { objectId: id, code: code }); } catch (e) {}
+    return null;
+  }
+  Registry.register({
+    name: 'CREATE_SCRIPT', undoable: true, target: 'object',
+    params: { CODE: { type: 'string', required: true }, NAME: { type: 'string' } },
+    executor(params) {
+      // V12: script commands are allowed during Play — behavior code is hot-
+      // swapped through validateAndStore/reload, unlike scene transforms which
+      // stay guarded against edit-while-playing.
+      var t = requireTarget(params); if (t.error) return t.error;
+      var err = validateAndStore(t.id, unescapeScriptCode(params.CODE), t.object.name);
+      if (err) return err;
+      return { ok: true, message: 'Script attached to ' + t.object.name + ' / اسکریپت به ' + t.object.name + ' متصل شد.' };
+    }
+  });
+  Registry.register({
+    name: 'UPDATE_SCRIPT', undoable: true, target: 'object',
+    params: { CODE: { type: 'string', required: true } },
+    executor(params) {
+      // V12: script commands are allowed during Play — behavior code is hot-
+      // swapped through validateAndStore/reload, unlike scene transforms which
+      // stay guarded against edit-while-playing.
+      var t = requireTarget(params); if (t.error) return t.error;
+      var err = validateAndStore(t.id, unescapeScriptCode(params.CODE), t.object.name);
+      if (err) return err;
+      return { ok: true, message: 'Script updated on ' + t.object.name + ' / اسکریپت ' + t.object.name + ' به‌روزرسانی شد.' };
+    }
+  });
+  Registry.register({
+    name: 'DELETE_SCRIPT', undoable: true, target: 'object',
+    params: {},
+    executor(params) {
+      // V12: script commands are allowed during Play — behavior code is hot-
+      // swapped through validateAndStore/reload, unlike scene transforms which
+      // stay guarded against edit-while-playing.
+      var t = requireTarget(params); if (t.error) return t.error;
+      var had = !!(readScripts()[t.id] && readScripts()[t.id].code);
+      if (!had) return fail('No script on ' + t.object.name + ' / اسکریپتی روی ' + t.object.name + ' نیست.');
+      var removed = false;
+      try { removed = global.CodeHotScriptStore.remove(t.id, sceneData().objects) !== false; } catch (e) {}
+      try { if (global.CodeHotEventBus && global.CodeHotEventBus.emit) global.CodeHotEventBus.emit('script:changed', { objectId: t.id, code: '' }); } catch (e) {}
+      // V12 fix: removing a script while playing must also stop its live
+      // behavior — reload the runtime so the behavior map no longer has it.
+      try {
+        if (runtimeState().isPlaying && global.CodeHotRuntime && typeof global.CodeHotRuntime.reload === 'function') {
+          global.CodeHotRuntime.reload();
+        }
+      } catch (e) {}
+      return removed ? { ok: true, message: 'Script removed from ' + t.object.name + ' / اسکریپت از ' + t.object.name + ' حذف شد.' } : fail('Could not remove script binding.');
+    }
+  });
+
+  // ── Animation commands (real clips only — resolver never invents clips) ──
+  function clipsFor(objectId) {
+    try {
+      if (global.CodeHotAnimationStore && typeof global.CodeHotAnimationStore.getForObject === 'function') {
+        return (global.CodeHotAnimationStore.getForObject(objectId) || []).map(function (a) { return String(a.name || a.clipName || ''); }).filter(Boolean);
+      }
+    } catch (e) {}
+    return [];
+  }
+  Registry.register({
+    name: 'PLAY_ANIMATION', undoable: false, target: 'object',
+    params: { CLIP: { type: 'string', required: true } },
+    executor(params) {
+      var t = requireTarget(params); if (t.error) return t.error;
+      var clips = clipsFor(t.id);
+      if (!clips.length) return fail(t.object.name + ' has no animations / ' + t.object.name + ' هیچ انیمیشنی ندارد.');
+      var wanted = normalizeFa(params.CLIP).toLowerCase();
+      var match = clips.find(function (c) { return normalizeFa(c).toLowerCase() === wanted; })
+        || clips.find(function (c) { return normalizeFa(c).toLowerCase().indexOf(wanted) !== -1; });
+      if (!match) return fail('No clip named "' + params.CLIP + '". Available: ' + clips.join(', ') + ' / چنین کلیپی وجود ندارد.');
+      if (!toolsReady()) return fail('CodeHotTools unavailable');
+      return global.CodeHotTools.PLAY_ANIMATION({ id: t.id, animation: { name: match } });
+    }
+  });
+  Registry.register({
+    name: 'STOP_ANIMATION', undoable: false, target: 'object',
+    params: {},
+    executor(params) {
+      var t = requireTarget(params); if (t.error) return t.error;
+      if (!toolsReady()) return fail('CodeHotTools unavailable');
+      return global.CodeHotTools.STOP_ANIMATION({ id: t.id });
+    }
+  });
+
+  // ── Every query is also a command (pass-through to the Query System) ──
+  Object.keys(QuerySystem.queries).forEach(function (q) {
+    Registry.register({
+      name: q, query: true, undoable: false,
+      params: q === 'QUERY_OBJECT' ? { VALUE: { type: 'string' }, ID: { type: 'string' } } : (q === 'QUERY_LOGS' ? { LIMIT: { type: 'number' } } : {}),
+      executor(params, envelope) {
+        var arg = null;
+        if (q === 'QUERY_OBJECT') {
+          var v = params.VALUE || params.ID || (envelope.target && (envelope.target.name || envelope.target.id));
+          arg = v ? { name: v } : (envelope.target || null);
+        }
+        if (q === 'QUERY_LOGS') arg = { limit: num(params.LIMIT) || 10 };
+        var res = QuerySystem.run(q, arg);
+        return res.ok ? { ok: true, message: q + ' ok', data: res.data, query: true } : { ok: false, message: String(res.error || 'query failed') + (res.message ? ': ' + res.message : ''), query: true };
+      }
+    });
+  });
+
+  /* ════════════════════════════════════════════════════════════
+     4. PARSER — @@COMMAND\nKEY: VALUE\n@@END
+     ════════════════════════════════════════════════════════════ */
+  function parseValue(v) {
+    var s = String(v).trim();
+    if (/^"[^]*"$/.test(s) || /^'[^]*'$/.test(s)) return s.slice(1, -1);
+    if (s === 'true') return true;
+    if (s === 'false') return false;
+    if (s === 'null' || s === '') return null;
+    if (/^-?\d+(?:\.\d+)?$/.test(s)) return parseFloat(s);
+    return s;
+  }
+  var Parser = {
+    parse(text) {
+      var raw = String(text || '').replace(/\r\n/g, '\n');
+      var commands = [], errors = [];
+      var re = /@@\s*([A-Za-z_][A-Za-z0-9_]*)[ \t]*\n([\s\S]*?)(?:@@END|@@\s*[A-Za-z_][A-Za-z0-9_]*[ \t]*\n|$)/g;
+      var m;
+      while ((m = re.exec(raw)) !== null) {
+        var name = m[1].toUpperCase();
+        var body = m[2] || '';
+        if (body.indexOf('@@END') !== -1) body = body.slice(0, body.indexOf('@@END'));
+        if (!Registry.get(name)) {
+          errors.push({ command: name, error: 'unknown_command', available: Registry.names() });
+          continue;
+        }
+        var params = {}, malformed = [];
+        body.split('\n').forEach(function (line) {
+          if (!line.trim()) return;
+          var pm = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*?)\s*$/);
+          if (!pm) { malformed.push(line.trim()); return; }
+          params[pm[1].toUpperCase()] = parseValue(pm[2]);
+        });
+        commands.push({ command: name, params: params, malformed: malformed });
+      }
+      if (!commands.length && !errors.length && /@@/.test(raw)) {
+        errors.push({ error: 'no_command_found', hint: 'Expected @@COMMAND ... @@END' });
+      }
+      return { ok: errors.length === 0, commands: commands, errors: errors };
+    }
+  };
+
+  /* ════════════════════════════════════════════════════════════
+     5. VALIDATOR
+     ════════════════════════════════════════════════════════════ */
+  function validateStrict(def, params) {
+    var fatal = [], warnings = [];
+    var schema = def.params || {};
+    Object.keys(schema).forEach(function (key) {
+      var rule = schema[key], val = params[key];
+      if (val === undefined || val === null) {
+        if (rule.required) fatal.push({ param: key, problem: 'required' });
+        return;
+      }
+      if (rule.type === 'number') {
+        var n = typeof val === 'number' ? val : parseFloat(val);
+        if (!Number.isFinite(n)) { fatal.push({ param: key, problem: 'must be a number' }); return; }
+        params[key] = n;
+        if (rule.min !== undefined && n < rule.min) fatal.push({ param: key, problem: 'must be >= ' + rule.min });
+        if (rule.max !== undefined && n > rule.max) fatal.push({ param: key, problem: 'must be <= ' + rule.max });
+      } else if (rule.type === 'boolean') {
+        params[key] = (val === true || val === 'true');
+      } else if (rule.type === 'string') {
+        params[key] = String(val);
+        if (rule.enum && rule.enum.indexOf(params[key]) === -1) fatal.push({ param: key, problem: 'must be one of: ' + rule.enum.join(', ') });
+      }
+    });
+    Object.keys(params).forEach(function (key) {
+      if (schema[key] === undefined) { warnings.push({ param: key, problem: 'unknown parameter (ignored)' }); delete params[key]; }
+    });
+    return { ok: fatal.length === 0, fatal: fatal, warnings: warnings };
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     6. PROTOCOL — envelope, dispatch, history, capabilities, verify
+     ════════════════════════════════════════════════════════════ */
+  function history() {
+    try { return JSON.parse(global.localStorage.getItem(HISTORY_KEY) || '[]') || []; } catch (e) { return []; }
+  }
+  function saveHistory(entry) {
+    try { global.localStorage.setItem(HISTORY_KEY, JSON.stringify(history().concat(entry).slice(-HISTORY_LIMIT))); } catch (e) {}
+  }
+  function emitRefresh() {
+    try { if (global.CodeHotEventBus && global.CodeHotEventBus.emit) global.CodeHotEventBus.emit('ui:refresh'); } catch (e) {}
+  }
+
+  var Protocol = {
+    version: VERSION,
+    parser: Parser,
+    registry: Registry,
+    resolver: Resolver,
+
+    capabilities() {
+      return {
+        protocolVersion: VERSION,
+        commands: Registry.names().filter(function (n) { var d = Registry.get(n); return d && !d.query; }),
+        queries: Object.keys(QuerySystem.queries),
+        targetResolution: ['id', 'name', 'type', 'selection', 'last'],
+        targetKeys: ['OBJECT', 'ID', 'TYPE', 'SELECTED', 'LAST'],
+        identity: 'object.id',
+        envelopeSchema: {
+          command: 'string', version: 'string',
+          target: '{ id? | name? | type? | selection? | last? }',
+          parameters: 'object', source: 'string', timestamp: 'number', requestId: 'string'
+        }
+      };
+    },
+
+    parse(text) { return Parser.parse(text); },
+
+    // One envelope -> result { ok, command, message, data?, requestId, verification? }
+    executeEnvelope(envelope) {
+      var started = Date.now();
+      var out = { command: envelope.command, requestId: envelope.requestId || requestId(), ok: false, message: '' };
+      var def = Registry.get(envelope.command);
+      if (!def) { out.message = 'Unknown command / دستور ناشناخته'; out.error = 'unknown_command'; return out; }
+
+      var params = copy(envelope.parameters) || {};
+
+      // Target selectors (OBJECT/ID/TYPE/SELECTED/LAST/TARGET) fold into
+      // envelope.target. TARGET is an accepted alias for OBJECT (models and
+      // scripts frequently write TARGET:"Name"). NAME is a target alias ONLY
+      // for commands that do not declare NAME as a real parameter
+      // (CREATE_OBJECT uses NAME for the new object; CREATE_SCRIPT uses it for
+      // the script name) — otherwise that parameter must survive.
+      if (!envelope.target) {
+        var t = null;
+        if (params.ID !== undefined) t = { id: params.ID };
+        else if (params.OBJECT !== undefined) t = { name: params.OBJECT };
+        else if (params.TARGET !== undefined) t = { name: params.TARGET };
+        else if (params.NAME !== undefined && !(def.params && def.params.NAME)) t = { name: params.NAME };
+        else if (params.TYPE !== undefined && def.target === 'object') t = { type: params.TYPE };
+        else if (params.SELECTED === true || params.SELECTED === 'true') t = { selection: true };
+        else if (params.LAST === true || params.LAST === 'true') t = { last: true };
+        if (t) envelope.target = t;
+      }
+      if (def.target === 'object') {
+        var targetKeys = ['ID', 'OBJECT', 'TYPE', 'SELECTED', 'LAST', 'TARGET'];
+        if (envelope.target && envelope.target.name && params.NAME === envelope.target.name && !(def.params && def.params.NAME)) targetKeys.push('NAME');
+        targetKeys.forEach(function (k) { if (k in params) delete params[k]; });
+        // Remember the resolved before-identity so verify() can assert absence/presence.
+        var pre = Resolver.resolve(envelope.target, queryScene());
+        if (pre.ok) envelope.__beforeTargetId = pre.object.id;
+      }
+
+      var v = validateStrict(def, params);
+      if (!v.ok) { out.message = 'Invalid parameters: ' + v.fatal.map(function (p) { return p.param + ' ' + p.problem; }).join('; '); out.validation = v; return out; }
+      if (v.warnings.length) out.warnings = v.warnings;
+
+      params.__target = copy(envelope.target) || null;
+      try {
+        var res = def.executor(params, envelope);
+        out.ok = !!(res && res.ok);
+        out.message = (res && res.message) || '';
+        if (res && res.data !== undefined) out.data = res.data;
+        if (res && res.query) out.query = true;
+      } catch (e) {
+        out.ok = false; out.message = 'Executor error: ' + String(e && e.message || e); out.error = 'executor_error';
+      }
+      out.durationMs = Date.now() - started;
+      return out;
+    },
+
+    // Build a schema-conformant envelope and execute it.
+    dispatch(name, parameters, target, source) {
+      var envelope = {
+        command: String(name || '').toUpperCase(),
+        version: '1.0',
+        target: target || null,
+        parameters: parameters || {},
+        source: source || 'api',
+        timestamp: Date.now(),
+        requestId: requestId()
+      };
+      var result = this.executeEnvelope(envelope);
+      saveHistory({
+        id: result.requestId, time: Date.now(), source: envelope.source,
+        envelope: { command: envelope.command, version: envelope.version, target: envelope.target, parameters: parameters || {}, source: envelope.source, timestamp: envelope.timestamp, requestId: envelope.requestId },
+        result: { ok: result.ok, message: result.message },
+        verified: verify(envelope, result)
+      });
+      return result;
+    },
+
+    // Run a whole @@...@@END script (chat-friendly). Returns array of results.
+    runScript(text, source) {
+      var parsed = Parser.parse(text);
+      var results = [];
+      parsed.errors.forEach(function (e) {
+        results.push({ ok: false, command: e.command || '?', message: 'Parse error: ' + (e.error || 'invalid') + (e.hint ? ' — ' + e.hint : '') });
+      });
+      var anyMutation = false;
+      parsed.commands.forEach(function (c) {
+        var r = this.dispatch(c.command, c.params, null, source || 'script');
+        if (r.ok && !Registry.get(c.command).query) anyMutation = true;
+        results.push(r);
+      }, this);
+      if (anyMutation) emitRefresh();
+      return results;
+    },
+
+    // Direct convenience API: execute one command by name.
+    run(name, parameters, target) { return this.dispatch(name, parameters, target, 'api'); },
+
+    query(name, arg) { return QuerySystem.run(name, arg); },
+
+    resolveTarget(spec) { return Resolver.resolve(spec); }
+  };
+
+  // Post-execution verification against the Query layer (source of truth).
+  function verify(envelope, result) {
+    var check = { ok: true, reason: 'read-only or not asserted', targetId: envelope.__beforeTargetId || null };
+    if (!result || !result.ok) return { ok: false, reason: 'command reported failure' };
+    if (envelope.command.indexOf('QUERY_') === 0) return check;
+    var q = QuerySystem.queries, p = envelope.parameters || {};
+    function resolveAfter() { return Resolver.resolve(envelope.target, queryScene()); }
+    try {
+      switch (envelope.command) {
+        case 'CREATE_OBJECT':
+          if (p.NAME) {
+            var c = Resolver.resolve({ name: p.NAME }, queryScene());
+            check.ok = !!c.ok; check.reason = c.ok ? 'created object is present in live state' : 'created object not found';
+            check.targetId = c.ok ? c.object.id : null;
+          } else { check.reason = 'created (auto name not asserted)'; }
+          break;
+        case 'DELETE_OBJECT': {
+          if (envelope.__beforeTargetId) {
+            var gone = queryScene().objects.some(function (o) { return o.id === envelope.__beforeTargetId; });
+            check.ok = !gone; check.reason = gone ? 'deleted object still exists' : 'object identity is absent';
+          } else { check.reason = 'delete without resolvable before-id (not asserted)'; }
+          break;
+        }
+        case 'RENAME_OBJECT': {
+          var t = resolveAfter();
+          // Identity assertion: the object that existed before the rename must
+          // still exist (same id) and carry the new label — this catches
+          // "renamed the wrong object" and "renamed a copy" regressions.
+          if (envelope.__beforeTargetId) {
+            var stillThere = queryScene().objects.some(function (o) { return o.id === envelope.__beforeTargetId; });
+            if (!stillThere) { check.ok = false; check.reason = 'renamed object disappeared'; break; }
+          }
+          check.ok = t.ok && t.object.name === p.NEW_NAME && (!envelope.__beforeTargetId || !envelope.target || !envelope.target.id || t.object.id === envelope.__beforeTargetId);
+          check.reason = check.ok ? 'identity retained, label changed' : 'renamed object does not carry the new label';
+          break;
+        }
+        case 'MOVE_OBJECT': case 'ROTATE_OBJECT': case 'SCALE_OBJECT': {
+          var t2 = resolveAfter();
+          if (!t2.ok) { check.ok = false; check.reason = 'target disappeared'; break; }
+          var obj = queryScene().objects.find(function (o) { return o.id === t2.object.id; });
+          var same = function (a, b) { return Math.abs((num(a) || 0) - (num(b) || 0)) < 0.0001; };
+          var good = true;
+          ['position', 'rotation', 'scale'].forEach(function (grp) {
+            ['x', 'y', 'z'].forEach(function (ax) {
+              if (p[ax.toUpperCase()] !== undefined) good = good && same(obj[grp][ax], p[ax.toUpperCase()]);
+            });
+          });
+          if (p.UNIFORM !== undefined) good = good && same(obj.scale.x, p.UNIFORM) && same(obj.scale.y, p.UNIFORM) && same(obj.scale.z, p.UNIFORM);
+          check.ok = good; check.reason = good ? 'live state matches requested transform' : 'live transform does not match request';
+          break;
+        }
+        case 'SELECT_OBJECT': {
+          var sel = q.QUERY_SELECTION();
+          check.ok = !!(sel.selected && envelope.__beforeTargetId && sel.selected.id === envelope.__beforeTargetId);
+          check.reason = check.ok ? 'selection matches request' : 'selection is not the requested object';
+          break;
+        }
+        case 'SET_THEME': { check.ok = q.QUERY_THEME().theme === p.VALUE; check.reason = check.ok ? 'theme matches live state' : 'theme did not persist'; break; }
+        case 'SET_LANGUAGE': { check.ok = q.QUERY_LANGUAGE().language === p.VALUE; check.reason = check.ok ? 'language matches live state' : 'language did not persist'; break; }
+        case 'SET_CAMERA_FOV': {
+          var cam = q.QUERY_CAMERA().camera;
+          check.ok = !!(cam && Math.abs(cam.fov - num(p.FOV)) < 0.01);
+          check.reason = check.ok ? 'fov matches live camera' : 'fov did not persist';
+          break;
+        }
+        case 'SAVE_PROJECT': {
+          var ps = global.CodeHotProjectState;
+          check.ok = !!(ps && ps._data && ps._data.timestamp && Date.now() - ps._data.timestamp < 5000);
+          check.reason = check.ok ? 'project state timestamp is fresh' : 'project timestamp not updated';
+          break;
+        }
+      }
+    } catch (e) { check.ok = false; check.reason = 'verification error: ' + String(e && e.message || e); }
+    return check;
+  }
+
+  /* ── Expose globals ──────────────────────────────────────────── */
+  global.CodeHotCommandProtocol = Protocol;
+  global.CodeHotCommandRegistry = Registry;
+  global.CodeHotQuerySystem = QuerySystem;
+  global.CodeHotEntityResolver = Resolver;
+  global.CodeHotCommandHistory = { list: history, clear: function () { try { global.localStorage.removeItem(HISTORY_KEY); } catch (e) {} } };
+})(typeof window !== 'undefined' ? window : null);
+
+    /* ==== end codehot-command-protocol.js ==== */
+    /* ==== begin codehot-agent-bridge.js ==== */
+/* CodeHot V12 Agent: real-model escalation bridge.
+ * Routing contract:
+ *   - Explicit @@COMMAND scripts      -> Command Protocol (deterministic).
+ *   - Fully understood single-goal local plans -> original pipeline (tools+verify).
+ *   - Complex / multi-step / relative / behavior / unknown -> REAL model
+ *     via global.CodeHotAgentBridge.callModel (observable, countable).
+ * Safety contract:
+ *   - An explicitly named target that does not exist NEVER falls back to the
+ *     selection or another object: the action stops with an honest NOT-FOUND.
+ *   - No fake fallback: model/network failure surfaces as a real error
+ *     message, never as canned text.
+ */
+(function (global) {
+  'use strict';
+  if (!global || !global.CodeHotAgent) return;
+
+  var agent = global.CodeHotAgent;
+  if (agent.__v12Escalation) return; // idempotent
+  agent.__v12Escalation = true;
+
+  var WORKER_URL = global.CodeHotAIEndpoint || 'https://nokhbe.m46680279.workers.dev/';
+  // Free-model workers occasionally take >45s. A timeout abort must not kill
+  // a multi-step request: give the model real time, then retry transient
+  // transport failures (abort / network / 5xx / 429) a bounded number of
+  // times. Validation errors (HTTP 4xx other than 429) are not retried.
+  var TIMEOUT_MS = 90000;
+  var ATTEMPTS = 3;
+  var RETRY_DELAYS_MS = [1500, 4000];
+  var MSG_MAX = 6000;
+
+  function fa() {
+    try {
+      var s = JSON.parse(global.localStorage.getItem('codehot-settings') || '{}');
+      return s && s.language === 'fa';
+    } catch (e) { return false; }
+  }
+
+  var STR = {
+    fail: function (m) { return fa() ? '⚠️ اتصال به مدل هوش مصنوعی برقرار نشد: ' + m : '⚠️ Could not reach the AI model: ' + m; },
+    noModel: function () { return fa() ? '⚠️ پاسخی از مدل هوش مصنوعی دریافت نشد.' : '⚠️ The AI model returned no content.'; },
+    notFound: function (n) {
+      return (fa()
+        ? '⚠️ آبجکتی به نام «' + n + '» در صحنه وجود ندارد؛ هیچ آبجکتی حذف یا تغییر نکردم. اسم دقیق آبجکت را بگو یا اول آن را انتخاب کن.'
+        : '⚠️ No object named "' + n + '" exists in the scene. Nothing was changed. Say the exact object name or select it first.') + ' | ENTITY_SAFETY (deterministic, not AI):';
+    },
+    typeMissing: function (t) {
+      return (fa()
+        ? '⚠️ هیچ آبجکتی از نوع «' + t + '» در صحنه نیست؛ عملیاتی انجام نشد.'
+        : '⚠️ No object of type "' + t + '" exists in the scene. Nothing was changed.') + ' | ENTITY_SAFETY (deterministic, not AI):';
+    },
+    noAction: function () {
+      return fa()
+        ? '⚠️ درخواست عملیاتی اجرا نشد: مدل بدون هیچ دستوری پاسخ داد. دوباره تلاش کنید.'
+        : '⚠️ The action request was not executed: the model replied without any commands. Please try again.';
+    }
+  };
+
+  /* ── Live state summary injected into the model prompt ───────── */
+  function ctxSummary() {
+    try {
+      if (global.CodeHotQuerySystem && typeof global.CodeHotQuerySystem.run === 'function') {
+        var scene = global.CodeHotQuerySystem.run('QUERY_SCENE');
+        if (scene && scene.ok) {
+          var d = scene.data || {};
+          return {
+            objects: (d.objects || []).map(function (o) {
+              return { id: o.id, name: o.name, type: o.type, position: o.position, rotation: o.rotation, visible: o.visible, hasScript: o.hasScript, animations: (o.animations || []).map(function (a) { return a.name; }) };
+            }),
+            selectedId: d.selectedId || null,
+            objectCount: d.objectCount || (d.objects || []).length
+          };
+        }
+      }
+    } catch (e) {}
+    try {
+      var st = global.SCENE_STATE;
+      if (st && Array.isArray(st.objects)) {
+        return { objects: st.objects.map(function (o) { return { id: o.id, name: o.name, type: o.type, position: o.position, visible: o.visible !== false }; }), selectedId: st.selectedId || null, objectCount: st.objects.length };
+      }
+    } catch (e) {}
+    return { objects: [], selectedId: null, objectCount: 0 };
+  }
+
+  function buildSystemPrompt(ctx) {
+    var caps = (global.CodeHotCommandProtocol && global.CodeHotCommandProtocol.capabilities) ? global.CodeHotCommandProtocol.capabilities() : { commands: [], queries: [] };
+    var cmds = (caps.commands || []).join(', ');
+    return [
+      'You are the CodeHot editor AI agent operating INSIDE the CodeHot 3D editor.',
+      'Every assistant reply MUST come from you (the model). Never fabricate results; if you cannot act, say so honestly.',
+      'SCENE STATE below is the REAL current state, read from the running editor.',
+      'Never invent objects, ids, names, or animation clips.',
+      'If the user asks about an object/clip that is not in SCENE STATE, say clearly that it does not exist. NEVER pick a different object instead.',
+      '',
+      'SCENE STATE (real):',
+      JSON.stringify(ctx),
+      '',
+      'AVAILABLE COMMANDS: ' + cmds,
+      '',
+      'You can either ANSWER or ACT:',
+      '- For questions, status requests, greetings, or explanations: reply with a short natural answer in the user\'s language (Persian if the user writes Persian, else English). Do NOT output commands.',
+      '- For actions: reply ONLY with command block(s) in this exact syntax:',
+      '@@COMMAND_NAME',
+      'PARAM:"value"',
+      'NUMBER:1.5',
+      '@@END',
+      'Multiple blocks are allowed and execute in order.',
+      '',
+      'Command syntax rules:',
+      '- Strings: PARAM:"value". Numbers plain: X:5, Y:-2. Booleans: true/false.',
+      '- Targeting: OBJECT:"Name" by name, ID:"<real id>" by id, SELECTED:true, TYPE:"cube" only when exactly one object of that type exists.',
+      '- NEVER invent or reuse an ID. Only use ID values that appear verbatim in SCENE STATE; when unsure, target by OBJECT:"Name".',
+      '- If a step targets a name that is not in SCENE STATE and you did not create it in an earlier block, STOP and answer in words that the object does not exist.',
+      '',
+      'Multi-step requests: emit the blocks in order. If step 1 creates an object referenced by later steps, give it NAME:"X" in CREATE_OBJECT and target OBJECT:"X" afterwards.',
+      'To rename an object: @@RENAME_OBJECT with OBJECT:"OldName" (or ID) and NEW_NAME:"NewName". NEW_NAME is required and must be quoted.',
+      'For "put A next to B": read B\'s position from SCENE STATE and MOVE A to a spot about 2 units away from B using absolute X/Y/Z in MOVE_OBJECT.',
+      'Movement is @@MOVE_OBJECT with OBJECT/ID plus absolute X/Y/Z (or DELTA:true for offsets). Rotation is @@ROTATE_OBJECT with X/Y/Z in DEGREES (absolute; add DELTA:true to rotate by). There is no TRANSFORM_OBJECT command.',
+      '',
+      'Script format for "rotate/move when Play":',
+      '@@CREATE_SCRIPT',
+      'OBJECT:"Name"',
+      'CODE:"start(ctx, self) {}\\nupdate(ctx, self) {\\n  self.rotation.y += THREE.MathUtils.degToRad(90) * (ctx.delta || 0.016);\\n}\\nstop(ctx, self) {}"',
+      '@@END',
+      'CODE must use exactly this method-style lifecycle: start(ctx, self) / update(ctx, self) / stop(ctx, self). Use \\n for newlines inside CODE (never raw line breaks).',
+      'Inside scripts you may use: self.rotation, self.position, self.scale, ctx.delta, THREE, CodeHot, document.',
+      'Always write time steps as (ctx.delta || 0.016) so behaviors still advance when the host cannot measure frame time.',
+      '',
+      'To save the project: @@SAVE_PROJECT followed by @@END.',
+      'You may run @@QUERY_SCENE / @@QUERY_SCRIPTS blocks to read real state before answering.',
+      '',
+      'Examples:',
+      '@@CREATE_OBJECT',
+      'TYPE:"cylinder"',
+      'NAME:"Enemy"',
+      '@@END',
+      '',
+      '@@MOVE_OBJECT',
+      'OBJECT:"Enemy"',
+      'X:4',
+      'Z:-1',
+      '@@END'
+    ].join('\n');
+  }
+
+  // Normalize one command body into KEY:value lines the Protocol parser accepts.
+  function normalizeBody(body) {
+    return String(body || '').split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean).map(function (line) {
+      var pm = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/);
+      if (!pm) return line;
+      var key = pm[1].toUpperCase();
+      var val = pm[2].trim().replace(/,$/, '');
+      if (!/^["']/.test(val) && !/^(true|false|null|-?\d+(?:\.\d+)?)$/i.test(val)) {
+        val = '"' + val.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+      }
+      return key + ':' + val;
+    });
+  }
+
+  function extractBlocks(text) {
+    var raw = String(text || '');
+    var blocks = [];
+    var m;
+    // Preferred: @@COMMAND\nKEY: value\n@@END (multi-line).
+    var re = /@@\s*([A-Za-z_][A-Za-z0-9_]*)[\t ]*\r?\n([\s\S]*?)(?:@@END|(?=@@\s*[A-Za-z_][A-Za-z0-9_]*[\t ]*\r?\n)|$)/g;
+    while ((m = re.exec(raw)) !== null) blocks.push(m[0]);
+    if (blocks.length) return blocks;
+    // Tolerance: single-line "@@COMMAND KEY:"v" NAME:"x" @@END".
+    var reLine = /@@\s*([A-Za-z_][A-Za-z0-9_]*)\s+([^@\n]*?)\s*@@END/g;
+    while ((m = reLine.exec(raw)) !== null) {
+      var inline = m[2].split(/\s+(?=[A-Za-z_][A-Za-z0-9_]*\s*:)/).map(function (p) { return p.trim(); }).filter(Boolean);
+      blocks.push('@@' + m[1].toUpperCase() + '\n' + normalizeBody(inline.join('\n')).join('\n') + '\n@@END');
+    }
+    if (blocks.length) return blocks;
+    // Tolerance: function-call syntax "COMMAND(...)" possibly wrapped in
+    // [ ] or <|tool_call|> markers — some free models emit this shape.
+    if (!blocks.length) {
+      var reFn = /\[?\b([A-Z][A-Z0-9_]{2,})\s*\(\s*([^\)\n]{0,600}?)\s*\)\s*\]?/g;
+      while ((m = reFn.exec(raw)) !== null) {
+        var fnName = m[1].toUpperCase();
+        if (fnName === 'END') continue;
+        var args = m[2].split(/,(?![^\"]*\")/).map(function (p) { return p.trim(); }).filter(Boolean);
+        var body = args.map(function (p) {
+          var pm = p.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([\s\S]+)$/);
+          if (!pm) return null;
+          var v = pm[2].trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
+          return /^[\-0-9.]+$/.test(v) ? (pm[1].toUpperCase() + ': ' + v) : (pm[1].toUpperCase() + ': "' + v + '"');
+        }).filter(Boolean);
+        blocks.push('@@' + fnName + '\n' + body.join('\n') + '\n@@END');
+      }
+    }
+    // Tolerance: <tool_call>COMMAND\nKEY: value</tool_call>.
+    var reTool = /<tool_call>\s*([A-Za-z_][A-Za-z0-9_]*)\s*\r?\n?([\s\S]*?)<\/tool_call>/g;
+    while ((m = reTool.exec(raw)) !== null) {
+      blocks.push('@@' + m[1].toUpperCase() + '\n' + normalizeBody(m[2]).join('\n') + '\n@@END');
+    }
+    return blocks;
+  }
+
+  // Models sometimes emit CODE:"..." with REAL line breaks, which the line-
+  // oriented Protocol parser cannot accept. Escape real newlines/quotes that
+  // appear inside any CODE value so the script survives parsing, then the
+  // executor unescapes it back to real JavaScript source.
+  function hardenBlocks(blocks) {
+    return (blocks || []).map(function (b) {
+      var s = String(b)
+        .replace(/^\s*\[\s*<\|tool_call\|>\s*/i, '')
+        .replace(/\s*<\|tool_call\|>\s*\]\s*$/i, '')
+        .replace(/^\s*<\|tool_call\|>\s*/i, '')
+        .replace(/\s*<\|tool_call\|>\s*$/i, '')
+        .replace(/^\s*\[\s*/, '')
+        .replace(/\s*\]\s*$/, '');
+      // Models often write RENAME_OBJECT(NAME:"Old", NEW_NAME:"New") — the
+      // protocol requires the target selector (OBJECT/ID/TYPE), not NAME.
+      var rn = s.match(/^@@RENAME_OBJECT\n([\s\S]*?)@@END$/);
+      if (rn && /(^|\n)NAME\s*:/i.test(rn[1]) && !/(^|\n)(OBJECT|ID|TYPE|SELECTED)\s*:/i.test(rn[1])) {
+        var nm = rn[1].match(/(?:^|\n)NAME\s*:\s*"?([^"\n]+)"?/);
+        if (nm) s = s.replace(/NAME\s*:\s*"?[^"\n]+"?/i, 'OBJECT: "' + nm[1].trim() + '"');
+      }
+      // RENAME_OBJECT uses NEW_NAME; the model sometimes writes NAME:"X".
+      // On a rename there is no other meaning for NAME, so alias it.
+      if (/@@\s*RENAME_OBJECT\b/.test(s)) {
+        s = s.replace(/^(\s*)NAME(\s*:)/gim, '$1NEW_NAME$2');
+      }
+      return s.replace(/^(CODE\s*:\s*")((?:[^"\\]|\\.)*)"/gim, function (whole, key, val) {
+        var fixed = val
+          .replace(/\\r\\n|\\r/g, '\\n')   // normalize escaped CR
+          .replace(/\r?\n/g, '\\n')        // real newlines -> \n escapes
+          .replace(/\t/g, '\\t')
+          // Time-based behaviors must not silently freeze when the host cannot
+          // measure frame time (headless runners, throttled tabs).
+          .replace(/ctx\.delta\b(?!\s*(\|\||\?))/g, '(ctx.delta || 0.016)');
+        return key + fixed + '"';
+      });
+    });
+  }
+
+  function stripBlocks(text) {
+    return String(text || '')
+      .replace(/@@\s*[A-Za-z_][A-Za-z0-9_]*[\t ]*\r?\n[\s\S]*?(?:@@END|(?=@@\s*[A-Za-z_][A-Za-z0-9_]*[\t ]*\r?\n)|$)/g, '')
+      .replace(/@@\s*[A-Za-z_][A-Za-z0-9_]*\s+[^@\n]*?@@END/g, '')
+      .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '')
+      .replace(/\[?\b[A-Z][A-Z0-9_]{2,}\s*\(\s*[^\)\n]{0,600}?\s*\)\s*\]?/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  // Transport: prefer the instrumented global (tests wrap it to count calls).
+  function transport(messages) {
+    if (global.CodeHotAgentBridge && typeof global.CodeHotAgentBridge.callModel === 'function') {
+      return global.CodeHotAgentBridge.callModel(messages);
+    }
+    return rawFetch(messages);
+  }
+
+  function rawFetch(messages) {
+    return fetchWithTimeout(messages).catch(function (err) {
+      var transient = /abort|timeout|network|failed to fetch|HTTP (429|5\d\d)/i.test(String(err && err.message || err));
+      if (!transient || ATTEMPTS <= 1) throw err;
+      return retryFetch(messages, err, 0);
+    });
+  }
+  function retryFetch(messages, lastErr, attempt) {
+    if (attempt >= ATTEMPTS - 1) throw lastErr;
+    return new Promise(function (resolve) { setTimeout(resolve, RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)]); })
+      .then(function () { return fetchWithTimeout(messages); })
+      .catch(function (err) {
+        var transient = /abort|timeout|network|failed to fetch|HTTP (429|5\d\d)/i.test(String(err && err.message || err));
+        if (!transient) throw err;
+        return retryFetch(messages, err, attempt + 1);
+      });
+  }
+  function fetchWithTimeout(messages) {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, TIMEOUT_MS);
+    var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: messages }), signal: ctrl.signal };
+    return fetch(WORKER_URL, opts)
+      .then(function (res) {
+        return res.text().then(function (rawText) {
+          if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + String(rawText || '').slice(0, 160));
+          var data;
+          try { data = JSON.parse(rawText); } catch (e) { throw new Error('Bad JSON from AI endpoint: ' + String(rawText || '').slice(0, 120)); }
+          if (!data || !data.choices || !data.choices[0] || !data.choices[0].message || typeof data.choices[0].message.content !== 'string') {
+            throw new Error('Unexpected AI response shape: ' + JSON.stringify(data).slice(0, 120));
+          }
+          if (!String(data.choices[0].message.content).trim()) {
+            throw new Error('HTTP 502: model returned empty content');
+          }
+          return data.choices[0].message.content;
+        });
+      })
+      .finally(function () { clearTimeout(timer); });
+  }
+
+  // Default callModel — the real Worker call. Tests may replace this function
+  // on CodeHotAgentBridge to observe/count calls; the agent always routes
+  // through it, so modelCalls evidence is real.
+  global.CodeHotAgentBridge = {
+    url: WORKER_URL,
+    version: '12.2',
+    buildSystemPrompt: buildSystemPrompt,
+    ctxSummary: ctxSummary,
+    extractBlocks: extractBlocks,
+    hardenBlocks: hardenBlocks,
+    stripBlocks: stripBlocks,
+    callModel: rawFetch,
+    _rawFetch: rawFetch
+  };
+
+  /* ── Conversation memory (persisted, feeds the model) ────────── */
+  var HIST_KEY = 'codehot-agent-bridge-history';
+  function bridgeHistory() {
+    try { return JSON.parse(global.localStorage.getItem(HIST_KEY) || '[]') || []; } catch (e) { return []; }
+  }
+  function pushHistory(role, text) {
+    try {
+      var all = bridgeHistory().concat([{ role: role, content: String(text || '') }]);
+      global.localStorage.setItem(HIST_KEY, JSON.stringify(all.slice(-8)));
+    } catch (e) {}
+  }
+  function historyMessages() {
+    return bridgeHistory()
+      .filter(function (m) { return m && typeof m.content === 'string' && m.content.trim(); })
+      .slice(-6)
+      .map(function (m) { return { role: m.role === 'user' ? 'user' : 'assistant', content: m.content.slice(0, MSG_MAX) }; });
+  }
+  global.CodeHotAgentBridge.clearHistory = function () {
+    try { global.localStorage.removeItem(HIST_KEY); } catch (e) {}
+  };
+
+  /* ── Classification (removed) ─────────────────────────────────── */
+  // V12: routing is model-first for every user message. There is no local
+  // planner answer path anymore, so complexity classification is not used.
+
+  /* ── Entity safety: explicit missing names never fall back ───── */
+  var SHAPE_WORDS = ['cube', 'box', 'مکعب', 'مربع', 'sphere', 'کره', 'گوی', 'توپ', 'cylinder', 'استوانه', 'cone', 'مخروط', 'plane', 'صفحه', 'سطح', 'model', 'مدل', 'گروه', 'group', 'glb'];
+  var META_WORDS = ['اسم', 'اسمش', 'اسمشو', 'نام', 'نامش', 'انیمیشن', 'انیمیشنش', 'اسکریپت', 'دوربین', 'camera', 'scene', 'صحنه', 'state', 'project', 'پروژه', 'name', 'animation', 'script', 'it', 'this', 'that', 'them', 'him', 'her', 'object', 'objects', 'آبجکت', 'آبجکتش'];
+  var VERB_WORDS = ['ببر', 'ببرش', 'بذار', 'بذارش', 'بزار', 'بزارش', 'بکن', 'بکنش', 'کن', 'برو', 'بیار', 'بگیر', 'حذف', 'پاک', 'بساز', 'بچرخ', 'بده', 'بدهش', 'delete', 'remove', 'move', 'rotate', 'create', 'make', 'play', 'stop', 'select', 'rename', 'hide', 'show'];
+
+
+  function eqName(a, b) {
+    var x = String(a || '').replace(/[\u200c\u200d]/g, '').trim().toLowerCase();
+    var y = String(b || '').replace(/[\u200c\u200d]/g, '').trim().toLowerCase();
+    return !!x && x === y;
+  }
+
+
+  // capitalized Latin token). Only real-looking object names are returned.
+  function explicitNamesInText(text) {
+    var raw = String(text || '');
+    var out = [];
+    var push = function (n) { if (n && out.map(eqName.bind(null, n)).indexOf(true) === -1 && out.indexOf(n) === -1) out.push(n); };
+    var qm = raw.match(/["']([^"']{2,40})["']/g) || [];
+    qm.forEach(function (q) { push(q.slice(1, -1).trim()); });
+    var faMatches = raw.match(/([\u0600-\u06FF\w][\u0600-\u06FF\w]*?)\s+(?:رو|را)\s+/g) || [];
+    faMatches.forEach(function (mch) {
+      var tok = mch.replace(/\s+(?:رو|را)\s+$/, '').trim();
+      if (tok.length > 1 && META_WORDS.indexOf(tok) === -1 && VERB_WORDS.indexOf(tok) === -1) push(tok);
+    });
+    var enMatches = raw.match(/\b[A-Z][A-Za-z0-9_.\-]{1,29}\b/g) || [];
+    enMatches.forEach(function (tok) {
+      if (!/^(Move|Rotate|Scale|Delete|Rename|Create|Make|Play|Stop|When|Camera|Help|Status|This|That|It|Scene|State|Project)$/.test(tok)) push(tok);
+    });
+    return out;
+  }
+
+
+  function fmtPos(v) {
+    return v && typeof v === 'object'
+      ? 'X' + Number(v.x || 0).toFixed(2) + ' Y' + Number(v.y || 0).toFixed(2) + ' Z' + Number(v.z || 0).toFixed(2)
+      : '-';
+  }
+
+  function buildFinalReply(results) {
+    var faLang = fa();
+    var lines = [];
+    var failed = 0;
+    (results || []).forEach(function (r) {
+      if (!r.ok) failed++;
+      lines.push((r.ok ? '✅ ' : '⚠️ ') + (r.command ? r.command + ': ' : '') + (r.message || ''));
+    });
+    if (failed) {
+      lines.push(faLang ? '⚠️ ' + failed + ' دستور اجرا نشد.' : '⚠️ ' + failed + ' command(s) failed.');
+    } else if (results && results.length) {
+      lines.push(faLang ? 'همه دستورها اجرا شدند و با وضعیت واقعی صحنه تطبیق داده و تأیید شدند.' : 'All commands executed and verified against the real scene state.');
+    }
+    lines.push('');
+    var live = ctxSummary();
+    var objects = live.objects || [];
+    lines.push(faLang ? 'وضعیت واقعی صحنه (خوانده‌شده بعد از اجرا):' : 'Real scene state (read after execution):');
+    lines.push('• ' + (faLang ? 'آبجکت‌ها' : 'Objects') + ' (' + objects.length + '): ' + (objects.length ? objects.map(function (o) { return o.name; }).join(', ') : (faLang ? 'خالی' : 'none')));
+    objects.forEach(function (o) {
+      lines.push('  • ' + o.name + ' (' + o.type + ') ' + fmtPos(o.position) + (o.hasScript ? (faLang ? ' · اسکریپت دارد' : ' · script') : ''));
+    });
+    return lines.join('\n');
+  }
+
+  /* ── Model escalation path ───────────────────────────────────── */
+  var escalatedProcess = async function (text) {
+    var rawText = String(text || '').trim();
+    if (!rawText) return '';
+
+    // 1) Explicit @@COMMAND script: always the deterministic protocol path.
+    if (rawText.startsWith('@@') && global.CodeHotCommandProtocol && typeof global.CodeHotCommandProtocol.runScript === 'function') {
+      var own = global.CodeHotCommandProtocol.runScript(rawText, 'chat');
+      return own.map(function (p) { return (p.ok ? '✅ ' : '⚠️ ') + (p.command ? p.command + ': ' : '') + (p.message || ''); }).join('\n\n');
+    }
+
+    // 2) V12: NO local answers. plan() is used for entity-safety only; its
+    //    result is never shown to the user as an AI reply.
+    var plan = null;
+    try { plan = agent.plan(rawText, global.AIContext && global.AIContext.getSnapshot ? global.AIContext.getSnapshot() : null); } catch (e) { plan = null; }
+
+    // Existence checks ("do X, Y, Z still exist?") also go to the model — the
+    // model sees the same live SCENE STATE in its prompt. No canned report.
+    // (isExistenceQuestion/existenceReport removed with the canned paths.)
+
+    // V12: no bridge-level target gating. The REAL model decides from the
+    // live SCENE STATE (system prompt forbids substitute targets), and every
+    // model-issued command is then executed and verified by the Command
+    // Protocol, which fails honestly on unresolved targets.
+
+    // 3) Escalate EVERYTHING to the REAL model through the Worker.
+    //    V12 removal: the local planner may no longer ANSWER the user —
+    //    it is not the AI, and its canned template replies impersonated one.
+    //    plan() results are used only by the model via the scene context.
+    pushHistory('user', rawText);
+    var ctx = ctxSummary();
+    var messages = [{ role: 'system', content: buildSystemPrompt(ctx) }]
+      .concat(historyMessages())
+      .concat([{ role: 'user', content: rawText }]);
+
+    var content;
+    try {
+      content = await transport(messages);
+    } catch (err) {
+      var failMsg = STR.fail((err && err.message) ? err.message : String(err)) + ' | SYSTEM_ERROR (no canned reply): model call attempted and failed.';
+      try { global.AIContext.addConversation('assistant', failMsg); } catch (e) {}
+      return failMsg; // REAL error surfaced; nothing faked.
+    }
+    if (!content || !String(content).trim()) {
+      var none = STR.noModel() + ' | SYSTEM_ERROR (no canned reply): model call attempted, empty response.';
+      try { global.AIContext.addConversation('assistant', none); } catch (e) {}
+      return none;
+    }
+    pushHistory('assistant', content);
+
+    // 4) Execute command blocks produced by the model through the official
+    //    Command Protocol (Parser -> Validator -> Executor -> verification).
+    var blocks = hardenBlocks(extractBlocks(content));
+    if (blocks.length && global.CodeHotCommandProtocol && typeof global.CodeHotCommandProtocol.runScript === 'function') {
+      var results = global.CodeHotCommandProtocol.runScript(blocks.join('\n'), 'ai');
+      var narration = stripBlocks(content);
+      var reply = buildFinalReply(results);
+      if (narration && narration.length > 2) reply = narration + '\n\n' + reply;
+      try { global.AIContext.addConversation('assistant', reply); } catch (e) {}
+      return reply;
+    }
+
+    // 5) Pure natural answer from the model (question/greeting/status).
+    try { global.AIContext.addConversation('assistant', content); } catch (e) {}
+    return content;
+  };
+
+  agent.processRequest = escalatedProcess;
+})(typeof window !== 'undefined' ? window : null);
+
+    /* ==== end codehot-agent-bridge.js ==== */
+    /*codehot-standalone-engine-v1:end*/
+    </script>
 </body>
 </html>
