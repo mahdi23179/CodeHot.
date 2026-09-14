@@ -5828,11 +5828,26 @@ ThemeManager.load();
           SCENE_STATE.camera.near,
           SCENE_STATE.camera.far
         );
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        // V13 fix: WebGL context creation can FAIL (no GPU, driver blocklist,
+        // restricted VM). The old code let the THREE error propagate out of the
+        // constructor, aborting the DOMContentLoaded bootstrap, so
+        // window._sceneEditorManager was never assigned and every AI/scene
+        // command answered "Scene is not ready" forever. Degrade gracefully:
+        // keep the full editor, AI, runtime and storage pipeline alive with a
+        // minimal canvas-2d stub renderer when WebGL is unavailable.
+        this.renderer = null;
+        try {
+          this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        } catch (e) {
+          console.error('[CodeHot] WebGL unavailable — falling back to 2D canvas (editor stays functional):', e && e.message);
+          this.renderer = this.createFallbackRenderer();
+        }
         this.renderer.setSize(window.innerWidth, window.innerHeight * 0.85);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        if (this.renderer.shadowMap) {
+          this.renderer.shadowMap.enabled = true;
+          this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+        }
+        if ('outputColorSpace' in this.renderer) this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         document.getElementById('sc-viewport').appendChild(this.renderer.domElement);
         this.createCameraVisual();
 
@@ -5856,6 +5871,28 @@ ThemeManager.load();
         this.textureCache = new Map();
         this.textureLoadPromises = new Map();
         this.initialized = true;
+      }
+
+      // V13 fallback renderer: a minimal object shaped like THREE.WebGLRenderer
+      // (render(), setSize(), domElement, shadowMap) backed by a 2D canvas so
+      // the editor, AI agent, runtime loop and save/load all keep working on
+      // hosts where WebGL cannot initialize. No 3D output is possible there,
+      // but nothing crashes and every action still applies + persists.
+      createFallbackRenderer() {
+        const canvas = document.createElement('canvas');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight * 0.85;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#1a1d24'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('WebGL unavailable — editor running in compatibility mode', canvas.width / 2, canvas.height / 2);
+        return {
+          domElement: canvas,
+          shadowMap: null,
+          setSize(w, h) { canvas.width = w; canvas.height = h; },
+          render(scene, camera) { /* 2D stub: no rasterization possible */ },
+          dispose() {}
+        };
       }
 
       getAssetById(assetId) {
@@ -8646,6 +8683,11 @@ ThemeManager.load();
             } else {
               this.manager.undo();
             }
+          } else if (key === 'y') {
+            // BUG-V13.7 fix: Ctrl+Y is the standard redo shortcut on
+            // Windows/Linux and did nothing (only Ctrl+Shift+Z worked).
+            e.preventDefault();
+            this.manager.redo();
           }
         }
       }
@@ -14232,7 +14274,7 @@ Rules:
     });
 
 </script>
-                                            <script>
+                                                                        <script>
     /* codehot-standalone-engine-v1:embedded-do-not-edit single-file engine: three engine files embedded verbatim below so the app works standalone (file://, content://, any host) with no sibling JS. */
     /* ==== begin codehot-agent-protocol.js ==== */
 /* CodeHot Agent Protocol V13
