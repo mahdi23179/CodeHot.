@@ -70,26 +70,19 @@
       background: none;
       border: none;
       cursor: pointer;
-      /* V14.3: tab buttons are tinted orange by default so the whole bottom
-         bar reads as "CodeHot orange chrome" instead of grey-on-grey. The
-         active tab still pops via a brighter shade + filled label chip. */
-      color: rgba(255, 107, 53, 0.55);
-      transition: color 200ms ease, background 200ms ease;
+      color: #8b949e;
+      transition: color 200ms ease;
     }
     .sh-tab-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
     .sh-tab-label {
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 600;
       height: 0;
       overflow: hidden;
       opacity: 0;
       transition: opacity 200ms ease;
     }
-    .sh-tab-btn:hover { color: rgba(255, 107, 53, 0.85); }
-    .sh-tab-btn.sh-active {
-      color: #ff6b35;
-      background: rgba(255, 107, 53, 0.08);
-    }
+    .sh-tab-btn.sh-active { color: #ff6b35; }
     .sh-tab-btn.sh-active .sh-tab-label {
       height: auto;
       opacity: 1;
@@ -1311,29 +1304,27 @@
     .sc-header-button {
       height: 24px;
       padding: 0 10px;
-      background: #ff6b35;
-      border: 1px solid #ff6b35;
-      color: #ffffff;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: #e0e0e0;
       cursor: pointer;
       border-radius: 3px;
       font-size: 11px;
       font-weight: 600;
       display: flex;
       align-items: center;
-      transition: background 0.2s, opacity 0.2s;
+      transition: background 0.2s;
       user-select: none;
     }
 
     .sc-header-button:hover {
-      background: #ff8559;
-      border-color: #ff8559;
+      background: #333;
     }
 
     .sc-header-button.sc-active {
       background: #ff6b35;
       color: white;
       border-color: #ff6b35;
-      box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.25);
     }
 
     .sc-header-separator {
@@ -5638,7 +5629,7 @@ ThemeManager.load();
           </div>
           <div class="st-button-row">
             <button class="st-settings-button" id="st-newProjectBtn">${t('newProject')}</button>
-            <button class="st-settings-button st-primary" id="st-exportProjectBtn">${t('exportProject')}</button>
+            <button class="st-settings-button" id="st-exportProjectBtn">${t('exportProject')}</button>
             <button class="st-settings-button" id="st-importProjectBtn">${t('importProjectFile')}</button>
             <span class="st-setting-hint">${t('importProjectDesc')}</span>
             <button class="st-settings-button st-danger" id="st-clearProjectBtn">${t('clearProjectData')}</button>
