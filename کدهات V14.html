@@ -2962,15 +2962,19 @@
       text-transform: uppercase;
     }
 
-    /* V14: canvas size preset segmented control + follow indicator */
+    /* V14: canvas size preset segmented control + follow indicator
+       V14.1 fix: was repeat(2,1fr) which left the 7th button alone in a row
+       and looked misaligned. Switched to 3 columns so 7 buttons fill as
+       3 + 3 + 1, and the lone button gets `grid-column: 1 / -1` so it
+       spans the full row instead of hugging the left edge. */
     .st-size-segmented {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 4px;
       margin-top: 4px;
     }
     .st-size-segmented button {
-      padding: 8px 6px;
+      padding: 8px 4px;
       background: var(--st-bg-input, #0f0f0f);
       border: 1px solid var(--st-border, #2a2a2a);
       color: var(--st-text-secondary, #888);
@@ -2979,7 +2983,19 @@
       border-radius: 5px;
       cursor: pointer;
       transition: background 0.15s, color 0.15s;
-      min-height: 32px;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    /* The lone 7th button spans the full row so the grid stays balanced.
+       Uses !important because the generic button rule above would otherwise
+       win on specificity for grid-column. */
+    .st-size-segmented button.st-size-full {
+      grid-column: 1 / -1 !important;
     }
     .st-size-segmented button.st-active {
       background: var(--st-accent, #ff6b35);
@@ -4642,7 +4658,34 @@ ThemeManager.load();
   }
 
   function buildObjects() {
-    (CONFIG.objects || []).forEach(function (o) {
+    // V14.1: detect the legacy case where every starter object was placed
+    // at (0,0,0) by the pre-V14.1 editor and they all stacked on top of
+    // each other. If two or more objects share the exact same position,
+    // spread them in a small circle so the exported build actually shows
+    // content. This only triggers for old projects — V14.1+ editor places
+    // starter objects at distinct positions from the start, so the spread
+    // is a no-op for new projects.
+    var objects = CONFIG.objects || [];
+    var needsSpread = false;
+    if (objects.length >= 2) {
+      var originCount = objects.filter(function (o) {
+        var p = o.position || { x: 0, y: 0, z: 0 };
+        return Math.abs(p.x) < 0.001 && Math.abs(p.y) < 0.001 && Math.abs(p.z) < 0.001;
+      }).length;
+      if (originCount >= 2) needsSpread = true;
+    }
+    if (needsSpread) {
+      var radius = Math.max(2, objects.length * 0.8);
+      objects.forEach(function (o, i) {
+        var p = o.position || { x: 0, y: 0, z: 0 };
+        if (Math.abs(p.x) < 0.001 && Math.abs(p.y) < 0.001 && Math.abs(p.z) < 0.001) {
+          var angle = (i / objects.length) * Math.PI * 2;
+          o.position = { x: Math.cos(angle) * radius, y: 0, z: Math.sin(angle) * radius };
+        }
+      });
+    }
+
+    objects.forEach(function (o) {
       var mesh = null;
       // Model instance: try to load from asset payload
       var asset = o.assetId ? (CONFIG.assets && CONFIG.assets[o.assetId]) : null;
@@ -5500,7 +5543,7 @@ ThemeManager.load();
               <button data-value="16_9" class="${SETTINGS_STATE.exportCanvasSize === '16_9' ? 'st-active' : ''}">${t('size_16_9')}</button>
               <button data-value="19_6_h" class="${SETTINGS_STATE.exportCanvasSize === '19_6_h' ? 'st-active' : ''}">${t('size_19_6_H')}</button>
               <button data-value="19_6_v" class="${SETTINGS_STATE.exportCanvasSize === '19_6_v' ? 'st-active' : ''}">${t('size_19_6_V')}</button>
-              <button data-value="1_1" class="${SETTINGS_STATE.exportCanvasSize === '1_1' ? 'st-active' : ''}">${t('size_1_1')}</button>
+              <button data-value="1_1" class="st-size-full ${SETTINGS_STATE.exportCanvasSize === '1_1' ? 'st-active' : ''}">${t('size_1_1')}</button>
             </div>
           </div>
           <div class="st-setting-row" style="margin-top:8px;">
@@ -7343,19 +7386,25 @@ ThemeManager.load();
       }
 
       createStarterObjects() {
+        // V14.1 fix: previously every starter object was placed at (0,0,0)
+        // and they all stacked on top of each other — invisible in the
+        // exported build. Spread them in a small arc so the user sees all
+        // four primitives the moment they open the project, and so the
+        // exported HTML shows actual content instead of one overlapping
+        // blob in the center.
         const starter = [
-          { type: 'cube', name: 'Cube', color: COLORS.BLUE },
-          { type: 'sphere', name: 'Sphere', color: COLORS.RED },
-          { type: 'cylinder', name: 'Cylinder', color: COLORS.GREEN },
-          { type: 'cone', name: 'Cone', color: COLORS.ORANGE }
+          { type: 'cube',     name: 'Cube',     color: COLORS.BLUE,   position: { x: -2.5, y: 0, z:  0   } },
+          { type: 'sphere',   name: 'Sphere',   color: COLORS.RED,    position: { x:  0,   y: 0, z:  2.5 } },
+          { type: 'cylinder', name: 'Cylinder', color: COLORS.GREEN,  position: { x:  2.5, y: 0, z:  0   } },
+          { type: 'cone',     name: 'Cone',     color: COLORS.ORANGE, position: { x:  0,   y: 0, z: -2.5 } }
         ];
 
         starter.forEach((obj, idx) => {
-          this.addObject(obj.type, obj.color);
+          this.addObject(obj.type, obj.color, obj.position);
         });
       }
 
-      addObject(type, color) {
+      addObject(type, color, position) {
         if (this.initialized) {
           this.pushUndoState();
         }
@@ -7389,13 +7438,20 @@ ThemeManager.load();
           color: resolvedColor
         };
 
+        // V14.1: accept an optional initial position. Default to (0,0,0) for
+        // backward compatibility (every caller that doesn't pass one).
+        const initialPos = (position && typeof position === 'object')
+          ? { x: Number(position.x) || 0, y: Number(position.y) || 0, z: Number(position.z) || 0 }
+          : { x: 0, y: 0, z: 0 };
+        mesh.position.set(initialPos.x, initialPos.y, initialPos.z);
+
         this.scene.add(mesh);
 
         const objectData = {
           id: id,
           name: mesh.userData.name,
           type: type,
-          position: { x: 0, y: 0, z: 0 },
+          position: initialPos,
           rotation: { x: 0, y: 0, z: 0 },
           scale: { x: 1, y: 1, z: 1 },
           color: '#' + resolvedColor.toString(16).padStart(6, '0'),
