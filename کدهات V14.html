@@ -2918,48 +2918,131 @@
     [dir="rtl"] .st-settings-row { flex-direction: row-reverse; }
     [dir="rtl"] .as-toolbar { flex-direction: row-reverse; }
 
-    /* V14: Export menu (popover) for project export options */
+    /* V14: Export menu — slides up from the bottom of the viewport as an
+       action sheet. The previous "absolute, bottom: 100%, centered on parent"
+       approach broke because the parent wrapper wasn't position:relative, so
+       the popover anchored to the viewport and landed in the top-left corner
+       covering the page header. A bottom sheet is also more thumb-friendly
+       on mobile and works regardless of where the Export button sits in the
+       scrollable settings list.
+       V14.2 fix: the transform on the visible state was using translateY(0)
+       which still had the translateX(-50%) baked in — but combined with
+       left:50% that left the sheet sitting in the middle. We now use a
+       wrapper-style approach: left:0, right:0, margin:auto so the sheet
+       is naturally centered without transform, and animate only opacity +
+       a small translateY for the slide-in. */
     .st-export-popover {
-      position: absolute;
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      margin-bottom: 6px;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 16px;
+      margin: 0 auto;
+      transform: translateY(120%);
       background: var(--st-bg-panel, #161b22);
       border: 1px solid var(--st-border, #2a2a2a);
-      border-radius: 8px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.35);
-      padding: 6px;
-      display: none;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+      padding: 8px;
+      display: flex;
       flex-direction: column;
-      gap: 4px;
-      min-width: 220px;
-      z-index: 400;
+      gap: 6px;
+      width: calc(100% - 24px);
+      max-width: 360px;
+      z-index: 500;
+      transition: transform 0.22s ease, opacity 0.22s ease;
+      opacity: 0;
+      pointer-events: none;
     }
-    .st-export-popover.st-visible { display: flex; }
+    .st-export-popover.st-visible {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    /* Backdrop so the user can tap outside to dismiss. */
+    .st-export-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 499;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease;
+    }
+    .st-export-backdrop.st-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .st-export-popover .st-popover-title {
+      font-size: 11px;
+      color: var(--st-text-secondary, #888);
+      padding: 8px 8px 4px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
     .st-export-popover button {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
+      gap: 12px;
+      padding: 12px 14px;
       background: var(--st-bg-input, #0f0f0f);
       border: 1px solid var(--st-border, #2a2a2a);
       color: var(--st-text-primary, #e0e0e0);
-      border-radius: 5px;
-      font-size: 12px;
+      border-radius: 8px;
+      font-size: 13px;
       cursor: pointer;
       text-align: start;
-      transition: background 0.15s;
-      min-height: 40px;
+      transition: background 0.15s, transform 0.1s;
+      min-height: 56px;
+      width: 100%;
     }
-    .st-export-popover button:hover { background: var(--st-hover-bg, rgba(255,255,255,0.05)); }
-    .st-export-popover button svg { flex-shrink: 0; }
-    .st-export-popover .st-popover-title {
-      font-size: 10px;
+    .st-export-popover button:hover {
+      background: var(--st-hover-bg, rgba(255,255,255,0.05));
+    }
+    .st-export-popover button:active {
+      transform: scale(0.98);
+    }
+    .st-export-popover button svg {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      color: var(--st-accent, #ff6b35);
+    }
+    .st-export-popover button .st-popover-btn-text {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+    .st-export-popover button .st-popover-btn-label {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--st-text-primary, #e0e0e0);
+      line-height: 1.3;
+    }
+    .st-export-popover button .st-popover-btn-desc {
+      font-size: 11px;
       color: var(--st-text-secondary, #888);
-      padding: 4px 8px;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
+      line-height: 1.4;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+    .st-export-popover .st-popover-close {
+      align-self: stretch;
+      padding: 10px;
+      background: transparent;
+      border: none;
+      color: var(--st-text-secondary, #888);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 40px;
+      border-radius: 6px;
+    }
+    .st-export-popover .st-popover-close:hover {
+      background: var(--st-hover-bg, rgba(255,255,255,0.05));
     }
 
     /* V14: canvas size preset segmented control + follow indicator
@@ -3090,6 +3173,37 @@
   <div id="st-savingIndicator">Saving...</div>
   <input type="file" id="st-fileInputBackup" accept=".json">
   <input type="file" id="st-fileInputProject" accept=".json,.zip,.html" style="display:none">
+
+  <!-- V14.2: Export Project bottom-sheet popover + backdrop.
+       Placed at the body root so position:fixed anchors to the viewport,
+       not to a scroll container inside the Settings panel. -->
+  <div class="st-export-backdrop" id="st-exportBackdrop"></div>
+  <div class="st-export-popover" id="st-exportPopover" role="dialog" aria-modal="true">
+    <div class="st-popover-title" id="st-exportPopoverTitle">EXPORT PROJECT</div>
+    <button data-export="html" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <polyline points="9 13 12 16 15 13"/>
+      </svg>
+      <span class="st-popover-btn-text">
+        <span class="st-popover-btn-label" id="st-exportHtmlLabel">Export as HTML (single file)</span>
+        <span class="st-popover-btn-desc" id="st-exportHtmlDesc">Self-contained, runs anywhere - no side files needed</span>
+      </span>
+    </button>
+    <button data-export="zip" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 8v13H3V8"/>
+        <path d="M1 3h22v5H1z"/>
+        <path d="M10 12h4"/>
+      </svg>
+      <span class="st-popover-btn-text">
+        <span class="st-popover-btn-label" id="st-exportZipLabel">Export as ZIP package</span>
+        <span class="st-popover-btn-desc" id="st-exportZipDesc">Bundles HTML + model files - use when assets are large</span>
+      </span>
+    </button>
+    <button type="button" class="st-popover-close" id="st-exportPopoverClose">Cancel</button>
+  </div>
       </div>
       <div class="tab-panel" data-tab="console">
 <div id="cn-header">
@@ -5509,26 +5623,7 @@ ThemeManager.load();
           </div>
           <div class="st-button-row">
             <button class="st-settings-button" id="st-newProjectBtn">${t('newProject')}</button>
-            <div style="position:relative;">
-              <button class="st-settings-button st-primary" id="st-exportProjectBtn">${t('exportProject')}</button>
-              <div class="st-export-popover" id="st-exportPopover">
-                <div class="st-popover-title">${t('exportProjectDesc')}</div>
-                <button data-export="html" title="${t('exportHtmlDesc')}">
-                  <svg class="st-svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 13 12 16 15 13"/></svg>
-                  <span style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
-                    <span style="font-weight:600;">${t('exportHtml')}</span>
-                    <span style="font-size:10px;color:#888;">${t('exportHtmlDesc')}</span>
-                  </span>
-                </button>
-                <button data-export="zip" title="${t('exportZipDesc')}">
-                  <svg class="st-svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
-                  <span style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
-                    <span style="font-weight:600;">${t('exportZip')}</span>
-                    <span style="font-size:10px;color:#888;">${t('exportZipDesc')}</span>
-                  </span>
-                </button>
-              </div>
-            </div>
+            <button class="st-settings-button st-primary" id="st-exportProjectBtn">${t('exportProject')}</button>
             <button class="st-settings-button" id="st-importProjectBtn">${t('importProjectFile')}</button>
             <span class="st-setting-hint">${t('importProjectDesc')}</span>
             <button class="st-settings-button st-danger" id="st-clearProjectBtn">${t('clearProjectData')}</button>
@@ -5740,30 +5835,68 @@ ThemeManager.load();
         // V14: Export Project popover + Import Project (replaces the disabled
         // "Open Project" button from V13). Export is a popover with two options;
         // Import accepts .html/.zip/.json and routes through SettingsManager.
+        // V14.2: Export Project now opens a bottom-sheet action sheet
+        // (popover + backdrop) instead of a tiny inline popover that broke
+        // out of its scroll container. The sheet is rendered at the body
+        // root, so position:fixed always anchors to the viewport. Labels
+        // are localized at render time below.
         const exportProjectBtn = document.getElementById('st-exportProjectBtn');
         const exportPopover = document.getElementById('st-exportPopover');
+        const exportBackdrop = document.getElementById('st-exportBackdrop');
+        const exportPopoverClose = document.getElementById('st-exportPopoverClose');
+        const exportHtmlLabel = document.getElementById('st-exportHtmlLabel');
+        const exportHtmlDesc = document.getElementById('st-exportHtmlDesc');
+        const exportZipLabel = document.getElementById('st-exportZipLabel');
+        const exportZipDesc = document.getElementById('st-exportZipDesc');
+        const exportPopoverTitle = document.getElementById('st-exportPopoverTitle');
+        // Localize labels at render time. Each render() call re-runs this
+        // attachListeners() pass, so language switches refresh the sheet too.
+        if (exportHtmlLabel) exportHtmlLabel.textContent = this.t('exportHtml');
+        if (exportHtmlDesc) exportHtmlDesc.textContent = this.t('exportHtmlDesc');
+        if (exportZipLabel) exportZipLabel.textContent = this.t('exportZip');
+        if (exportZipDesc) exportZipDesc.textContent = this.t('exportZipDesc');
+        if (exportPopoverTitle) exportPopoverTitle.textContent = String(this.t('exportProjectDesc') || 'EXPORT PROJECT').toUpperCase();
+        if (exportPopoverClose) exportPopoverClose.textContent = this.t('cancel') || 'Cancel';
+
         if (exportProjectBtn && exportPopover) {
+          const openSheet = () => {
+            exportPopover.classList.add('st-visible');
+            if (exportBackdrop) exportBackdrop.classList.add('st-visible');
+            document.body.style.overflow = 'hidden';
+          };
+          const closeSheet = () => {
+            exportPopover.classList.remove('st-visible');
+            if (exportBackdrop) exportBackdrop.classList.remove('st-visible');
+            document.body.style.overflow = '';
+          };
+          exportProjectBtn.removeEventListener('click', openSheet);
           exportProjectBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            exportPopover.classList.toggle('st-visible');
+            if (exportPopover.classList.contains('st-visible')) closeSheet();
+            else openSheet();
           });
           exportPopover.querySelectorAll('button[data-export]').forEach(btn => {
             btn.addEventListener('click', () => {
-              exportPopover.classList.remove('st-visible');
+              closeSheet();
               const kind = btn.dataset.export;
-              try {
-                if (kind === 'html') SettingsManager.exportProjectHTML();
-                else if (kind === 'zip') SettingsManager.exportProjectZIP();
-              } catch (err) {
-                SettingsUIManager.showToast(SettingsUIManager.t('exportFailed') + (err && err.message ? err.message : String(err)));
-              }
+              // Defer the actual export one frame so the sheet animation
+              // finishes first — otherwise the file-download dialog can
+              // fight with the sheet's transform transition on some browsers.
+              setTimeout(() => {
+                try {
+                  if (kind === 'html') SettingsManager.exportProjectHTML();
+                  else if (kind === 'zip') SettingsManager.exportProjectZIP();
+                } catch (err) {
+                  SettingsUIManager.showToast(SettingsUIManager.t('exportFailed') + (err && err.message ? err.message : String(err)));
+                }
+              }, 240);
             });
           });
-          // Click-outside dismiss
-          document.addEventListener('click', (e) => {
-            if (!exportPopover.contains(e.target) && e.target !== exportProjectBtn) {
-              exportPopover.classList.remove('st-visible');
-            }
+          if (exportPopoverClose) exportPopoverClose.addEventListener('click', closeSheet);
+          if (exportBackdrop) exportBackdrop.addEventListener('click', closeSheet);
+          // Escape key dismisses the sheet.
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && exportPopover.classList.contains('st-visible')) closeSheet();
           });
         }
 
