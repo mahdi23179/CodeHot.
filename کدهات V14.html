@@ -70,19 +70,26 @@
       background: none;
       border: none;
       cursor: pointer;
-      color: #8b949e;
-      transition: color 200ms ease;
+      /* V14.3: tab buttons are tinted orange by default so the whole bottom
+         bar reads as "CodeHot orange chrome" instead of grey-on-grey. The
+         active tab still pops via a brighter shade + filled label chip. */
+      color: rgba(255, 107, 53, 0.55);
+      transition: color 200ms ease, background 200ms ease;
     }
     .sh-tab-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
     .sh-tab-label {
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       height: 0;
       overflow: hidden;
       opacity: 0;
       transition: opacity 200ms ease;
     }
-    .sh-tab-btn.sh-active { color: #ff6b35; }
+    .sh-tab-btn:hover { color: rgba(255, 107, 53, 0.85); }
+    .sh-tab-btn.sh-active {
+      color: #ff6b35;
+      background: rgba(255, 107, 53, 0.08);
+    }
     .sh-tab-btn.sh-active .sh-tab-label {
       height: auto;
       opacity: 1;
@@ -1304,27 +1311,29 @@
     .sc-header-button {
       height: 24px;
       padding: 0 10px;
-      background: #2a2a2a;
-      border: 1px solid #444;
-      color: #e0e0e0;
+      background: #ff6b35;
+      border: 1px solid #ff6b35;
+      color: #ffffff;
       cursor: pointer;
       border-radius: 3px;
       font-size: 11px;
       font-weight: 600;
       display: flex;
       align-items: center;
-      transition: background 0.2s;
+      transition: background 0.2s, opacity 0.2s;
       user-select: none;
     }
 
     .sc-header-button:hover {
-      background: #333;
+      background: #ff8559;
+      border-color: #ff8559;
     }
 
     .sc-header-button.sc-active {
       background: #ff6b35;
       color: white;
       border-color: #ff6b35;
+      box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.25);
     }
 
     .sc-header-separator {
@@ -4698,20 +4707,26 @@ ThemeManager.load();
 
   function makeScene() {
     SCENE = new THREE.Scene();
-    SCENE.background = new THREE.Color(0xffffff);
-    var dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    // V14.3: sky is a soft daytime blue (#87CEEB), ground is white (#ffffff).
+    // Matches the user's request: "aseman oon khale bala ab bashe, kaf sefid".
+    SCENE.background = new THREE.Color(0x87ceeb);
+    SCENE.fog = new THREE.Fog(0x87ceeb, 30, 120);
+    var dir = new THREE.DirectionalLight(0xffffff, 0.9);
     dir.position.set(15, 20, 15);
     dir.castShadow = true;
     dir.shadow.mapSize.width = 2048; dir.shadow.mapSize.height = 2048;
     dir.shadow.camera.left = -50; dir.shadow.camera.right = 50;
     dir.shadow.camera.top = 50; dir.shadow.camera.bottom = -50;
     SCENE.add(dir);
-    SCENE.add(new THREE.AmbientLight(0xffffff, 0.5));
+    SCENE.add(new THREE.AmbientLight(0xffffff, 0.55));
+    // A subtle hemisphere light gives the scene a sky/ground tint without
+    // a second shadow caster — makes the blue sky feel grounded.
+    SCENE.add(new THREE.HemisphereLight(0x87ceeb, 0xffffff, 0.35));
 
-    // Ground plane — keeps a visible floor so the user sees the ball move,
-    // but the page background stays white per the V14 spec.
+    // Ground plane — pure white floor so the user sees the ball move against
+    // a clean surface, while the sky above stays blue.
     var groundGeo = new THREE.PlaneGeometry(200, 200);
-    var groundMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+    var groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0.0 });
     var ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.5;
@@ -5034,7 +5049,7 @@ ThemeManager.load();
                 '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">\n' +
                 '<title>' + ((bundle.settings && bundle.settings.projectName) || 'CodeHot Project') + '</title>\n' +
                 '<style>\n' +
-                'html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }\n' +
+                'html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #87ceeb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }\n' +
                 '#codehot-canvas { display: block; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); ' + canvasStyle + ' }\n' +
                 '</style>\n' +
                 '</head>\n' +
