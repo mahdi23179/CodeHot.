@@ -4687,45 +4687,31 @@ ThemeManager.load();
   'use strict';
   var CONFIG = ${configJson};
   var SCENE = null, CAMERA = null, RENDERER = null, CLOCK = null;
-  var MIXERS = [];
-  // V14.5: behaviors and behaviorStates mirror the editor's runtime engine.
-  // In V14.0-V14.4 the player called behavior.update.call({}, ctx, self)
-  // which lost the per-behavior 'this' state that scripts rely on (e.g.
-  // 'self.__baseY = self.position.y' in start(), read back in update()).
-  // The new shape uses a stable behaviorSelf map (so a script can stash
-  // fields on self and see them next frame) and passes behaviorStates.get(id)
-  // as the 'this' of every lifecycle call — exactly what the editor does.
-  var BEHAVIORS = new Map();          // id -> { start, update, stop }
-  var BEHAVIOR_STATES = new Map();    // id -> {} (per-behavior 'this')
-  var BEHAVIOR_SELF = new Map();      // id -> stable live-backed wrapper
-  var RUNTIME = { isPlaying: false, time: 0, delta: 0, frame: 0, lastTimestamp: 0, maxDelta: 0.05 };
-  var MESHES = {};                    // id -> THREE.Object3D
-  var FOLLOW_TARGET_ID = null;
-  var FOLLOW_OFFSET = new THREE.Vector3(0, 4, 7);
-  var CAMERA_SCRIPT_ID = '__codehot_camera__';
+  var MIXERS = [], BEHAVIORS = [], ANIM_PLAYERS = [];
+  var RUNTIME = { isPlaying: false, time: 0, delta: 0, frame: 0 };
+  var BEHAVIOR_SELF = {};
+  var MESHES = {}; // id -> THREE.Object3D
 
   function log() { try { console.log.apply(console, arguments); } catch (e) {} }
   function warn() { try { console.warn.apply(console, arguments); } catch (e) {} }
   function err() { try { console.error.apply(console, arguments); } catch (e) {} }
 
-  // ── Scene setup: blue sky, white floor ───────────────────────────
   function makeScene() {
     SCENE = new THREE.Scene();
-    SCENE.background = new THREE.Color(0x87ceeb);
-    SCENE.fog = new THREE.Fog(0x87ceeb, 30, 120);
-    var dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    SCENE.background = new THREE.Color(0xffffff);
+    var dir = new THREE.DirectionalLight(0xffffff, 0.8);
     dir.position.set(15, 20, 15);
     dir.castShadow = true;
     dir.shadow.mapSize.width = 2048; dir.shadow.mapSize.height = 2048;
     dir.shadow.camera.left = -50; dir.shadow.camera.right = 50;
     dir.shadow.camera.top = 50; dir.shadow.camera.bottom = -50;
-    dir.shadow.camera.near = 0.5; dir.shadow.camera.far = 100;
     SCENE.add(dir);
-    SCENE.add(new THREE.AmbientLight(0xffffff, 0.55));
-    SCENE.add(new THREE.HemisphereLight(0x87ceeb, 0xffffff, 0.35));
+    SCENE.add(new THREE.AmbientLight(0xffffff, 0.5));
 
+    // Ground plane — keeps a visible floor so the user sees the ball move,
+    // but the page background stays white per the V14 spec.
     var groundGeo = new THREE.PlaneGeometry(200, 200);
-    var groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0.0 });
+    var groundMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
     var ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.5;
@@ -4759,13 +4745,11 @@ ThemeManager.load();
 
   function resize() {
     var canvas = RENDERER.domElement;
-    var w, h;
+    var w = canvas.clientWidth || canvas.parentElement.clientWidth || window.innerWidth;
+    var h = canvas.clientHeight || canvas.parentElement.clientHeight || window.innerHeight;
     if (CONFIG.settings.canvasSize === 'free' || !CONFIG.settings.canvasSize) {
       w = window.innerWidth; h = window.innerHeight;
       canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-    } else {
-      w = canvas.clientWidth || canvas.parentElement.clientWidth || window.innerWidth;
-      h = canvas.clientHeight || canvas.parentElement.clientHeight || window.innerHeight;
     }
     RENDERER.setSize(w, h, false);
     CAMERA.aspect = w / h;
@@ -4787,32 +4771,42 @@ ThemeManager.load();
     catch (e) { return new THREE.Color(0x888888); }
   }
 
-  // V14.1 spread: legacy projects placed every starter object at (0,0,0).
-  function spreadOriginObjects(objects) {
-    if (objects.length < 2) return;
-    var originCount = objects.filter(function (o) {
-      var p = o.position || { x: 0, y: 0, z: 0 };
-      return Math.abs(p.x) < 0.001 && Math.abs(p.y) < 0.001 && Math.abs(p.z) < 0.001;
-    }).length;
-    if (originCount < 2) return;
-    var radius = Math.max(2, objects.length * 0.8);
-    objects.forEach(function (o, i) {
-      var p = o.position || { x: 0, y: 0, z: 0 };
-      if (Math.abs(p.x) < 0.001 && Math.abs(p.y) < 0.001 && Math.abs(p.z) < 0.001) {
-        var angle = (i / objects.length) * Math.PI * 2;
-        o.position = { x: Math.cos(angle) * radius, y: 0, z: Math.sin(angle) * radius };
-      }
-    });
-  }
-
   function buildObjects() {
+    // V14.1: detect the legacy case where every starter object was placed
+    // at (0,0,0) by the pre-V14.1 editor and they all stacked on top of
+    // each other. If two or more objects share the exact same position,
+    // spread them in a small circle so the exported build actually shows
+    // content. This only triggers for old projects — V14.1+ editor places
+    // starter objects at distinct positions from the start, so the spread
+    // is a no-op for new projects.
     var objects = CONFIG.objects || [];
-    spreadOriginObjects(objects);
+    var needsSpread = false;
+    if (objects.length >= 2) {
+      var originCount = objects.filter(function (o) {
+        var p = o.position || { x: 0, y: 0, z: 0 };
+        return Math.abs(p.x) < 0.001 && Math.abs(p.y) < 0.001 && Math.abs(p.z) < 0.001;
+      }).length;
+      if (originCount >= 2) needsSpread = true;
+    }
+    if (needsSpread) {
+      var radius = Math.max(2, objects.length * 0.8);
+      objects.forEach(function (o, i) {
+        var p = o.position || { x: 0, y: 0, z: 0 };
+        if (Math.abs(p.x) < 0.001 && Math.abs(p.y) < 0.001 && Math.abs(p.z) < 0.001) {
+          var angle = (i / objects.length) * Math.PI * 2;
+          o.position = { x: Math.cos(angle) * radius, y: 0, z: Math.sin(angle) * radius };
+        }
+      });
+    }
+
     objects.forEach(function (o) {
       var mesh = null;
+      // Model instance: try to load from asset payload
       var asset = o.assetId ? (CONFIG.assets && CONFIG.assets[o.assetId]) : null;
       if (asset && asset.type === 'model' && asset.data) {
         try {
+          // Prefer GLTFLoader path inline; we ship a tiny GLB loader here so
+          // the player has zero external deps. Format = glb binary blob.
           var loader = new THREE.GLTFLoader && new THREE.GLTFLoader();
           if (!loader && window.THREE_GLTFLoader) loader = new window.THREE_GLTFLoader();
           if (loader) {
@@ -4832,6 +4826,7 @@ ThemeManager.load();
           }
         } catch (e) { warn('[CodeHot Player] model load failed:', e); }
       }
+      // Fallback to primitive geometry
       var geo = getGeometry(o.type);
       var mat = new THREE.MeshStandardMaterial({ color: colorFrom(o.color), metalness: 0.4, roughness: 0.6 });
       mesh = new THREE.Mesh(geo, mat);
@@ -4852,269 +4847,118 @@ ThemeManager.load();
     mesh.scale.set(s.x, s.y, s.z);
   }
 
-  // V14.5: live-backed object API. position/rotation/scale getters read
-  // from the live THREE mesh so changes scripts make are visible next frame.
-  // setPosition/setRotation/setScale/translate/rotate mutate the mesh
-  // directly. The wrapper is stable per id (cached in BEHAVIOR_SELF) so
-  // scripts can stash fields like 'self.__baseY = 5' in start() and read
-  // them back in update() — exactly like the editor runtime.
   function makeObjectApi(id) {
     var mesh = MESHES[id];
     if (!mesh) return null;
-    var api = {
-      id: id,
-      name: (CONFIG.objects || []).find(function (o) { return o.id === id; }) ? (CONFIG.objects || []).find(function (o) { return o.id === id; }).name : id,
-      type: (CONFIG.objects || []).find(function (o) { return o.id === id; }) ? (CONFIG.objects || []).find(function (o) { return o.id === id; }).type : 'object'
-    };
-    Object.defineProperty(api, 'position', {
-      configurable: true, enumerable: true,
-      get: function () { return mesh.position; }
-    });
-    Object.defineProperty(api, 'rotation', {
-      configurable: true, enumerable: true,
-      get: function () { return mesh.rotation; }
-    });
-    Object.defineProperty(api, 'scale', {
-      configurable: true, enumerable: true,
-      get: function () { return mesh.scale; }
-    });
-    Object.defineProperty(api, 'visible', {
-      configurable: true, enumerable: true,
-      get: function () { return mesh.visible; },
-      set: function (v) { mesh.visible = !!v; }
-    });
-    api.setPosition = function (x, y, z) { mesh.position.set(Number(x), Number(y), Number(z)); };
-    api.translate = function (x, y, z) { mesh.position.x += Number(x); mesh.position.y += Number(y); mesh.position.z += Number(z); };
-    api.setRotation = function (x, y, z) { mesh.rotation.set(THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z)); };
-    api.rotate = function (x, y, z) { mesh.rotation.x += THREE.MathUtils.degToRad(x); mesh.rotation.y += THREE.MathUtils.degToRad(y); mesh.rotation.z += THREE.MathUtils.degToRad(z); };
-    api.setScale = function (x, y, z) { mesh.scale.set(Number(x), Number(y), Number(z)); };
-    api.setVisible = function (v) { mesh.visible = !!v; };
-    return api;
-  }
-
-  function makeCameraApi() {
-    var api = { id: CAMERA_SCRIPT_ID, name: 'Camera', type: 'camera' };
-    Object.defineProperty(api, 'position', { configurable: true, enumerable: true, get: function () { return CAMERA.position; } });
-    Object.defineProperty(api, 'rotation', { configurable: true, enumerable: true, get: function () { return CAMERA.rotation; } });
-    Object.defineProperty(api, 'fov', {
-      configurable: true, enumerable: true,
-      get: function () { return CAMERA.fov; },
-      set: function (v) { CAMERA.fov = Math.max(15, Math.min(120, Number(v) || CAMERA.fov)); CAMERA.updateProjectionMatrix(); }
-    });
-    api.setPosition = function (x, y, z) { CAMERA.position.set(Number(x), Number(y), Number(z)); };
-    api.lookAt = function (x, y, z) { CAMERA.lookAt(Number(x), Number(y), Number(z)); };
-    return api;
-  }
-
-  // V14.5: stable per-behavior self. Cached in BEHAVIOR_SELF so scripts
-  // can stash state on it. Mirrors RuntimeEngine.behaviorSelfObject().
-  function behaviorSelfObject(id) {
-    if (BEHAVIOR_SELF.has(id)) return BEHAVIOR_SELF.get(id);
-    var self = (id === CAMERA_SCRIPT_ID) ? makeCameraApi() : makeObjectApi(id);
-    if (!self) return null;
-    BEHAVIOR_SELF.set(id, self);
-    return self;
-  }
-
-  // ── Script compilation: mirrors RuntimeEngine.normalizeScriptSource ─
-  function normalizeScriptSource(code) {
-    var source = String(code || '').replace(/^\\uFEFF/, '').trim();
-    if (!source) return 'return {};';
-    // 1) Canonical return-object form
-    try {
-      new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
-        '"use strict";\\n' + source);
-      return source;
-    } catch (e) {}
-    // 2) Friendly lifecycle method style
-    var methodNames = ['start', 'update', 'stop'];
-    function findTopLevelLifecycles(text) {
-      var found = [];
-      var depth = 0, quote = null, escape = false, lineComment = false, blockComment = false;
-      for (var i = 0; i < text.length; i++) {
-        var ch = text[i], nx = text[i + 1];
-        if (lineComment) { if (ch === '\\n') lineComment = false; continue; }
-        if (blockComment) { if (ch === '*' && nx === '/') { blockComment = false; i++; } continue; }
-        if (quote) {
-          if (escape) { escape = false; continue; }
-          if (ch === '\\\\') { escape = true; continue; }
-          if (ch === quote) quote = null;
-          continue;
-        }
-        if (ch === '/' && nx === '/') { lineComment = true; i++; continue; }
-        if (ch === '/' && nx === '*') { blockComment = true; i++; continue; }
-        if (ch === '"' || ch === "'" || ch === '\`') { quote = ch; continue; }
-        if (ch === '{') { depth++; continue; }
-        if (ch === '}') { depth--; continue; }
-        if (depth !== 0) continue;
-        for (var mi = 0; mi < methodNames.length; mi++) {
-          var name = methodNames[mi];
-          if (text.startsWith(name, i)) {
-            var before = i > 0 ? text[i - 1] : '';
-            var after = text[i + name.length] || '';
-            if ((before && /[A-Za-z0-9_$]/.test(before)) || (after && !/[\\s(]/.test(after))) continue;
-            var rest = text.slice(i + name.length);
-            if (/^\\s*\\([^)]*\\)\\s*\\{/.test(rest)) {
-              found.push({ index: i, name: name });
-              break;
-            }
-          }
-        }
-      }
-      return found;
-    }
-    var lifecycleMethods = findTopLevelLifecycles(source);
-    if (lifecycleMethods.length) {
-      var first = lifecycleMethods[0];
-      var prefix = source.slice(0, first.index).replace(/\\s+$/, '');
-      var lifecycleSource = source.slice(first.index).replace(/^\\s+/, '');
-      var relativeStarts = lifecycleMethods.slice(1).map(function (item) { return item.index - first.index; }).sort(function (a, b) { return b - a; });
-      relativeStarts.forEach(function (pos) {
-        lifecycleSource = lifecycleSource.slice(0, pos) + ',\\n' + lifecycleSource.slice(pos);
-      });
-      var normalized = (prefix ? prefix + '\\n\\n' : '') + 'return {\\n' + lifecycleSource + '\\n};';
-      try {
-        new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
-          '"use strict";\\n' + normalized);
-        return normalized;
-      } catch (e2) { throw e2; }
-    }
-    // 3) Function-declaration / plain executable
-    var appended = source + '\\n\\nreturn {\\n' +
-      "  start: typeof start === 'function' ? start : null,\\n" +
-      "  update: typeof update === 'function' ? update : null,\\n" +
-      "  stop: typeof stop === 'function' ? stop : null\\n" +
-      '};';
-    new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
-      '"use strict";\\n' + appended);
-    return appended;
-  }
-
-  function createScriptFactory(code) {
-    var source = normalizeScriptSource(code);
-    return new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
-      '"use strict";\\n' + source);
-  }
-
-  function normalizeBehavior(result) {
-    if (typeof result === 'function') return { start: null, update: result, stop: null };
-    if (typeof result !== 'object' || result === null) return null;
-    if (result.update && typeof result.update !== 'function') return null;
-    if (result.start && typeof result.start !== 'function') return null;
-    if (result.stop && typeof result.stop !== 'function') return null;
     return {
-      start: result.start || null,
-      update: result.update || null,
-      stop: result.stop || null
+      id: id,
+      get position() { return mesh.position; },
+      get rotation() { return mesh.rotation; },
+      get scale() { return mesh.scale; },
+      setPosition: function (x, y, z) { mesh.position.set(x, y, z); },
+      translate: function (x, y, z) { mesh.position.x += x; mesh.position.y += y; mesh.position.z += z; },
+      setRotation: function (x, y, z) { mesh.rotation.set(THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z)); },
+      rotate: function (x, y, z) { mesh.rotation.x += THREE.MathUtils.degToRad(x); mesh.rotation.y += THREE.MathUtils.degToRad(y); mesh.rotation.z += THREE.MathUtils.degToRad(z); },
+      setScale: function (x, y, z) { mesh.scale.set(x, y, z); },
+      setVisible: function (v) { mesh.visible = !!v; }
     };
   }
 
-  function makeContext() {
+  function compileScript(code) {
+    var src = String(code || '').trim();
+    if (!src) return null;
+    // Try canonical return-object form first
+    try {
+      var fn = new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
+        '"use strict";\\n' + src);
+      var obj = fn({}, {}, THREE, { delta: 0, time: 0, frame: 0 }, console, document, window.CodeHot || {});
+      if (obj && typeof obj === 'object') return obj;
+    } catch (e) {
+      // fallthrough to friendly method form
+    }
+    // Friendly method form: convert top-level start/update/stop methods into
+    // an object literal. Mirrors the V13 normalizer's behavior.
+    try {
+      var wrapped = '(function () { ' + src + '; return { start: typeof start === "function" ? start : null, update: typeof update === "function" ? update : null, stop: typeof stop === "function" ? stop : null }; })()';
+      var fn2 = new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
+        '"use strict";\\nreturn ' + wrapped + ';');
+      return fn2({}, {}, THREE, { delta: 0, time: 0, frame: 0 }, console, document, window.CodeHot || {});
+    } catch (e2) {
+      err('[CodeHot Player] script compile error:', e2);
+      return null;
+    }
+  }
+
+  function buildBehaviors() {
+    var ids = Object.keys(CONFIG.scripts || {});
+    ids.forEach(function (id) {
+      var code = CONFIG.scripts[id];
+      var behavior = compileScript(code);
+      if (!behavior) return;
+      var self = makeObjectApi(id);
+      if (!self) {
+        // Camera-as-self support
+        if (id === '__codehot_camera__') self = { id: '__codehot_camera__', name: 'Camera', get position() { return CAMERA.position; }, get rotation() { return CAMERA.rotation; }, setPosition: function (x, y, z) { CAMERA.position.set(x, y, z); }, lookAt: function (x, y, z) { CAMERA.lookAt(x, y, z); } };
+        else return;
+      }
+      BEHAVIOR_SELF[id] = self;
+      BEHAVIORS.push({ id: id, behavior: behavior, self: self });
+    });
+  }
+
+  function startBehaviors() {
+    BEHAVIORS.forEach(function (entry) {
+      if (entry.behavior.start) {
+        try { entry.behavior.start.call({}, makeCtx(), entry.self); }
+        catch (e) { err('[CodeHot Player] start() error for ' + entry.id + ':', e); }
+      }
+    });
+  }
+
+  function makeCtx() {
     return {
       time: RUNTIME.time,
       delta: RUNTIME.delta,
       frame: RUNTIME.frame,
       scene: SCENE,
       camera: CAMERA,
-      runtime: runtimeApi,
       THREE: THREE,
-      setCameraPosition: function (x, y, z) { CAMERA.position.set(Number(x), Number(y), Number(z)); },
-      setCameraTarget: function (x, y, z) { CAMERA.lookAt(Number(x), Number(y), Number(z)); },
-      setCameraFov: function (v) { CAMERA.fov = Math.max(15, Math.min(120, Number(v))); CAMERA.updateProjectionMatrix(); }
+      setCameraPosition: function (x, y, z) { CAMERA.position.set(x, y, z); },
+      setCameraTarget: function (x, y, z) { CAMERA.lookAt(x, y, z); },
+      setCameraFov: function (v) { CAMERA.fov = Math.max(15, Math.min(120, v)); CAMERA.updateProjectionMatrix(); }
     };
   }
 
-  // ── Lifecycle: mirrors RuntimeEngine.runLifecycle ─────────────────
-  function runLifecycle(phase) {
-    var context = makeContext();
-    BEHAVIORS.forEach(function (behavior, id) {
-      var handler = behavior[phase];
-      if (typeof handler !== 'function') return;
-      var object = behaviorSelfObject(id);
-      if (!object) return;
-      var state = BEHAVIOR_STATES.get(id) || {};
-      try {
-        handler.call(state, context, object);
-      } catch (error) {
-        err('[CodeHot Player] ' + phase + '() failed for ' + id + ':', error);
-      }
-    });
-  }
-
-  // ── Public API: window.CodeHot ────────────────────────────────────
-  var runtimeApi = {
-    isPlaying: function () { return RUNTIME.isPlaying; },
-    getTime: function () { return RUNTIME.time; },
-    getDelta: function () { return RUNTIME.delta; },
-    getFrame: function () { return RUNTIME.frame; },
-    getObject: function (id) { return (id === CAMERA_SCRIPT_ID) ? makeCameraApi() : makeObjectApi(id); },
-    getObjectByName: function (name) {
-      var found = (CONFIG.objects || []).find(function (o) { return o.name === name; });
-      return found ? makeObjectApi(found.id) : null;
-    },
-    getObjects: function () { return (CONFIG.objects || []).map(function (o) { return makeObjectApi(o.id); }); },
-    getCamera: function () { return CAMERA; },
-    setCameraPosition: function (x, y, z) { CAMERA.position.set(Number(x), Number(y), Number(z)); },
-    setCameraTarget: function (x, y, z) { CAMERA.lookAt(Number(x), Number(y), Number(z)); },
-    setCameraFov: function (v) { CAMERA.fov = Math.max(15, Math.min(120, Number(v))); CAMERA.updateProjectionMatrix(); },
-    registerBehavior: function (id, behavior) {
-      var handlers = normalizeBehavior(behavior);
-      if (!handlers) return false;
-      BEHAVIORS.set(id, handlers);
-      if (!BEHAVIOR_STATES.has(id)) BEHAVIOR_STATES.set(id, {});
-      return true;
-    },
-    unregisterBehavior: function (id) { return BEHAVIORS.delete(id); },
-    hasBehavior: function (id) { return BEHAVIORS.has(id); }
-  };
-  window.CodeHot = runtimeApi;
+  // Follow-cam: when an object has been "focused" (auto-detected from scripts
+  // that mention self.position, or set via CodeHot.focus()), the camera trails
+  // behind it at a fixed offset. This mirrors the editor's V14 follow-cam.
+  var FOLLOW_TARGET_ID = null;
+  var FOLLOW_OFFSET = new THREE.Vector3(0, 4, 7);
+  window.CodeHot = window.CodeHot || {};
   window.CodeHot.focus = function (id) { FOLLOW_TARGET_ID = id; };
+  window.CodeHot.getObject = function (id) { return makeObjectApi(id); };
+  window.CodeHot.getObjectByName = function (name) {
+    var found = (CONFIG.objects || []).find(function (o) { return o.name === name; });
+    return found ? makeObjectApi(found.id) : null;
+  };
+  window.CodeHot.getRuntimeState = function () { return { isPlaying: RUNTIME.isPlaying }; };
+  window.CodeHot.isPaused = function () { return false; };
+  // V14 debug helper: expose internal state so the user (and tests) can verify
+  // the player actually built the scene and armed behaviors.
   window.CodeHotPlayer = {
     config: CONFIG,
     meshCount: function () { return Object.keys(MESHES).length; },
     meshIds: function () { return Object.keys(MESHES); },
     meshInfo: function (id) { var m = MESHES[id]; if (!m) return null; return { id: id, position: { x: m.position.x, y: m.position.y, z: m.position.z }, rotation: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z }, visible: m.visible }; },
-    behaviorCount: function () { return BEHAVIORS.size; },
-    behaviorIds: function () { return Array.from(BEHAVIORS.keys()); },
+    behaviorCount: function () { return BEHAVIORS.length; },
     runtime: function () { return { time: RUNTIME.time, delta: RUNTIME.delta, frame: RUNTIME.frame, isPlaying: RUNTIME.isPlaying }; },
     followTargetId: function () { return FOLLOW_TARGET_ID; }
   };
 
-  function buildBehaviors() {
-    var ids = Object.keys(CONFIG.scripts || {});
-    ids.forEach(function (id) {
-      var code = CONFIG.scripts[id];
-      if (!code || !String(code).trim()) return;
-      // Validate the object exists (or it's the camera)
-      if (id !== CAMERA_SCRIPT_ID && !MESHES[id]) return;
-      try {
-        var factory = createScriptFactory(code);
-        var self = behaviorSelfObject(id);
-        if (!self) return;
-        var codeHot = {
-          runtime: runtimeApi,
-          document: document,
-          getObject: runtimeApi.getObject,
-          getObjectByName: runtimeApi.getObjectByName,
-          getObjects: runtimeApi.getObjects
-        };
-        var result = factory(runtimeApi, self, THREE, makeContext(), console, document, codeHot);
-        if (result == null) return;
-        var handlers = normalizeBehavior(result);
-        if (!handlers) {
-          err('[CodeHot Player] script for ' + id + ' did not return a behavior object');
-          return;
-        }
-        BEHAVIORS.set(id, handlers);
-        BEHAVIOR_STATES.set(id, {});
-      } catch (e) {
-        err('[CodeHot Player] compile/instantiate failed for ' + id + ':', e);
-      }
-    });
-  }
-
   function autoEnableFollowCam() {
     if (!CONFIG.settings.followCamOnFocus) return;
+    // If any object has a script that mutates position, treat it as the
+    // player avatar and focus the camera on it.
     var keys = Object.keys(CONFIG.scripts || {});
     for (var i = 0; i < keys.length; i++) {
       var code = CONFIG.scripts[keys[i]] || '';
@@ -5128,49 +4972,33 @@ ThemeManager.load();
   function updateFollowCam() {
     if (!FOLLOW_TARGET_ID) return;
     var mesh = MESHES[FOLLOW_TARGET_ID];
-    if (!mesh) { FOLLOW_TARGET_ID = null; return; }
+    if (!mesh) return;
     var target = mesh.position;
     var desired = target.clone().add(FOLLOW_OFFSET);
     CAMERA.position.lerp(desired, 0.12);
     CAMERA.lookAt(target);
   }
 
-  // V14.5: real update loop mirroring RuntimeEngine.update(timestamp).
-  // delta is computed from the rAF timestamp, clamped to maxDelta=0.05,
-  // and behaviors get the SAME 'this' state object they had during start().
-  function update(timestamp) {
-    if (!RUNTIME.isPlaying) return;
-    if (!RUNTIME.lastTimestamp) RUNTIME.lastTimestamp = timestamp;
-    var delta = (timestamp - RUNTIME.lastTimestamp) / 1000;
-    RUNTIME.lastTimestamp = timestamp;
-    delta = Math.max(0, Math.min(RUNTIME.maxDelta, delta));
-    RUNTIME.delta = delta;
-    RUNTIME.time += delta;
-    RUNTIME.frame++;
-
-    var context = makeContext();
-    BEHAVIORS.forEach(function (behavior, id) {
-      if (typeof behavior.update !== 'function') return;
-      var object = behaviorSelfObject(id);
-      if (!object) return;
-      var state = BEHAVIOR_STATES.get(id) || {};
-      try {
-        behavior.update.call(state, context, object);
-      } catch (error) {
-        err('[CodeHot Player] update() failed for ' + id + ':', error);
-        BEHAVIORS.delete(id);
-      }
-    });
-  }
-
-  function tick(timestamp) {
+  function tick() {
     if (!RENDERER || !CAMERA || !SCENE) return;
     requestAnimationFrame(tick);
-    if (CLOCK) {
-      var dt = CLOCK.getDelta();
-      for (var i = 0; i < MIXERS.length; i++) MIXERS[i].update(Math.min(dt, 0.05));
-    }
-    update(timestamp || performance.now());
+    var dt = CLOCK.getDelta();
+    RUNTIME.delta = Math.min(dt, 0.05);
+    RUNTIME.time += RUNTIME.delta;
+    RUNTIME.frame++;
+
+    // Animation mixers (GLB clips)
+    for (var i = 0; i < MIXERS.length; i++) MIXERS[i].update(RUNTIME.delta);
+
+    // Behavior updates
+    var ctx = makeCtx();
+    BEHAVIORS.forEach(function (entry) {
+      if (entry.behavior.update) {
+        try { entry.behavior.update.call({}, ctx, entry.self); }
+        catch (e) { err('[CodeHot Player] update() error for ' + entry.id + ':', e); }
+      }
+    });
+
     updateFollowCam();
     RENDERER.render(SCENE, CAMERA);
   }
@@ -5184,8 +5012,7 @@ ThemeManager.load();
     buildBehaviors();
     autoEnableFollowCam();
     RUNTIME.isPlaying = true;
-    RUNTIME.lastTimestamp = 0;
-    runLifecycle('start');
+    startBehaviors();
     tick();
     document.dispatchEvent(new CustomEvent('codehot:ready'));
   }
@@ -5207,7 +5034,7 @@ ThemeManager.load();
                 '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">\n' +
                 '<title>' + ((bundle.settings && bundle.settings.projectName) || 'CodeHot Project') + '</title>\n' +
                 '<style>\n' +
-                'html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #87ceeb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }\n' +
+                'html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }\n' +
                 '#codehot-canvas { display: block; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); ' + canvasStyle + ' }\n' +
                 '</style>\n' +
                 '</head>\n' +
@@ -5796,7 +5623,7 @@ ThemeManager.load();
           </div>
           <div class="st-button-row">
             <button class="st-settings-button" id="st-newProjectBtn">${t('newProject')}</button>
-            <button class="st-settings-button" id="st-exportProjectBtn">${t('exportProject')}</button>
+            <button class="st-settings-button st-primary" id="st-exportProjectBtn">${t('exportProject')}</button>
             <button class="st-settings-button" id="st-importProjectBtn">${t('importProjectFile')}</button>
             <span class="st-setting-hint">${t('importProjectDesc')}</span>
             <button class="st-settings-button st-danger" id="st-clearProjectBtn">${t('clearProjectData')}</button>
@@ -7621,14 +7448,7 @@ ThemeManager.load();
       }
 
       setupScene() {
-        // V14.5: editor scene now has a soft daytime blue sky (#87ceeb)
-        // instead of the near-black background. The user explicitly asked:
-        // "تو حالت عادی کدهات یک پس‌زمینه‌ی آسمون باید داشته باشه. چون الان
-        // پس‌زمینه‌اش سیاهه بک‌گراند و اصلاً دیده نمیشه". The floor (grid +
-        // ground plane below) stays dark so the user can still see the
-        // checkerboard pattern they're used to.
-        this.scene.background = new THREE.Color(0x87ceeb);
-        this.scene.fog = new THREE.Fog(0x87ceeb, 40, 140);
+        this.scene.background = new THREE.Color(0x0f0f0f);
 
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(15, 20, 15);
@@ -7645,11 +7465,6 @@ ThemeManager.load();
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambientLight);
-
-        // V14.5: subtle hemisphere light to tint the editor scene's sky/ground
-        // so the blue background feels grounded instead of flat.
-        const hemi = new THREE.HemisphereLight(0x87ceeb, 0x0a0a0a, 0.35);
-        this.scene.add(hemi);
 
         const gridHelper = new THREE.GridHelper(CONFIG.GRID_SIZE, CONFIG.GRID_SIZE, 0x2a2a2a, 0x1a1a1a);
         gridHelper.position.y = -0.01;
@@ -8972,13 +8787,7 @@ ThemeManager.load();
       // null (no-op).
       updateFollowCam() {
         if (!this._followTargetId) return;
-        // V14.5: follow-cam is now ALSO active during Play mode, not just
-        // in the editor. The user explicitly asked: "وقتی play می‌کنیم، باز
-        // هم باید دوربینمون دنبال object باشه، نه دوربین برگرده به بالا
-        // و به جای اصلیش". Previously the editor's follow-cam returned early
-        // when RUNTIME_STATE.isPlaying was true, so the camera snapped back
-        // to (10,8,10) the moment Play started. Now we keep trailing the
-        // target object whether we're editing or playing.
+        if (RUNTIME_STATE.isPlaying) return; // Play mode has its own camera control
         const mesh = this.scene.children.find(c => c.userData && c.userData.id === this._followTargetId);
         if (!mesh) { this.clearFollowTarget(); return; }
         const target = mesh.position;

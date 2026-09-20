@@ -2918,146 +2918,59 @@
     [dir="rtl"] .st-settings-row { flex-direction: row-reverse; }
     [dir="rtl"] .as-toolbar { flex-direction: row-reverse; }
 
-    /* V14: Export menu — slides up from the bottom of the viewport as an
-       action sheet. The previous "absolute, bottom: 100%, centered on parent"
-       approach broke because the parent wrapper wasn't position:relative, so
-       the popover anchored to the viewport and landed in the top-left corner
-       covering the page header. A bottom sheet is also more thumb-friendly
-       on mobile and works regardless of where the Export button sits in the
-       scrollable settings list.
-       V14.2 fix: the transform on the visible state was using translateY(0)
-       which still had the translateX(-50%) baked in — but combined with
-       left:50% that left the sheet sitting in the middle. We now use a
-       wrapper-style approach: left:0, right:0, margin:auto so the sheet
-       is naturally centered without transform, and animate only opacity +
-       a small translateY for the slide-in. */
+    /* V14: Export menu (popover) for project export options */
     .st-export-popover {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 16px;
-      margin: 0 auto;
-      transform: translateY(120%);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-bottom: 6px;
       background: var(--st-bg-panel, #161b22);
       border: 1px solid var(--st-border, #2a2a2a);
-      border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.55);
-      padding: 8px;
-      display: flex;
+      border-radius: 8px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+      padding: 6px;
+      display: none;
       flex-direction: column;
-      gap: 6px;
-      width: calc(100% - 24px);
-      max-width: 360px;
-      z-index: 500;
-      transition: transform 0.22s ease, opacity 0.22s ease;
-      opacity: 0;
-      pointer-events: none;
+      gap: 4px;
+      min-width: 220px;
+      z-index: 400;
     }
-    .st-export-popover.st-visible {
-      transform: translateY(0);
-      opacity: 1;
-      pointer-events: auto;
-    }
-    /* Backdrop so the user can tap outside to dismiss. */
-    .st-export-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 499;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.22s ease;
-    }
-    .st-export-backdrop.st-visible {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .st-export-popover .st-popover-title {
-      font-size: 11px;
-      color: var(--st-text-secondary, #888);
-      padding: 8px 8px 4px;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-      font-weight: 700;
-    }
+    .st-export-popover.st-visible { display: flex; }
     .st-export-popover button {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px 14px;
+      gap: 10px;
+      padding: 10px 12px;
       background: var(--st-bg-input, #0f0f0f);
       border: 1px solid var(--st-border, #2a2a2a);
       color: var(--st-text-primary, #e0e0e0);
-      border-radius: 8px;
-      font-size: 13px;
+      border-radius: 5px;
+      font-size: 12px;
       cursor: pointer;
       text-align: start;
-      transition: background 0.15s, transform 0.1s;
-      min-height: 56px;
-      width: 100%;
-    }
-    .st-export-popover button:hover {
-      background: var(--st-hover-bg, rgba(255,255,255,0.05));
-    }
-    .st-export-popover button:active {
-      transform: scale(0.98);
-    }
-    .st-export-popover button svg {
-      flex-shrink: 0;
-      width: 22px;
-      height: 22px;
-      color: var(--st-accent, #ff6b35);
-    }
-    .st-export-popover button .st-popover-btn-text {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
-      flex: 1;
-      min-width: 0;
-    }
-    .st-export-popover button .st-popover-btn-label {
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--st-text-primary, #e0e0e0);
-      line-height: 1.3;
-    }
-    .st-export-popover button .st-popover-btn-desc {
-      font-size: 11px;
-      color: var(--st-text-secondary, #888);
-      line-height: 1.4;
-      overflow-wrap: break-word;
-      word-break: break-word;
-    }
-    .st-export-popover .st-popover-close {
-      align-self: stretch;
-      padding: 10px;
-      background: transparent;
-      border: none;
-      color: var(--st-text-secondary, #888);
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
+      transition: background 0.15s;
       min-height: 40px;
-      border-radius: 6px;
     }
-    .st-export-popover .st-popover-close:hover {
-      background: var(--st-hover-bg, rgba(255,255,255,0.05));
+    .st-export-popover button:hover { background: var(--st-hover-bg, rgba(255,255,255,0.05)); }
+    .st-export-popover button svg { flex-shrink: 0; }
+    .st-export-popover .st-popover-title {
+      font-size: 10px;
+      color: var(--st-text-secondary, #888);
+      padding: 4px 8px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
     }
 
-    /* V14: canvas size preset segmented control + follow indicator
-       V14.1 fix: was repeat(2,1fr) which left the 7th button alone in a row
-       and looked misaligned. Switched to 3 columns so 7 buttons fill as
-       3 + 3 + 1, and the lone button gets `grid-column: 1 / -1` so it
-       spans the full row instead of hugging the left edge. */
+    /* V14: canvas size preset segmented control + follow indicator */
     .st-size-segmented {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 4px;
       margin-top: 4px;
     }
     .st-size-segmented button {
-      padding: 8px 4px;
+      padding: 8px 6px;
       background: var(--st-bg-input, #0f0f0f);
       border: 1px solid var(--st-border, #2a2a2a);
       color: var(--st-text-secondary, #888);
@@ -3066,19 +2979,7 @@
       border-radius: 5px;
       cursor: pointer;
       transition: background 0.15s, color 0.15s;
-      min-height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      line-height: 1.2;
-      word-break: break-word;
-    }
-    /* The lone 7th button spans the full row so the grid stays balanced.
-       Uses !important because the generic button rule above would otherwise
-       win on specificity for grid-column. */
-    .st-size-segmented button.st-size-full {
-      grid-column: 1 / -1 !important;
+      min-height: 32px;
     }
     .st-size-segmented button.st-active {
       background: var(--st-accent, #ff6b35);
@@ -3173,37 +3074,6 @@
   <div id="st-savingIndicator">Saving...</div>
   <input type="file" id="st-fileInputBackup" accept=".json">
   <input type="file" id="st-fileInputProject" accept=".json,.zip,.html" style="display:none">
-
-  <!-- V14.2: Export Project bottom-sheet popover + backdrop.
-       Placed at the body root so position:fixed anchors to the viewport,
-       not to a scroll container inside the Settings panel. -->
-  <div class="st-export-backdrop" id="st-exportBackdrop"></div>
-  <div class="st-export-popover" id="st-exportPopover" role="dialog" aria-modal="true">
-    <div class="st-popover-title" id="st-exportPopoverTitle">EXPORT PROJECT</div>
-    <button data-export="html" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <polyline points="9 13 12 16 15 13"/>
-      </svg>
-      <span class="st-popover-btn-text">
-        <span class="st-popover-btn-label" id="st-exportHtmlLabel">Export as HTML (single file)</span>
-        <span class="st-popover-btn-desc" id="st-exportHtmlDesc">Self-contained, runs anywhere - no side files needed</span>
-      </span>
-    </button>
-    <button data-export="zip" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 8v13H3V8"/>
-        <path d="M1 3h22v5H1z"/>
-        <path d="M10 12h4"/>
-      </svg>
-      <span class="st-popover-btn-text">
-        <span class="st-popover-btn-label" id="st-exportZipLabel">Export as ZIP package</span>
-        <span class="st-popover-btn-desc" id="st-exportZipDesc">Bundles HTML + model files - use when assets are large</span>
-      </span>
-    </button>
-    <button type="button" class="st-popover-close" id="st-exportPopoverClose">Cancel</button>
-  </div>
       </div>
       <div class="tab-panel" data-tab="console">
 <div id="cn-header">
@@ -4687,45 +4557,31 @@ ThemeManager.load();
   'use strict';
   var CONFIG = ${configJson};
   var SCENE = null, CAMERA = null, RENDERER = null, CLOCK = null;
-  var MIXERS = [];
-  // V14.5: behaviors and behaviorStates mirror the editor's runtime engine.
-  // In V14.0-V14.4 the player called behavior.update.call({}, ctx, self)
-  // which lost the per-behavior 'this' state that scripts rely on (e.g.
-  // 'self.__baseY = self.position.y' in start(), read back in update()).
-  // The new shape uses a stable behaviorSelf map (so a script can stash
-  // fields on self and see them next frame) and passes behaviorStates.get(id)
-  // as the 'this' of every lifecycle call — exactly what the editor does.
-  var BEHAVIORS = new Map();          // id -> { start, update, stop }
-  var BEHAVIOR_STATES = new Map();    // id -> {} (per-behavior 'this')
-  var BEHAVIOR_SELF = new Map();      // id -> stable live-backed wrapper
-  var RUNTIME = { isPlaying: false, time: 0, delta: 0, frame: 0, lastTimestamp: 0, maxDelta: 0.05 };
-  var MESHES = {};                    // id -> THREE.Object3D
-  var FOLLOW_TARGET_ID = null;
-  var FOLLOW_OFFSET = new THREE.Vector3(0, 4, 7);
-  var CAMERA_SCRIPT_ID = '__codehot_camera__';
+  var MIXERS = [], BEHAVIORS = [], ANIM_PLAYERS = [];
+  var RUNTIME = { isPlaying: false, time: 0, delta: 0, frame: 0 };
+  var BEHAVIOR_SELF = {};
+  var MESHES = {}; // id -> THREE.Object3D
 
   function log() { try { console.log.apply(console, arguments); } catch (e) {} }
   function warn() { try { console.warn.apply(console, arguments); } catch (e) {} }
   function err() { try { console.error.apply(console, arguments); } catch (e) {} }
 
-  // ── Scene setup: blue sky, white floor ───────────────────────────
   function makeScene() {
     SCENE = new THREE.Scene();
-    SCENE.background = new THREE.Color(0x87ceeb);
-    SCENE.fog = new THREE.Fog(0x87ceeb, 30, 120);
-    var dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    SCENE.background = new THREE.Color(0xffffff);
+    var dir = new THREE.DirectionalLight(0xffffff, 0.8);
     dir.position.set(15, 20, 15);
     dir.castShadow = true;
     dir.shadow.mapSize.width = 2048; dir.shadow.mapSize.height = 2048;
     dir.shadow.camera.left = -50; dir.shadow.camera.right = 50;
     dir.shadow.camera.top = 50; dir.shadow.camera.bottom = -50;
-    dir.shadow.camera.near = 0.5; dir.shadow.camera.far = 100;
     SCENE.add(dir);
-    SCENE.add(new THREE.AmbientLight(0xffffff, 0.55));
-    SCENE.add(new THREE.HemisphereLight(0x87ceeb, 0xffffff, 0.35));
+    SCENE.add(new THREE.AmbientLight(0xffffff, 0.5));
 
+    // Ground plane — keeps a visible floor so the user sees the ball move,
+    // but the page background stays white per the V14 spec.
     var groundGeo = new THREE.PlaneGeometry(200, 200);
-    var groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0.0 });
+    var groundMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
     var ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.5;
@@ -4759,13 +4615,11 @@ ThemeManager.load();
 
   function resize() {
     var canvas = RENDERER.domElement;
-    var w, h;
+    var w = canvas.clientWidth || canvas.parentElement.clientWidth || window.innerWidth;
+    var h = canvas.clientHeight || canvas.parentElement.clientHeight || window.innerHeight;
     if (CONFIG.settings.canvasSize === 'free' || !CONFIG.settings.canvasSize) {
       w = window.innerWidth; h = window.innerHeight;
       canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-    } else {
-      w = canvas.clientWidth || canvas.parentElement.clientWidth || window.innerWidth;
-      h = canvas.clientHeight || canvas.parentElement.clientHeight || window.innerHeight;
     }
     RENDERER.setSize(w, h, false);
     CAMERA.aspect = w / h;
@@ -4787,32 +4641,15 @@ ThemeManager.load();
     catch (e) { return new THREE.Color(0x888888); }
   }
 
-  // V14.1 spread: legacy projects placed every starter object at (0,0,0).
-  function spreadOriginObjects(objects) {
-    if (objects.length < 2) return;
-    var originCount = objects.filter(function (o) {
-      var p = o.position || { x: 0, y: 0, z: 0 };
-      return Math.abs(p.x) < 0.001 && Math.abs(p.y) < 0.001 && Math.abs(p.z) < 0.001;
-    }).length;
-    if (originCount < 2) return;
-    var radius = Math.max(2, objects.length * 0.8);
-    objects.forEach(function (o, i) {
-      var p = o.position || { x: 0, y: 0, z: 0 };
-      if (Math.abs(p.x) < 0.001 && Math.abs(p.y) < 0.001 && Math.abs(p.z) < 0.001) {
-        var angle = (i / objects.length) * Math.PI * 2;
-        o.position = { x: Math.cos(angle) * radius, y: 0, z: Math.sin(angle) * radius };
-      }
-    });
-  }
-
   function buildObjects() {
-    var objects = CONFIG.objects || [];
-    spreadOriginObjects(objects);
-    objects.forEach(function (o) {
+    (CONFIG.objects || []).forEach(function (o) {
       var mesh = null;
+      // Model instance: try to load from asset payload
       var asset = o.assetId ? (CONFIG.assets && CONFIG.assets[o.assetId]) : null;
       if (asset && asset.type === 'model' && asset.data) {
         try {
+          // Prefer GLTFLoader path inline; we ship a tiny GLB loader here so
+          // the player has zero external deps. Format = glb binary blob.
           var loader = new THREE.GLTFLoader && new THREE.GLTFLoader();
           if (!loader && window.THREE_GLTFLoader) loader = new window.THREE_GLTFLoader();
           if (loader) {
@@ -4832,6 +4669,7 @@ ThemeManager.load();
           }
         } catch (e) { warn('[CodeHot Player] model load failed:', e); }
       }
+      // Fallback to primitive geometry
       var geo = getGeometry(o.type);
       var mat = new THREE.MeshStandardMaterial({ color: colorFrom(o.color), metalness: 0.4, roughness: 0.6 });
       mesh = new THREE.Mesh(geo, mat);
@@ -4852,269 +4690,118 @@ ThemeManager.load();
     mesh.scale.set(s.x, s.y, s.z);
   }
 
-  // V14.5: live-backed object API. position/rotation/scale getters read
-  // from the live THREE mesh so changes scripts make are visible next frame.
-  // setPosition/setRotation/setScale/translate/rotate mutate the mesh
-  // directly. The wrapper is stable per id (cached in BEHAVIOR_SELF) so
-  // scripts can stash fields like 'self.__baseY = 5' in start() and read
-  // them back in update() — exactly like the editor runtime.
   function makeObjectApi(id) {
     var mesh = MESHES[id];
     if (!mesh) return null;
-    var api = {
-      id: id,
-      name: (CONFIG.objects || []).find(function (o) { return o.id === id; }) ? (CONFIG.objects || []).find(function (o) { return o.id === id; }).name : id,
-      type: (CONFIG.objects || []).find(function (o) { return o.id === id; }) ? (CONFIG.objects || []).find(function (o) { return o.id === id; }).type : 'object'
-    };
-    Object.defineProperty(api, 'position', {
-      configurable: true, enumerable: true,
-      get: function () { return mesh.position; }
-    });
-    Object.defineProperty(api, 'rotation', {
-      configurable: true, enumerable: true,
-      get: function () { return mesh.rotation; }
-    });
-    Object.defineProperty(api, 'scale', {
-      configurable: true, enumerable: true,
-      get: function () { return mesh.scale; }
-    });
-    Object.defineProperty(api, 'visible', {
-      configurable: true, enumerable: true,
-      get: function () { return mesh.visible; },
-      set: function (v) { mesh.visible = !!v; }
-    });
-    api.setPosition = function (x, y, z) { mesh.position.set(Number(x), Number(y), Number(z)); };
-    api.translate = function (x, y, z) { mesh.position.x += Number(x); mesh.position.y += Number(y); mesh.position.z += Number(z); };
-    api.setRotation = function (x, y, z) { mesh.rotation.set(THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z)); };
-    api.rotate = function (x, y, z) { mesh.rotation.x += THREE.MathUtils.degToRad(x); mesh.rotation.y += THREE.MathUtils.degToRad(y); mesh.rotation.z += THREE.MathUtils.degToRad(z); };
-    api.setScale = function (x, y, z) { mesh.scale.set(Number(x), Number(y), Number(z)); };
-    api.setVisible = function (v) { mesh.visible = !!v; };
-    return api;
-  }
-
-  function makeCameraApi() {
-    var api = { id: CAMERA_SCRIPT_ID, name: 'Camera', type: 'camera' };
-    Object.defineProperty(api, 'position', { configurable: true, enumerable: true, get: function () { return CAMERA.position; } });
-    Object.defineProperty(api, 'rotation', { configurable: true, enumerable: true, get: function () { return CAMERA.rotation; } });
-    Object.defineProperty(api, 'fov', {
-      configurable: true, enumerable: true,
-      get: function () { return CAMERA.fov; },
-      set: function (v) { CAMERA.fov = Math.max(15, Math.min(120, Number(v) || CAMERA.fov)); CAMERA.updateProjectionMatrix(); }
-    });
-    api.setPosition = function (x, y, z) { CAMERA.position.set(Number(x), Number(y), Number(z)); };
-    api.lookAt = function (x, y, z) { CAMERA.lookAt(Number(x), Number(y), Number(z)); };
-    return api;
-  }
-
-  // V14.5: stable per-behavior self. Cached in BEHAVIOR_SELF so scripts
-  // can stash state on it. Mirrors RuntimeEngine.behaviorSelfObject().
-  function behaviorSelfObject(id) {
-    if (BEHAVIOR_SELF.has(id)) return BEHAVIOR_SELF.get(id);
-    var self = (id === CAMERA_SCRIPT_ID) ? makeCameraApi() : makeObjectApi(id);
-    if (!self) return null;
-    BEHAVIOR_SELF.set(id, self);
-    return self;
-  }
-
-  // ── Script compilation: mirrors RuntimeEngine.normalizeScriptSource ─
-  function normalizeScriptSource(code) {
-    var source = String(code || '').replace(/^\\uFEFF/, '').trim();
-    if (!source) return 'return {};';
-    // 1) Canonical return-object form
-    try {
-      new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
-        '"use strict";\\n' + source);
-      return source;
-    } catch (e) {}
-    // 2) Friendly lifecycle method style
-    var methodNames = ['start', 'update', 'stop'];
-    function findTopLevelLifecycles(text) {
-      var found = [];
-      var depth = 0, quote = null, escape = false, lineComment = false, blockComment = false;
-      for (var i = 0; i < text.length; i++) {
-        var ch = text[i], nx = text[i + 1];
-        if (lineComment) { if (ch === '\\n') lineComment = false; continue; }
-        if (blockComment) { if (ch === '*' && nx === '/') { blockComment = false; i++; } continue; }
-        if (quote) {
-          if (escape) { escape = false; continue; }
-          if (ch === '\\\\') { escape = true; continue; }
-          if (ch === quote) quote = null;
-          continue;
-        }
-        if (ch === '/' && nx === '/') { lineComment = true; i++; continue; }
-        if (ch === '/' && nx === '*') { blockComment = true; i++; continue; }
-        if (ch === '"' || ch === "'" || ch === '\`') { quote = ch; continue; }
-        if (ch === '{') { depth++; continue; }
-        if (ch === '}') { depth--; continue; }
-        if (depth !== 0) continue;
-        for (var mi = 0; mi < methodNames.length; mi++) {
-          var name = methodNames[mi];
-          if (text.startsWith(name, i)) {
-            var before = i > 0 ? text[i - 1] : '';
-            var after = text[i + name.length] || '';
-            if ((before && /[A-Za-z0-9_$]/.test(before)) || (after && !/[\\s(]/.test(after))) continue;
-            var rest = text.slice(i + name.length);
-            if (/^\\s*\\([^)]*\\)\\s*\\{/.test(rest)) {
-              found.push({ index: i, name: name });
-              break;
-            }
-          }
-        }
-      }
-      return found;
-    }
-    var lifecycleMethods = findTopLevelLifecycles(source);
-    if (lifecycleMethods.length) {
-      var first = lifecycleMethods[0];
-      var prefix = source.slice(0, first.index).replace(/\\s+$/, '');
-      var lifecycleSource = source.slice(first.index).replace(/^\\s+/, '');
-      var relativeStarts = lifecycleMethods.slice(1).map(function (item) { return item.index - first.index; }).sort(function (a, b) { return b - a; });
-      relativeStarts.forEach(function (pos) {
-        lifecycleSource = lifecycleSource.slice(0, pos) + ',\\n' + lifecycleSource.slice(pos);
-      });
-      var normalized = (prefix ? prefix + '\\n\\n' : '') + 'return {\\n' + lifecycleSource + '\\n};';
-      try {
-        new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
-          '"use strict";\\n' + normalized);
-        return normalized;
-      } catch (e2) { throw e2; }
-    }
-    // 3) Function-declaration / plain executable
-    var appended = source + '\\n\\nreturn {\\n' +
-      "  start: typeof start === 'function' ? start : null,\\n" +
-      "  update: typeof update === 'function' ? update : null,\\n" +
-      "  stop: typeof stop === 'function' ? stop : null\\n" +
-      '};';
-    new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
-      '"use strict";\\n' + appended);
-    return appended;
-  }
-
-  function createScriptFactory(code) {
-    var source = normalizeScriptSource(code);
-    return new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
-      '"use strict";\\n' + source);
-  }
-
-  function normalizeBehavior(result) {
-    if (typeof result === 'function') return { start: null, update: result, stop: null };
-    if (typeof result !== 'object' || result === null) return null;
-    if (result.update && typeof result.update !== 'function') return null;
-    if (result.start && typeof result.start !== 'function') return null;
-    if (result.stop && typeof result.stop !== 'function') return null;
     return {
-      start: result.start || null,
-      update: result.update || null,
-      stop: result.stop || null
+      id: id,
+      get position() { return mesh.position; },
+      get rotation() { return mesh.rotation; },
+      get scale() { return mesh.scale; },
+      setPosition: function (x, y, z) { mesh.position.set(x, y, z); },
+      translate: function (x, y, z) { mesh.position.x += x; mesh.position.y += y; mesh.position.z += z; },
+      setRotation: function (x, y, z) { mesh.rotation.set(THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z)); },
+      rotate: function (x, y, z) { mesh.rotation.x += THREE.MathUtils.degToRad(x); mesh.rotation.y += THREE.MathUtils.degToRad(y); mesh.rotation.z += THREE.MathUtils.degToRad(z); },
+      setScale: function (x, y, z) { mesh.scale.set(x, y, z); },
+      setVisible: function (v) { mesh.visible = !!v; }
     };
   }
 
-  function makeContext() {
+  function compileScript(code) {
+    var src = String(code || '').trim();
+    if (!src) return null;
+    // Try canonical return-object form first
+    try {
+      var fn = new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
+        '"use strict";\\n' + src);
+      var obj = fn({}, {}, THREE, { delta: 0, time: 0, frame: 0 }, console, document, window.CodeHot || {});
+      if (obj && typeof obj === 'object') return obj;
+    } catch (e) {
+      // fallthrough to friendly method form
+    }
+    // Friendly method form: convert top-level start/update/stop methods into
+    // an object literal. Mirrors the V13 normalizer's behavior.
+    try {
+      var wrapped = '(function () { ' + src + '; return { start: typeof start === "function" ? start : null, update: typeof update === "function" ? update : null, stop: typeof stop === "function" ? stop : null }; })()';
+      var fn2 = new Function('runtime', 'self', 'THREE', 'ctx', 'console', 'document', 'CodeHot',
+        '"use strict";\\nreturn ' + wrapped + ';');
+      return fn2({}, {}, THREE, { delta: 0, time: 0, frame: 0 }, console, document, window.CodeHot || {});
+    } catch (e2) {
+      err('[CodeHot Player] script compile error:', e2);
+      return null;
+    }
+  }
+
+  function buildBehaviors() {
+    var ids = Object.keys(CONFIG.scripts || {});
+    ids.forEach(function (id) {
+      var code = CONFIG.scripts[id];
+      var behavior = compileScript(code);
+      if (!behavior) return;
+      var self = makeObjectApi(id);
+      if (!self) {
+        // Camera-as-self support
+        if (id === '__codehot_camera__') self = { id: '__codehot_camera__', name: 'Camera', get position() { return CAMERA.position; }, get rotation() { return CAMERA.rotation; }, setPosition: function (x, y, z) { CAMERA.position.set(x, y, z); }, lookAt: function (x, y, z) { CAMERA.lookAt(x, y, z); } };
+        else return;
+      }
+      BEHAVIOR_SELF[id] = self;
+      BEHAVIORS.push({ id: id, behavior: behavior, self: self });
+    });
+  }
+
+  function startBehaviors() {
+    BEHAVIORS.forEach(function (entry) {
+      if (entry.behavior.start) {
+        try { entry.behavior.start.call({}, makeCtx(), entry.self); }
+        catch (e) { err('[CodeHot Player] start() error for ' + entry.id + ':', e); }
+      }
+    });
+  }
+
+  function makeCtx() {
     return {
       time: RUNTIME.time,
       delta: RUNTIME.delta,
       frame: RUNTIME.frame,
       scene: SCENE,
       camera: CAMERA,
-      runtime: runtimeApi,
       THREE: THREE,
-      setCameraPosition: function (x, y, z) { CAMERA.position.set(Number(x), Number(y), Number(z)); },
-      setCameraTarget: function (x, y, z) { CAMERA.lookAt(Number(x), Number(y), Number(z)); },
-      setCameraFov: function (v) { CAMERA.fov = Math.max(15, Math.min(120, Number(v))); CAMERA.updateProjectionMatrix(); }
+      setCameraPosition: function (x, y, z) { CAMERA.position.set(x, y, z); },
+      setCameraTarget: function (x, y, z) { CAMERA.lookAt(x, y, z); },
+      setCameraFov: function (v) { CAMERA.fov = Math.max(15, Math.min(120, v)); CAMERA.updateProjectionMatrix(); }
     };
   }
 
-  // ── Lifecycle: mirrors RuntimeEngine.runLifecycle ─────────────────
-  function runLifecycle(phase) {
-    var context = makeContext();
-    BEHAVIORS.forEach(function (behavior, id) {
-      var handler = behavior[phase];
-      if (typeof handler !== 'function') return;
-      var object = behaviorSelfObject(id);
-      if (!object) return;
-      var state = BEHAVIOR_STATES.get(id) || {};
-      try {
-        handler.call(state, context, object);
-      } catch (error) {
-        err('[CodeHot Player] ' + phase + '() failed for ' + id + ':', error);
-      }
-    });
-  }
-
-  // ── Public API: window.CodeHot ────────────────────────────────────
-  var runtimeApi = {
-    isPlaying: function () { return RUNTIME.isPlaying; },
-    getTime: function () { return RUNTIME.time; },
-    getDelta: function () { return RUNTIME.delta; },
-    getFrame: function () { return RUNTIME.frame; },
-    getObject: function (id) { return (id === CAMERA_SCRIPT_ID) ? makeCameraApi() : makeObjectApi(id); },
-    getObjectByName: function (name) {
-      var found = (CONFIG.objects || []).find(function (o) { return o.name === name; });
-      return found ? makeObjectApi(found.id) : null;
-    },
-    getObjects: function () { return (CONFIG.objects || []).map(function (o) { return makeObjectApi(o.id); }); },
-    getCamera: function () { return CAMERA; },
-    setCameraPosition: function (x, y, z) { CAMERA.position.set(Number(x), Number(y), Number(z)); },
-    setCameraTarget: function (x, y, z) { CAMERA.lookAt(Number(x), Number(y), Number(z)); },
-    setCameraFov: function (v) { CAMERA.fov = Math.max(15, Math.min(120, Number(v))); CAMERA.updateProjectionMatrix(); },
-    registerBehavior: function (id, behavior) {
-      var handlers = normalizeBehavior(behavior);
-      if (!handlers) return false;
-      BEHAVIORS.set(id, handlers);
-      if (!BEHAVIOR_STATES.has(id)) BEHAVIOR_STATES.set(id, {});
-      return true;
-    },
-    unregisterBehavior: function (id) { return BEHAVIORS.delete(id); },
-    hasBehavior: function (id) { return BEHAVIORS.has(id); }
-  };
-  window.CodeHot = runtimeApi;
+  // Follow-cam: when an object has been "focused" (auto-detected from scripts
+  // that mention self.position, or set via CodeHot.focus()), the camera trails
+  // behind it at a fixed offset. This mirrors the editor's V14 follow-cam.
+  var FOLLOW_TARGET_ID = null;
+  var FOLLOW_OFFSET = new THREE.Vector3(0, 4, 7);
+  window.CodeHot = window.CodeHot || {};
   window.CodeHot.focus = function (id) { FOLLOW_TARGET_ID = id; };
+  window.CodeHot.getObject = function (id) { return makeObjectApi(id); };
+  window.CodeHot.getObjectByName = function (name) {
+    var found = (CONFIG.objects || []).find(function (o) { return o.name === name; });
+    return found ? makeObjectApi(found.id) : null;
+  };
+  window.CodeHot.getRuntimeState = function () { return { isPlaying: RUNTIME.isPlaying }; };
+  window.CodeHot.isPaused = function () { return false; };
+  // V14 debug helper: expose internal state so the user (and tests) can verify
+  // the player actually built the scene and armed behaviors.
   window.CodeHotPlayer = {
     config: CONFIG,
     meshCount: function () { return Object.keys(MESHES).length; },
     meshIds: function () { return Object.keys(MESHES); },
     meshInfo: function (id) { var m = MESHES[id]; if (!m) return null; return { id: id, position: { x: m.position.x, y: m.position.y, z: m.position.z }, rotation: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z }, visible: m.visible }; },
-    behaviorCount: function () { return BEHAVIORS.size; },
-    behaviorIds: function () { return Array.from(BEHAVIORS.keys()); },
+    behaviorCount: function () { return BEHAVIORS.length; },
     runtime: function () { return { time: RUNTIME.time, delta: RUNTIME.delta, frame: RUNTIME.frame, isPlaying: RUNTIME.isPlaying }; },
     followTargetId: function () { return FOLLOW_TARGET_ID; }
   };
 
-  function buildBehaviors() {
-    var ids = Object.keys(CONFIG.scripts || {});
-    ids.forEach(function (id) {
-      var code = CONFIG.scripts[id];
-      if (!code || !String(code).trim()) return;
-      // Validate the object exists (or it's the camera)
-      if (id !== CAMERA_SCRIPT_ID && !MESHES[id]) return;
-      try {
-        var factory = createScriptFactory(code);
-        var self = behaviorSelfObject(id);
-        if (!self) return;
-        var codeHot = {
-          runtime: runtimeApi,
-          document: document,
-          getObject: runtimeApi.getObject,
-          getObjectByName: runtimeApi.getObjectByName,
-          getObjects: runtimeApi.getObjects
-        };
-        var result = factory(runtimeApi, self, THREE, makeContext(), console, document, codeHot);
-        if (result == null) return;
-        var handlers = normalizeBehavior(result);
-        if (!handlers) {
-          err('[CodeHot Player] script for ' + id + ' did not return a behavior object');
-          return;
-        }
-        BEHAVIORS.set(id, handlers);
-        BEHAVIOR_STATES.set(id, {});
-      } catch (e) {
-        err('[CodeHot Player] compile/instantiate failed for ' + id + ':', e);
-      }
-    });
-  }
-
   function autoEnableFollowCam() {
     if (!CONFIG.settings.followCamOnFocus) return;
+    // If any object has a script that mutates position, treat it as the
+    // player avatar and focus the camera on it.
     var keys = Object.keys(CONFIG.scripts || {});
     for (var i = 0; i < keys.length; i++) {
       var code = CONFIG.scripts[keys[i]] || '';
@@ -5128,49 +4815,33 @@ ThemeManager.load();
   function updateFollowCam() {
     if (!FOLLOW_TARGET_ID) return;
     var mesh = MESHES[FOLLOW_TARGET_ID];
-    if (!mesh) { FOLLOW_TARGET_ID = null; return; }
+    if (!mesh) return;
     var target = mesh.position;
     var desired = target.clone().add(FOLLOW_OFFSET);
     CAMERA.position.lerp(desired, 0.12);
     CAMERA.lookAt(target);
   }
 
-  // V14.5: real update loop mirroring RuntimeEngine.update(timestamp).
-  // delta is computed from the rAF timestamp, clamped to maxDelta=0.05,
-  // and behaviors get the SAME 'this' state object they had during start().
-  function update(timestamp) {
-    if (!RUNTIME.isPlaying) return;
-    if (!RUNTIME.lastTimestamp) RUNTIME.lastTimestamp = timestamp;
-    var delta = (timestamp - RUNTIME.lastTimestamp) / 1000;
-    RUNTIME.lastTimestamp = timestamp;
-    delta = Math.max(0, Math.min(RUNTIME.maxDelta, delta));
-    RUNTIME.delta = delta;
-    RUNTIME.time += delta;
-    RUNTIME.frame++;
-
-    var context = makeContext();
-    BEHAVIORS.forEach(function (behavior, id) {
-      if (typeof behavior.update !== 'function') return;
-      var object = behaviorSelfObject(id);
-      if (!object) return;
-      var state = BEHAVIOR_STATES.get(id) || {};
-      try {
-        behavior.update.call(state, context, object);
-      } catch (error) {
-        err('[CodeHot Player] update() failed for ' + id + ':', error);
-        BEHAVIORS.delete(id);
-      }
-    });
-  }
-
-  function tick(timestamp) {
+  function tick() {
     if (!RENDERER || !CAMERA || !SCENE) return;
     requestAnimationFrame(tick);
-    if (CLOCK) {
-      var dt = CLOCK.getDelta();
-      for (var i = 0; i < MIXERS.length; i++) MIXERS[i].update(Math.min(dt, 0.05));
-    }
-    update(timestamp || performance.now());
+    var dt = CLOCK.getDelta();
+    RUNTIME.delta = Math.min(dt, 0.05);
+    RUNTIME.time += RUNTIME.delta;
+    RUNTIME.frame++;
+
+    // Animation mixers (GLB clips)
+    for (var i = 0; i < MIXERS.length; i++) MIXERS[i].update(RUNTIME.delta);
+
+    // Behavior updates
+    var ctx = makeCtx();
+    BEHAVIORS.forEach(function (entry) {
+      if (entry.behavior.update) {
+        try { entry.behavior.update.call({}, ctx, entry.self); }
+        catch (e) { err('[CodeHot Player] update() error for ' + entry.id + ':', e); }
+      }
+    });
+
     updateFollowCam();
     RENDERER.render(SCENE, CAMERA);
   }
@@ -5184,8 +4855,7 @@ ThemeManager.load();
     buildBehaviors();
     autoEnableFollowCam();
     RUNTIME.isPlaying = true;
-    RUNTIME.lastTimestamp = 0;
-    runLifecycle('start');
+    startBehaviors();
     tick();
     document.dispatchEvent(new CustomEvent('codehot:ready'));
   }
@@ -5207,7 +4877,7 @@ ThemeManager.load();
                 '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">\n' +
                 '<title>' + ((bundle.settings && bundle.settings.projectName) || 'CodeHot Project') + '</title>\n' +
                 '<style>\n' +
-                'html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #87ceeb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }\n' +
+                'html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }\n' +
                 '#codehot-canvas { display: block; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); ' + canvasStyle + ' }\n' +
                 '</style>\n' +
                 '</head>\n' +
@@ -5796,7 +5466,26 @@ ThemeManager.load();
           </div>
           <div class="st-button-row">
             <button class="st-settings-button" id="st-newProjectBtn">${t('newProject')}</button>
-            <button class="st-settings-button" id="st-exportProjectBtn">${t('exportProject')}</button>
+            <div style="position:relative;">
+              <button class="st-settings-button st-primary" id="st-exportProjectBtn">${t('exportProject')}</button>
+              <div class="st-export-popover" id="st-exportPopover">
+                <div class="st-popover-title">${t('exportProjectDesc')}</div>
+                <button data-export="html" title="${t('exportHtmlDesc')}">
+                  <svg class="st-svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 13 12 16 15 13"/></svg>
+                  <span style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
+                    <span style="font-weight:600;">${t('exportHtml')}</span>
+                    <span style="font-size:10px;color:#888;">${t('exportHtmlDesc')}</span>
+                  </span>
+                </button>
+                <button data-export="zip" title="${t('exportZipDesc')}">
+                  <svg class="st-svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                  <span style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
+                    <span style="font-weight:600;">${t('exportZip')}</span>
+                    <span style="font-size:10px;color:#888;">${t('exportZipDesc')}</span>
+                  </span>
+                </button>
+              </div>
+            </div>
             <button class="st-settings-button" id="st-importProjectBtn">${t('importProjectFile')}</button>
             <span class="st-setting-hint">${t('importProjectDesc')}</span>
             <button class="st-settings-button st-danger" id="st-clearProjectBtn">${t('clearProjectData')}</button>
@@ -5811,7 +5500,7 @@ ThemeManager.load();
               <button data-value="16_9" class="${SETTINGS_STATE.exportCanvasSize === '16_9' ? 'st-active' : ''}">${t('size_16_9')}</button>
               <button data-value="19_6_h" class="${SETTINGS_STATE.exportCanvasSize === '19_6_h' ? 'st-active' : ''}">${t('size_19_6_H')}</button>
               <button data-value="19_6_v" class="${SETTINGS_STATE.exportCanvasSize === '19_6_v' ? 'st-active' : ''}">${t('size_19_6_V')}</button>
-              <button data-value="1_1" class="st-size-full ${SETTINGS_STATE.exportCanvasSize === '1_1' ? 'st-active' : ''}">${t('size_1_1')}</button>
+              <button data-value="1_1" class="${SETTINGS_STATE.exportCanvasSize === '1_1' ? 'st-active' : ''}">${t('size_1_1')}</button>
             </div>
           </div>
           <div class="st-setting-row" style="margin-top:8px;">
@@ -6008,68 +5697,30 @@ ThemeManager.load();
         // V14: Export Project popover + Import Project (replaces the disabled
         // "Open Project" button from V13). Export is a popover with two options;
         // Import accepts .html/.zip/.json and routes through SettingsManager.
-        // V14.2: Export Project now opens a bottom-sheet action sheet
-        // (popover + backdrop) instead of a tiny inline popover that broke
-        // out of its scroll container. The sheet is rendered at the body
-        // root, so position:fixed always anchors to the viewport. Labels
-        // are localized at render time below.
         const exportProjectBtn = document.getElementById('st-exportProjectBtn');
         const exportPopover = document.getElementById('st-exportPopover');
-        const exportBackdrop = document.getElementById('st-exportBackdrop');
-        const exportPopoverClose = document.getElementById('st-exportPopoverClose');
-        const exportHtmlLabel = document.getElementById('st-exportHtmlLabel');
-        const exportHtmlDesc = document.getElementById('st-exportHtmlDesc');
-        const exportZipLabel = document.getElementById('st-exportZipLabel');
-        const exportZipDesc = document.getElementById('st-exportZipDesc');
-        const exportPopoverTitle = document.getElementById('st-exportPopoverTitle');
-        // Localize labels at render time. Each render() call re-runs this
-        // attachListeners() pass, so language switches refresh the sheet too.
-        if (exportHtmlLabel) exportHtmlLabel.textContent = this.t('exportHtml');
-        if (exportHtmlDesc) exportHtmlDesc.textContent = this.t('exportHtmlDesc');
-        if (exportZipLabel) exportZipLabel.textContent = this.t('exportZip');
-        if (exportZipDesc) exportZipDesc.textContent = this.t('exportZipDesc');
-        if (exportPopoverTitle) exportPopoverTitle.textContent = String(this.t('exportProjectDesc') || 'EXPORT PROJECT').toUpperCase();
-        if (exportPopoverClose) exportPopoverClose.textContent = this.t('cancel') || 'Cancel';
-
         if (exportProjectBtn && exportPopover) {
-          const openSheet = () => {
-            exportPopover.classList.add('st-visible');
-            if (exportBackdrop) exportBackdrop.classList.add('st-visible');
-            document.body.style.overflow = 'hidden';
-          };
-          const closeSheet = () => {
-            exportPopover.classList.remove('st-visible');
-            if (exportBackdrop) exportBackdrop.classList.remove('st-visible');
-            document.body.style.overflow = '';
-          };
-          exportProjectBtn.removeEventListener('click', openSheet);
           exportProjectBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (exportPopover.classList.contains('st-visible')) closeSheet();
-            else openSheet();
+            exportPopover.classList.toggle('st-visible');
           });
           exportPopover.querySelectorAll('button[data-export]').forEach(btn => {
             btn.addEventListener('click', () => {
-              closeSheet();
+              exportPopover.classList.remove('st-visible');
               const kind = btn.dataset.export;
-              // Defer the actual export one frame so the sheet animation
-              // finishes first — otherwise the file-download dialog can
-              // fight with the sheet's transform transition on some browsers.
-              setTimeout(() => {
-                try {
-                  if (kind === 'html') SettingsManager.exportProjectHTML();
-                  else if (kind === 'zip') SettingsManager.exportProjectZIP();
-                } catch (err) {
-                  SettingsUIManager.showToast(SettingsUIManager.t('exportFailed') + (err && err.message ? err.message : String(err)));
-                }
-              }, 240);
+              try {
+                if (kind === 'html') SettingsManager.exportProjectHTML();
+                else if (kind === 'zip') SettingsManager.exportProjectZIP();
+              } catch (err) {
+                SettingsUIManager.showToast(SettingsUIManager.t('exportFailed') + (err && err.message ? err.message : String(err)));
+              }
             });
           });
-          if (exportPopoverClose) exportPopoverClose.addEventListener('click', closeSheet);
-          if (exportBackdrop) exportBackdrop.addEventListener('click', closeSheet);
-          // Escape key dismisses the sheet.
-          document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && exportPopover.classList.contains('st-visible')) closeSheet();
+          // Click-outside dismiss
+          document.addEventListener('click', (e) => {
+            if (!exportPopover.contains(e.target) && e.target !== exportProjectBtn) {
+              exportPopover.classList.remove('st-visible');
+            }
           });
         }
 
@@ -7621,14 +7272,7 @@ ThemeManager.load();
       }
 
       setupScene() {
-        // V14.5: editor scene now has a soft daytime blue sky (#87ceeb)
-        // instead of the near-black background. The user explicitly asked:
-        // "تو حالت عادی کدهات یک پس‌زمینه‌ی آسمون باید داشته باشه. چون الان
-        // پس‌زمینه‌اش سیاهه بک‌گراند و اصلاً دیده نمیشه". The floor (grid +
-        // ground plane below) stays dark so the user can still see the
-        // checkerboard pattern they're used to.
-        this.scene.background = new THREE.Color(0x87ceeb);
-        this.scene.fog = new THREE.Fog(0x87ceeb, 40, 140);
+        this.scene.background = new THREE.Color(0x0f0f0f);
 
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(15, 20, 15);
@@ -7645,11 +7289,6 @@ ThemeManager.load();
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambientLight);
-
-        // V14.5: subtle hemisphere light to tint the editor scene's sky/ground
-        // so the blue background feels grounded instead of flat.
-        const hemi = new THREE.HemisphereLight(0x87ceeb, 0x0a0a0a, 0.35);
-        this.scene.add(hemi);
 
         const gridHelper = new THREE.GridHelper(CONFIG.GRID_SIZE, CONFIG.GRID_SIZE, 0x2a2a2a, 0x1a1a1a);
         gridHelper.position.y = -0.01;
@@ -7704,25 +7343,19 @@ ThemeManager.load();
       }
 
       createStarterObjects() {
-        // V14.1 fix: previously every starter object was placed at (0,0,0)
-        // and they all stacked on top of each other — invisible in the
-        // exported build. Spread them in a small arc so the user sees all
-        // four primitives the moment they open the project, and so the
-        // exported HTML shows actual content instead of one overlapping
-        // blob in the center.
         const starter = [
-          { type: 'cube',     name: 'Cube',     color: COLORS.BLUE,   position: { x: -2.5, y: 0, z:  0   } },
-          { type: 'sphere',   name: 'Sphere',   color: COLORS.RED,    position: { x:  0,   y: 0, z:  2.5 } },
-          { type: 'cylinder', name: 'Cylinder', color: COLORS.GREEN,  position: { x:  2.5, y: 0, z:  0   } },
-          { type: 'cone',     name: 'Cone',     color: COLORS.ORANGE, position: { x:  0,   y: 0, z: -2.5 } }
+          { type: 'cube', name: 'Cube', color: COLORS.BLUE },
+          { type: 'sphere', name: 'Sphere', color: COLORS.RED },
+          { type: 'cylinder', name: 'Cylinder', color: COLORS.GREEN },
+          { type: 'cone', name: 'Cone', color: COLORS.ORANGE }
         ];
 
         starter.forEach((obj, idx) => {
-          this.addObject(obj.type, obj.color, obj.position);
+          this.addObject(obj.type, obj.color);
         });
       }
 
-      addObject(type, color, position) {
+      addObject(type, color) {
         if (this.initialized) {
           this.pushUndoState();
         }
@@ -7756,20 +7389,13 @@ ThemeManager.load();
           color: resolvedColor
         };
 
-        // V14.1: accept an optional initial position. Default to (0,0,0) for
-        // backward compatibility (every caller that doesn't pass one).
-        const initialPos = (position && typeof position === 'object')
-          ? { x: Number(position.x) || 0, y: Number(position.y) || 0, z: Number(position.z) || 0 }
-          : { x: 0, y: 0, z: 0 };
-        mesh.position.set(initialPos.x, initialPos.y, initialPos.z);
-
         this.scene.add(mesh);
 
         const objectData = {
           id: id,
           name: mesh.userData.name,
           type: type,
-          position: initialPos,
+          position: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0 },
           scale: { x: 1, y: 1, z: 1 },
           color: '#' + resolvedColor.toString(16).padStart(6, '0'),
@@ -8972,13 +8598,7 @@ ThemeManager.load();
       // null (no-op).
       updateFollowCam() {
         if (!this._followTargetId) return;
-        // V14.5: follow-cam is now ALSO active during Play mode, not just
-        // in the editor. The user explicitly asked: "وقتی play می‌کنیم، باز
-        // هم باید دوربینمون دنبال object باشه، نه دوربین برگرده به بالا
-        // و به جای اصلیش". Previously the editor's follow-cam returned early
-        // when RUNTIME_STATE.isPlaying was true, so the camera snapped back
-        // to (10,8,10) the moment Play started. Now we keep trailing the
-        // target object whether we're editing or playing.
+        if (RUNTIME_STATE.isPlaying) return; // Play mode has its own camera control
         const mesh = this.scene.children.find(c => c.userData && c.userData.id === this._followTargetId);
         if (!mesh) { this.clearFollowTarget(); return; }
         const target = mesh.position;
