@@ -1357,53 +1357,30 @@
       height: 15%;
       background: #161b22;
       border-top: 1px solid #2a2a2a;
-      padding: 12px 16px;
+      padding: 12px;
       overflow-y: auto;
       font-size: 12px;
       font-family: 'Courier New', monospace;
-      line-height: 1.7;
+      line-height: 1.6;
     }
 
     .sc-footer-row {
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       display: flex;
-      gap: 8px;
-      align-items: center;
+      gap: 4px;
     }
 
-    /* V14.9: footer labels — fixed width, right-aligned so the colons line
-       up vertically across all rows. Previously the labels had different
-       widths (Selected/Position/Rotation/Scale) which made the colons jump
-       around and the panel looked messy. */
     .sc-footer-label {
       color: #888;
-      min-width: 72px;
-      text-align: right;
-    }
-
-    /* V14.9: small uppercase axis tag (X/Y/Z) before each editable value.
-       Used to be a separate .sc-footer-label with the same min-width as
-       "Position" which broke alignment. Now it's a compact pill that sits
-       next to the value without claiming label-width. */
-    .sc-footer-axis {
-      color: #666;
-      font-size: 10px;
-      font-weight: 700;
-      min-width: 14px;
-      text-align: center;
-      background: rgba(255,255,255,0.04);
-      border-radius: 3px;
-      padding: 1px 4px;
+      min-width: 60px;
     }
 
     .sc-footer-value {
       color: #4a9eff;
       cursor: pointer;
-      padding: 2px 6px;
-      border-radius: 3px;
+      padding: 2px 4px;
+      border-radius: 2px;
       transition: background 0.2s;
-      min-width: 48px;
-      display: inline-block;
     }
 
     .sc-footer-value:hover {
@@ -3333,24 +3310,28 @@
 
   <div id="sc-footer">
     <div class="sc-footer-row">
-      <span class="sc-footer-label">Selected</span>
-      <span id="sc-selectedName" class="sc-footer-value" style="cursor:default;min-width:0;color:#e0e0e0;">None</span>
+      <span class="sc-footer-label">Selected:</span>
+      <span id="sc-selectedName">None</span>
     </div>
     <div class="sc-footer-row">
-      <span class="sc-footer-label">Position</span>
-      <span class="sc-footer-axis">X</span><span id="sc-positionX" class="sc-footer-value">0.00</span>
-      <span class="sc-footer-axis">Y</span><span id="sc-positionY" class="sc-footer-value">0.00</span>
-      <span class="sc-footer-axis">Z</span><span id="sc-positionZ" class="sc-footer-value">0.00</span>
+      <span class="sc-footer-label">Position:</span>
+      <span id="sc-positionX" class="sc-footer-value">0.00</span>
+      <span class="sc-footer-label">Y:</span>
+      <span id="sc-positionY" class="sc-footer-value">0.00</span>
+      <span class="sc-footer-label">Z:</span>
+      <span id="sc-positionZ" class="sc-footer-value">0.00</span>
     </div>
     <div class="sc-footer-row">
-      <span class="sc-footer-label">Rotation</span>
-      <span class="sc-footer-axis">X</span><span id="sc-rotationX" class="sc-footer-value">0°</span>
-      <span class="sc-footer-axis">Y</span><span id="sc-rotationY" class="sc-footer-value">0°</span>
-      <span class="sc-footer-axis">Z</span><span id="sc-rotationZ" class="sc-footer-value">0°</span>
+      <span class="sc-footer-label">Rotation:</span>
+      <span id="sc-rotationX" class="sc-footer-value">0°</span>
+      <span class="sc-footer-label">Y:</span>
+      <span id="sc-rotationY" class="sc-footer-value">0°</span>
+      <span class="sc-footer-label">Z:</span>
+      <span id="sc-rotationZ" class="sc-footer-value">0°</span>
     </div>
     <div class="sc-footer-row">
-      <span class="sc-footer-label">Scale</span>
-      <span class="sc-footer-axis">&nbsp;</span><span id="sc-scaleVal" class="sc-footer-value">1.00</span>
+      <span class="sc-footer-label">Scale:</span>
+      <span id="sc-scaleVal" class="sc-footer-value">1.00</span>
     </div>
 
     <div id="sc-cameraPanel" class="sc-camera-panel">
@@ -4765,7 +4746,9 @@ ThemeManager.load();
     // Dark ground plane — V14.7: matches grid size (40x40) exactly so the
     // blue sky starts right at the grid's edge instead of beyond a huge
     // dark plane. Shadows still work because the plane sits under the grid.
-    var groundGeo = new THREE.PlaneGeometry(40, 40);
+    // V14.9: ground is larger than grid (48x48 vs 40x40) so grid lines
+    // don't float in the sky. See editor's setupScene() for details.
+    var groundGeo = new THREE.PlaneGeometry(48, 48);
     var groundMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 1.0, metalness: 0.0 });
     var ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
@@ -7711,12 +7694,13 @@ ThemeManager.load();
         gridHelper.position.y = -0.01;
         this.scene.add(gridHelper);
 
-        // V14.7: ground plane now matches grid size (CONFIG.GRID_SIZE) so the
-        // blue sky starts right at the grid's edge. Previously this was a
-        // 200x200 plane which filled the entire horizon with dark ground and
-        // the sky only appeared far in the distance. Now the transition from
-        // grid to sky happens at the grid boundary — cleaner and more natural.
-        const groundGeometry = new THREE.PlaneGeometry(CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+        // V14.9 fix: ground plane is now larger than the grid so the
+        // outermost grid squares sit ON the dark floor instead of floating
+        // in the blue sky. GridHelper(40,40) draws lines slightly past its
+        // declared size, and the user reported several rows of grid squares
+        // were hanging in the air. 8 units of margin (4 cells each side)
+        // covers the overshoot with room to spare.
+        const groundGeometry = new THREE.PlaneGeometry(CONFIG.GRID_SIZE + 8, CONFIG.GRID_SIZE + 8);
         const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x0a0a0a });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
