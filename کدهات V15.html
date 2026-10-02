@@ -15376,34 +15376,47 @@ Rules:
           return 'start(ctx, self) { if (typeof self.__chTimer === "undefined") self.__chTimer = 0; }\nupdate(ctx, self) {\n  if (typeof self.__chTimer === "undefined") self.__chTimer = 0;\n  self.__chTimer += (ctx.delta || 0.016);\n  if (self.__chTimer >= ' + s + ') { self.__chTimer = 0; self.rotation.y += THREE.MathUtils.degToRad(' + d + '); }\n}\nstop(ctx, self) { self.__chTimer = 0; }';
         },
         jumpOnKey(key) {
-          const code = key || 'Space';
-          return 'start(ctx, self) {\n  self.__jumpOriginY = self.position.y;\n  self.__jumpVy = 0;\n  self.__jumpFn = function (e) {\n    if (e.code === "' + code + '" && !e.repeat && self.position.y <= self.__jumpOriginY + 0.05) { self.__jumpVy = 8; }\n  };\n  document.addEventListener("keydown", self.__jumpFn);\n}\nupdate(ctx, self) {\n  if (typeof self.__jumpVy === "undefined") return;\n  if (self.__jumpVy !== 0) {\n    self.position.y += self.__jumpVy * (ctx.delta || 0.016);\n    self.__jumpVy -= 22 * (ctx.delta || 0.016);\n    if (self.position.y <= self.__jumpOriginY) { self.position.y = self.__jumpOriginY; self.__jumpVy = 0; }\n  }\n}\nstop(ctx, self) {\n  if (self.__jumpFn) { document.removeEventListener("keydown", self.__jumpFn); self.__jumpFn = null; }\n  if (typeof self.__jumpOriginY === "number") self.position.y = self.__jumpOriginY;\n}';
+          // V15: now uses mo markers instead of document.keydown.
+          // Extract a button name from the key param: if the user said
+          // "up", "down", "left", "right", "space", "jump" etc., use that
+          // as the mo marker name. Default to "jump" if nothing matches.
+          var buttonName = 'jump';
+          if (key) {
+            var k = String(key).toLowerCase().replace('key', '').replace('arrow', '');
+            if (k === 'up' || k === 'down' || k === 'left' || k === 'right' ||
+                k === 'space' || k === 'jump' || k === 'action' || k === 'fire' ||
+                k === 'enter' || k === 'shift' || k === 'w' || k === 'a' ||
+                k === 's' || k === 'd') {
+              buttonName = (k === 'space') ? 'jump' : k;
+            }
+          }
+          return 'start(ctx, self) {\n  self.__jumpOriginY = self.position.y;\n  self.__jumpVy = 0;\n}\nupdate(ctx, self) {\n  if (typeof self.__jumpVy === "undefined") return;\n  if (mo.' + buttonName + ' && self.__jumpVy === 0 && self.position.y <= self.__jumpOriginY + 0.05) {\n    self.__jumpVy = 8;\n  }\n  if (self.__jumpVy !== 0) {\n    self.position.y += self.__jumpVy * (ctx.delta || 0.016);\n    self.__jumpVy -= 22 * (ctx.delta || 0.016);\n    if (self.position.y <= self.__jumpOriginY) { self.position.y = self.__jumpOriginY; self.__jumpVy = 0; }\n  }\n}\nstop(ctx, self) {\n  if (typeof self.__jumpOriginY === "number") self.position.y = self.__jumpOriginY;\n}';
         },
         animateOnPlay(animName) {
           const n = escapeStr(animName);
           return 'start(ctx, self) { self.animation.play("' + n + '"); }\nupdate(ctx, self) {}\nstop(ctx, self) { try { self.animation.stop(); } catch (e) {} }';
         },
         // ── V13 physics generators (BUG-002) ─────────────────────────
-        // Deterministic, self-contained scripts over the documented runtime
-        // API (self.position / ctx.delta / document keydown). Ground = the
-        // object's Y at script start (its editor placement), so any scene
-        // layout works. All motion uses (ctx.delta || 0.016) like the other
-        // generators, so behaviors still advance when frame time is absent.
+        // V15: all generators now use mo markers instead of document.keydown.
+        // mo.joystick.x/y for movement, mo.jump for jumping. This way CodeHot
+        // UI can auto-detect the markers and wire touch UI + keyboard to them.
+        // Ground = the object's Y at script start (its editor placement).
         gravityOn() {
           return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  if (!self.__ph.onGround || p.y > self.__ph.groundY + 0.001) {\n    self.__ph.vy -= 22 * d;\n    p.y += self.__ph.vy * d;\n    if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n  }\n}\nstop(ctx, self) {}';
         },
         jumpOnKeyPhysics(key) {
-          const code = key || 'Space';
-          return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  self.__ph.jumpFn = function (e) {\n    if (e.code === "' + code + '" && !e.repeat && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n  };\n  document.addEventListener("keydown", self.__ph.jumpFn);\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  self.__ph.vy -= 22 * d;\n  p.y += self.__ph.vy * d;\n  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n}\nstop(ctx, self) {\n  if (self.__ph && self.__ph.jumpFn) { document.removeEventListener("keydown", self.__ph.jumpFn); self.__ph.jumpFn = null; }\n}';
+          // V15: uses mo.jump instead of document.keydown
+          return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  if (mo.jump && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n  self.__ph.vy -= 22 * d;\n  p.y += self.__ph.vy * d;\n  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n}\nstop(ctx, self) {}';
         },
         platformerMove(speed, jumpKey) {
+          // V15: uses mo.joystick for movement + mo.jump for jumping
           const v = Number(speed) || 4;
-          const jk = jumpKey || 'Space';
-          return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true, keys: {} };\n  self.__ph.kd = function (e) { self.__ph.keys[e.code] = true; };\n  self.__ph.ku = function (e) { self.__ph.keys[e.code] = false; };\n  document.addEventListener("keydown", self.__ph.kd);\n  document.addEventListener("keyup", self.__ph.ku);\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true, keys: {} };\n  var k = self.__ph.keys || {};\n  var p = self.position;\n  if (k.ArrowLeft || k.KeyA) p.x -= ' + v + ' * d;\n  if (k.ArrowRight || k.KeyD) p.x += ' + v + ' * d;\n  if (k.ArrowUp || k.KeyW) p.z -= ' + v + ' * d;\n  if (k.ArrowDown || k.KeyS) p.z += ' + v + ' * d;\n  if (k.' + jk + ' && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n  self.__ph.vy -= 22 * d;\n  p.y += self.__ph.vy * d;\n  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n}\nstop(ctx, self) {\n  if (self.__ph) {\n    if (self.__ph.kd) document.removeEventListener("keydown", self.__ph.kd);\n    if (self.__ph.ku) document.removeEventListener("keyup", self.__ph.ku);\n  }\n}';
+          return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  p.x += mo.joystick.x * ' + v + ' * d;\n  p.z += mo.joystick.y * ' + v + ' * d;\n  if (mo.jump && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n  self.__ph.vy -= 22 * d;\n  p.y += self.__ph.vy * d;\n  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n}\nstop(ctx, self) {}';
         },
         moveOnKeys(speed) {
+          // V15: uses mo.joystick instead of keyboard
           const v = Number(speed) || 4;
-          return 'start(ctx, self) {\n  self.__mk = {};\n  self.__kd = function (e) { self.__mk[e.code] = true; };\n  self.__ku = function (e) { self.__mk[e.code] = false; };\n  document.addEventListener("keydown", self.__kd);\n  document.addEventListener("keyup", self.__ku);\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  var k = self.__mk || {};\n  if (k.ArrowLeft || k.KeyA) self.translate(-' + v + ' * d, 0, 0);\n  if (k.ArrowRight || k.KeyD) self.translate(' + v + ' * d, 0, 0);\n  if (k.ArrowUp || k.KeyW) self.translate(0, 0, -' + v + ' * d);\n  if (k.ArrowDown || k.KeyS) self.translate(0, 0, ' + v + ' * d);\n}\nstop(ctx, self) {\n  if (self.__kd) document.removeEventListener("keydown", self.__kd);\n  if (self.__ku) document.removeEventListener("keyup", self.__ku);\n}';
+          return 'start(ctx, self) {}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.position.x += mo.joystick.x * ' + v + ' * d;\n  self.position.z += mo.joystick.y * ' + v + ' * d;\n}\nstop(ctx, self) {}';
         }
       };
 
@@ -15688,8 +15701,22 @@ Rules:
             return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'key-move' };
           }
           // Jump
-          if (hasAny(t, ['بپره', 'بپرد', 'پرش', 'jump']) && hasAny(t, ['وقتی', 'when', 'کلید', 'key', 'space', 'فاصله'])) {
-            const code = BehaviorScripts.jumpOnKey('Space');
+          // V15: also detect "دکمه X" (button X) patterns where X is the
+          // button name. Extract the button name and pass it to jumpOnKey
+          // so the generated script uses mo.<buttonName>.
+          if (hasAny(t, ['بپره', 'بپرد', 'پرش', 'jump']) && hasAny(t, ['وقتی', 'when', 'کلید', 'key', 'space', 'فاصله', 'دکمه'])) {
+            // Try to extract button name from "دکمه X" or "button X"
+            var btnMatch = raw.match(/(?:دکمه|button|key)\s+([a-zA-Zا-ي]+)/i);
+            var btnName = btnMatch ? btnMatch[1] : 'Space';
+            const code = BehaviorScripts.jumpOnKey(btnName);
+            return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'jump' };
+          }
+          // V15: also detect "دکمه X زده شد بره بالا" (button X pressed → go up)
+          // without requiring "بپره"/"jump" keywords
+          if (hasAny(t, ['دکمه', 'button']) && hasAny(t, ['بالا', 'up', 'بره بالا'])) {
+            var btnMatch2 = raw.match(/(?:دکمه|button)\s+([a-zA-Zا-ي]+)/i);
+            var btnName2 = btnMatch2 ? btnMatch2[1] : 'up';
+            const code = BehaviorScripts.jumpOnKey(btnName2);
             return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'jump' };
           }
           // Rotate every N seconds
