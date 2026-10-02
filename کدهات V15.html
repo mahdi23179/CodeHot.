@@ -11494,38 +11494,80 @@ proactively when relevant, don't wait to be asked.
 CodeHot UI is a separate companion app that builds the game's user interface
 (joysticks, buttons, menus) and connects them to your scripts via "mo" markers.
 
-When the user asks for controls ("add a joystick", "make the player move with
-buttons", "I want a jump button", "add touch controls"), use these markers in
-your script so CodeHot UI can auto-detect them and wire UI elements to them:
+CRITICAL: When the user asks for ANY kind of control (button, joystick,
+keyboard, touch), you MUST use mo markers. NEVER use document.keydown,
+document.addEventListener, ctx.input, or any other keyboard/input API.
+ALWAYS use mo markers. This is non-negotiable.
 
+The mo object is globally available as window.mo. It contains:
   mo.joystick.x   - horizontal axis of the joystick (-1..1, left..right)
   mo.joystick.y   - vertical axis of the joystick (-1..1, up..down)
   mo.joystick.active - true while the joystick is being touched
   mo.<buttonName> - boolean, true while a button named <buttonName> is pressed
 
-Common button names: mo.jump, mo.action, mo.fire, mo.interact, mo.dash,
-mo.attack, mo.shield. Pick the most descriptive name; the user can rename
-buttons in CodeHot UI later.
+Button naming rules:
+- Use lowercase English names: mo.up, mo.down, mo.left, mo.right
+- Common names: mo.jump, mo.action, mo.fire, mo.interact, mo.dash, mo.attack
+- If the user says "دکمه up" → use mo.up
+- If the user says "دکمه چپ" → use mo.left
+- If the user says "دکمه پرش" → use mo.jump
+- If the user says "دکمه X" → use mo.X (clean lowercase identifier)
 
-Example — player movement with joystick + jump button:
+EXAMPLES — study these carefully:
 
-    return {
-      update(ctx, self) {
-        self.position.x += mo.joystick.x * 5 * ctx.delta;
-        self.position.z += mo.joystick.y * 5 * ctx.delta;
-        if (mo.jump) self.position.y += 0.3;
-      }
-    };
+1. "دکمه up زده شد بره بالا":
+   return {
+     update(ctx, self) {
+       if (mo.up) self.position.y += 4 * ctx.delta;
+     }
+   };
+
+2. "دکمه چپ کلیک شد بره چپ و دور خودش بچرخه":
+   return {
+     update(ctx, self) {
+       if (mo.left) {
+         self.position.x -= 4 * ctx.delta;
+         self.rotation.y += 3 * ctx.delta;
+       }
+     }
+   };
+
+3. "با جویستیک حرکت کن و با دکمه jump بپره":
+   return {
+     update(ctx, self) {
+       self.position.x += mo.joystick.x * 5 * ctx.delta;
+       self.position.z += mo.joystick.y * 5 * ctx.delta;
+       if (mo.jump) self.position.y += 0.3;
+     }
+   };
+
+4. "دکمه fire زده شد حمله کن":
+   return {
+     update(ctx, self) {
+       if (mo.fire) {
+         self.rotation.y += 5 * ctx.delta;
+         self.scale.set(1.2, 1.2, 1.2);
+       } else {
+         self.scale.set(1, 1, 1);
+       }
+     }
+   };
+
+NEVER do this (WRONG):
+   if (ctx.input && ctx.input.key === 'ArrowUp') { ... }  // ctx.input doesn't exist
+   document.addEventListener('keydown', ...)               // won't work on mobile
+   if (e.code === 'Space') { ... }                         // no event object in update()
+
+ALWAYS do this (CORRECT):
+   if (mo.up) { ... }       // works everywhere
+   if (mo.jump) { ... }     // works everywhere
+   if (mo.joystick.x) { ... } // works everywhere
 
 When the user exports this project and uploads it to CodeHot UI, the UI app
 will scan your script, find every mo.* reference, and offer to create matching
 UI elements (a joystick for mo.joystick, a button for mo.jump, etc.). The
 user then arranges them visually and exports a final playable HTML with the
 UI overlay connected by the TBJS runtime.
-
-So: if the user asks for controls, USE mo markers. Don't use document.keydown
-directly — that won't work on mobile. mo markers work everywhere because
-TBJS maps both touch UI and keyboard to the same mo object.
 
 === HONEST CAPABILITY BOUNDARIES (critical - never overclaim) ===
 CodeHot's Scene Editor currently supports ONLY 4 primitive object types:
@@ -15358,6 +15400,10 @@ Rules:
       }
 
       const BehaviorScripts = {
+        // ── V15.2: ALL generators use mo markers. No document.keydown. ──
+        // Every generator produces code that reads from the global `mo`
+        // object. CodeHot UI scans the generated code for mo.XXX patterns
+        // and auto-creates matching UI buttons/joysticks.
         rotateContinuous(axis, degPerSec) {
           const deg = degPerSec || 90;
           return 'start(ctx, self) {}\nupdate(ctx, self) {\n  var step = THREE.MathUtils.degToRad(' + deg + ') * (ctx.delta || 0.016);\n  self.rotation.' + axis + ' += step;\n}\nstop(ctx, self) {}';
@@ -15375,50 +15421,123 @@ Rules:
           const d = deg || 90;
           return 'start(ctx, self) { if (typeof self.__chTimer === "undefined") self.__chTimer = 0; }\nupdate(ctx, self) {\n  if (typeof self.__chTimer === "undefined") self.__chTimer = 0;\n  self.__chTimer += (ctx.delta || 0.016);\n  if (self.__chTimer >= ' + s + ') { self.__chTimer = 0; self.rotation.y += THREE.MathUtils.degToRad(' + d + '); }\n}\nstop(ctx, self) { self.__chTimer = 0; }';
         },
-        jumpOnKey(key) {
-          // V15: now uses mo markers instead of document.keydown.
-          // Extract a button name from the key param: if the user said
-          // "up", "down", "left", "right", "space", "jump" etc., use that
-          // as the mo marker name. Default to "jump" if nothing matches.
-          var buttonName = 'jump';
-          if (key) {
-            var k = String(key).toLowerCase().replace('key', '').replace('arrow', '');
-            if (k === 'up' || k === 'down' || k === 'left' || k === 'right' ||
-                k === 'space' || k === 'jump' || k === 'action' || k === 'fire' ||
-                k === 'enter' || k === 'shift' || k === 'w' || k === 'a' ||
-                k === 's' || k === 'd') {
-              buttonName = (k === 'space') ? 'jump' : k;
-            }
+        // V15.2: jumpOnButton — jump when mo.<buttonName> is true.
+        // Accepts ANY button name (up, down, left, right, jump, action,
+        // fire, attack, dash, etc.). The generated code always uses
+        // mo.<buttonName>, never document.keydown or ctx.input.
+        jumpOnButton(buttonName) {
+          var btn = normalizeButtonName(buttonName);
+          return 'start(ctx, self) {\n  self.__jumpOriginY = self.position.y;\n  self.__jumpVy = 0;\n}\nupdate(ctx, self) {\n  if (mo.' + btn + ' && self.__jumpVy === 0 && self.position.y <= self.__jumpOriginY + 0.05) {\n    self.__jumpVy = 8;\n  }\n  if (self.__jumpVy !== 0) {\n    self.position.y += self.__jumpVy * (ctx.delta || 0.016);\n    self.__jumpVy -= 22 * (ctx.delta || 0.016);\n    if (self.position.y <= self.__jumpOriginY) { self.position.y = self.__jumpOriginY; self.__jumpVy = 0; }\n  }\n}\nstop(ctx, self) {\n  if (typeof self.__jumpOriginY === "number") self.position.y = self.__jumpOriginY;\n}';
+        },
+        // V15.2: moveOnButton — move in a direction while mo.<buttonName>
+        // is true. direction can be "up", "down", "left", "right",
+        // "forward", "back". Maps to position.x/y/z changes.
+        moveOnButton(buttonName, direction, speed) {
+          var btn = normalizeButtonName(buttonName);
+          var v = Number(speed) || 4;
+          var axis, sign;
+          switch (String(direction || 'right').toLowerCase()) {
+            case 'left':  axis = 'x'; sign = '-'; break;
+            case 'right': axis = 'x'; sign = '+'; break;
+            case 'up':    axis = 'y'; sign = '+'; break;
+            case 'down':  axis = 'y'; sign = '-'; break;
+            case 'forward': case 'جلو': axis = 'z'; sign = '-'; break;
+            case 'back': case 'عقب': axis = 'z'; sign = '+'; break;
+            default: axis = 'x'; sign = '+';
           }
-          return 'start(ctx, self) {\n  self.__jumpOriginY = self.position.y;\n  self.__jumpVy = 0;\n}\nupdate(ctx, self) {\n  if (typeof self.__jumpVy === "undefined") return;\n  if (mo.' + buttonName + ' && self.__jumpVy === 0 && self.position.y <= self.__jumpOriginY + 0.05) {\n    self.__jumpVy = 8;\n  }\n  if (self.__jumpVy !== 0) {\n    self.position.y += self.__jumpVy * (ctx.delta || 0.016);\n    self.__jumpVy -= 22 * (ctx.delta || 0.016);\n    if (self.position.y <= self.__jumpOriginY) { self.position.y = self.__jumpOriginY; self.__jumpVy = 0; }\n  }\n}\nstop(ctx, self) {\n  if (typeof self.__jumpOriginY === "number") self.position.y = self.__jumpOriginY;\n}';
+          return 'start(ctx, self) {}\nupdate(ctx, self) {\n  if (mo.' + btn + ') {\n    self.position.' + axis + ' ' + sign + '= ' + v + ' * (ctx.delta || 0.016);\n  }\n}\nstop(ctx, self) {}';
+        },
+        // V15.2: rotateOnButton — rotate while mo.<buttonName> is true.
+        // axis: x/y/z, degPerSec: rotation speed.
+        rotateOnButton(buttonName, axis, degPerSec) {
+          var btn = normalizeButtonName(buttonName);
+          var ax = axis || 'y';
+          var deg = degPerSec || 90;
+          return 'start(ctx, self) {}\nupdate(ctx, self) {\n  if (mo.' + btn + ') {\n    self.rotation.' + ax + ' += THREE.MathUtils.degToRad(' + deg + ') * (ctx.delta || 0.016);\n  }\n}\nstop(ctx, self) {}';
+        },
+        // V15.2: moveAndRotateOnButton — move in a direction AND rotate
+        // at the same time while mo.<buttonName> is true. This handles
+        // requests like "دکمه چپ کلیک شد بره چپ و دور خودش بچرخه".
+        moveAndRotateOnButton(buttonName, direction, speed, rotAxis, degPerSec) {
+          var btn = normalizeButtonName(buttonName);
+          var v = Number(speed) || 4;
+          var ax, sign;
+          switch (String(direction || 'right').toLowerCase()) {
+            case 'left':  ax = 'x'; sign = '-'; break;
+            case 'right': ax = 'x'; sign = '+'; break;
+            case 'up':    ax = 'y'; sign = '+'; break;
+            case 'down':  ax = 'y'; sign = '-'; break;
+            case 'forward': case 'جلو': ax = 'z'; sign = '-'; break;
+            case 'back': case 'عقب': ax = 'z'; sign = '+'; break;
+            default: ax = 'x'; sign = '+';
+          }
+          var rotAx = rotAxis || 'y';
+          var deg = degPerSec || 180;
+          return 'start(ctx, self) {}\nupdate(ctx, self) {\n  if (mo.' + btn + ') {\n    self.position.' + ax + ' ' + sign + '= ' + v + ' * (ctx.delta || 0.016);\n    self.rotation.' + rotAx + ' += THREE.MathUtils.degToRad(' + deg + ') * (ctx.delta || 0.016);\n  }\n}\nstop(ctx, self) {}';
         },
         animateOnPlay(animName) {
           const n = escapeStr(animName);
           return 'start(ctx, self) { self.animation.play("' + n + '"); }\nupdate(ctx, self) {}\nstop(ctx, self) { try { self.animation.stop(); } catch (e) {} }';
         },
-        // ── V13 physics generators (BUG-002) ─────────────────────────
-        // V15: all generators now use mo markers instead of document.keydown.
-        // mo.joystick.x/y for movement, mo.jump for jumping. This way CodeHot
-        // UI can auto-detect the markers and wire touch UI + keyboard to them.
-        // Ground = the object's Y at script start (its editor placement).
+        // ── V15.2 physics: all use mo markers ──────────────────────────
         gravityOn() {
           return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  if (!self.__ph.onGround || p.y > self.__ph.groundY + 0.001) {\n    self.__ph.vy -= 22 * d;\n    p.y += self.__ph.vy * d;\n    if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n  }\n}\nstop(ctx, self) {}';
         },
-        jumpOnKeyPhysics(key) {
-          // V15: uses mo.jump instead of document.keydown
-          return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  if (mo.jump && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n  self.__ph.vy -= 22 * d;\n  p.y += self.__ph.vy * d;\n  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n}\nstop(ctx, self) {}';
+        jumpOnKeyPhysics(buttonName) {
+          var btn = normalizeButtonName(buttonName);
+          return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  if (mo.' + btn + ' && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n  self.__ph.vy -= 22 * d;\n  p.y += self.__ph.vy * d;\n  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n}\nstop(ctx, self) {}';
         },
-        platformerMove(speed, jumpKey) {
-          // V15: uses mo.joystick for movement + mo.jump for jumping
-          const v = Number(speed) || 4;
-          return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  p.x += mo.joystick.x * ' + v + ' * d;\n  p.z += mo.joystick.y * ' + v + ' * d;\n  if (mo.jump && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n  self.__ph.vy -= 22 * d;\n  p.y += self.__ph.vy * d;\n  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n}\nstop(ctx, self) {}';
+        platformerMove(speed, jumpButton) {
+          var v = Number(speed) || 4;
+          var jb = normalizeButtonName(jumpButton);
+          return 'start(ctx, self) {\n  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n  var p = self.position;\n  p.x += mo.joystick.x * ' + v + ' * d;\n  p.z += mo.joystick.y * ' + v + ' * d;\n  if (mo.' + jb + ' && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n  self.__ph.vy -= 22 * d;\n  p.y += self.__ph.vy * d;\n  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n}\nstop(ctx, self) {}';
         },
         moveOnKeys(speed) {
-          // V15: uses mo.joystick instead of keyboard
-          const v = Number(speed) || 4;
+          var v = Number(speed) || 4;
           return 'start(ctx, self) {}\nupdate(ctx, self) {\n  var d = (ctx.delta || 0.016);\n  self.position.x += mo.joystick.x * ' + v + ' * d;\n  self.position.z += mo.joystick.y * ' + v + ' * d;\n}\nstop(ctx, self) {}';
-        }
+        },
+        // V15.2 backward-compat aliases
+        jumpOnKey(key) { return this.jumpOnButton(key); },
+        jumpOnKeyPhysics(key) { return this.jumpOnKeyPhysics(key); }
       };
+
+      // V15.2: normalize button names — extract a clean mo marker name
+      // from any user input. Handles ArrowUp→up, KeyA→a, Space→jump,
+      // Persian words, etc. Always returns a valid JS identifier.
+      function normalizeButtonName(input) {
+        if (!input) return 'jump';
+        var s = String(input).toLowerCase().trim();
+        // Strip "arrow" and "key" prefixes (ArrowUp → up, KeyA → a)
+        s = s.replace(/^arrow/, '').replace(/^key/, '');
+        // Map common key names to button names
+        var map = {
+          'space': 'jump',
+          ' ': 'jump',
+          'enter': 'action',
+          'shift': 'fire',
+          'control': 'action',
+          'ctrl': 'action',
+          'tab': 'action',
+          'escape': 'cancel',
+          'esc': 'cancel'
+        };
+        if (map[s]) return map[s];
+        // Persian button names → English
+        var faMap = {
+          'پرش': 'jump', 'بپر': 'jump',
+          'حرکت': 'move',
+          'چپ': 'left', 'راست': 'right',
+          'بالا': 'up', 'پایین': 'down',
+          'جلو': 'forward', 'عقب': 'back',
+          'حمله': 'attack', 'دفاع': 'shield',
+          'شلیک': 'fire', 'فرار': 'dash'
+        };
+        if (faMap[s]) return faMap[s];
+        // If it's already a clean identifier (letters only), use it
+        if (/^[a-z][a-z0-9_]*$/.test(s)) return s;
+        // Default
+        return 'jump';
+      }
 
       // ── Intent planning + agent core ──────────────────────────────
       const CodeHotAgent = {
@@ -15700,24 +15819,55 @@ Rules:
             const code = BehaviorScripts.moveOnKeys(speedM ? parseFloat(speedM[2]) : 4);
             return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'key-move' };
           }
-          // Jump
-          // V15: also detect "دکمه X" (button X) patterns where X is the
-          // button name. Extract the button name and pass it to jumpOnKey
-          // so the generated script uses mo.<buttonName>.
-          if (hasAny(t, ['بپره', 'بپرد', 'پرش', 'jump']) && hasAny(t, ['وقتی', 'when', 'کلید', 'key', 'space', 'فاصله', 'دکمه'])) {
-            // Try to extract button name from "دکمه X" or "button X"
-            var btnMatch = raw.match(/(?:دکمه|button|key)\s+([a-zA-Zا-ي]+)/i);
-            var btnName = btnMatch ? btnMatch[1] : 'Space';
-            const code = BehaviorScripts.jumpOnKey(btnName);
-            return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'jump' };
-          }
-          // V15: also detect "دکمه X زده شد بره بالا" (button X pressed → go up)
-          // without requiring "بپره"/"jump" keywords
-          if (hasAny(t, ['دکمه', 'button']) && hasAny(t, ['بالا', 'up', 'بره بالا'])) {
-            var btnMatch2 = raw.match(/(?:دکمه|button)\s+([a-zA-Zا-ي]+)/i);
-            var btnName2 = btnMatch2 ? btnMatch2[1] : 'up';
-            const code = BehaviorScripts.jumpOnKey(btnName2);
-            return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'jump' };
+          // ── V15.2: button-driven behaviors (move/rotate/jump on button) ──
+          // Detect "دکمه X کلیک شد/زده شد بره Y و/همچنین/در حین بچرخه"
+          // This is the most common pattern: user names a button and
+          // describes what should happen when it's pressed.
+          if (hasAny(t, ['دکمه', 'button', 'کلید', 'key'])) {
+            // Extract button name from "دکمه X" or "button X" or "key X"
+            var btnMatch3 = raw.match(/(?:دکمه|button|key)\s+([a-zA-Zا-ي]+)/i);
+            var btnName3 = btnMatch3 ? btnMatch3[1] : 'jump';
+            
+            // Detect direction
+            var direction3 = null;
+            if (hasAny(t, ['چپ', 'left'])) direction3 = 'left';
+            else if (hasAny(t, ['راست', 'right'])) direction3 = 'right';
+            else if (hasAny(t, ['بالا', 'up', 'بره بالا', 'بپره', 'بپرد', 'پرش', 'jump'])) direction3 = 'up';
+            else if (hasAny(t, ['پایین', 'down'])) direction3 = 'down';
+            else if (hasAny(t, ['جلو', 'forward', 'به جلو'])) direction3 = 'forward';
+            else if (hasAny(t, ['عقب', 'back', 'backward'])) direction3 = 'back';
+            
+            // Detect rotation
+            var wantsRotate3 = hasAny(t, ['بچرخه', 'بچرخون', 'بچرخان', 'دور خودش', 'چرخش', 'rotate', 'spin', 'دور']);
+            
+            // Detect jump specifically (پرش = jump with gravity)
+            var wantsJump3 = hasAny(t, ['بپره', 'بپرد', 'پرش', 'jump']);
+            
+            // Extract speed if mentioned
+            var speedMatch3 = raw.match(/(?:سرعت|speed)\s*(\d+(?:\.\d+)?)/i);
+            var speed3 = speedMatch3 ? parseFloat(speedMatch3[2]) : 4;
+            
+            // Generate the right script:
+            // 1. Jump (with gravity) — "بپره"/"پرش"/"jump"
+            if (wantsJump3 && !wantsRotate3) {
+              const code = BehaviorScripts.jumpOnButton(btnName3);
+              return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'jump-button' };
+            }
+            // 2. Move + Rotate — "بره چپ و دور خودش بچرخه"
+            if (direction3 && wantsRotate3) {
+              const code = BehaviorScripts.moveAndRotateOnButton(btnName3, direction3, speed3, 'y', 180);
+              return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'move-rotate-button' };
+            }
+            // 3. Move only — "بره چپ"/"بره راست"/"بره بالا"
+            if (direction3) {
+              const code = BehaviorScripts.moveOnButton(btnName3, direction3, speed3);
+              return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'move-button' };
+            }
+            // 4. Rotate only — "دور خودش بچرخه"
+            if (wantsRotate3) {
+              const code = BehaviorScripts.rotateOnButton(btnName3, 'y', 180);
+              return { intent: 'behavior', tool: 'ATTACH_SCRIPT', params: { id: obj.id, code: code }, target: obj, response: obj.name, meta: 'rotate-button' };
+            }
           }
           // Rotate every N seconds
           if (hasAny(t, ['هر', 'every']) && hasAny(t, ['ثانیه', 'second']) && hasAny(t, ['بچرخ', 'rotate', 'چرخش', 'بچرخه'])) {
