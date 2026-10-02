@@ -1564,7 +1564,7 @@
     `;
 
     body.querySelectorAll('[data-prop]').forEach(input => {
-      input.addEventListener('input', (e) => {
+      const handler = (e) => {
         const prop = e.target.dataset.prop;
         let val = e.target.value;
         if (['x','y','w','h'].includes(prop)) val = parseInt(val) || 0;
@@ -1575,7 +1575,14 @@
         }
         renderCanvasElement(el);
         saveState();
-      });
+      };
+      // V1.1 fix: listen for both 'input' and 'change' — <select> elements
+      // fire 'change' reliably but not always 'input' (especially when the
+      // value is set programmatically). Without this, the mo-connection
+      // dropdown value was never saved to State.canvas, so the exported
+      // TBJS elements used the element name instead of the mo marker name.
+      input.addEventListener('input', handler);
+      input.addEventListener('change', handler);
     });
     document.getElementById('propDelete').onclick = () => deleteElement(el.id);
   }
@@ -2023,6 +2030,10 @@ The final exported overlay loads alongside <script src=\"tbjs.js\"><\/script>. T
      ============================================================ */
   function buildExportHtml() {
     const proj = State.project;
+
+    // V1.1 fix: build UI elements with proper data-tbjs-* attributes so the
+    // inlined TBJS auto-discovers them. Also use el.w/el.h (the actual canvas
+    // state field names) instead of el.width/el.height which never existed.
     const elementsHtml = State.canvas.map(el => {
       const style = `position:absolute;left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;` +
         (el.type === 'joystick' ? `border-radius:50%;background:${hexToRgba(el.color, 0.25)};border:2px solid ${el.color};`
@@ -2030,87 +2041,110 @@ The final exported overlay loads alongside <script src=\"tbjs.js\"><\/script>. T
        : el.type === 'image' ? `border:2px solid #2a2a2a;background:#161b22;background-size:cover;background-position:center;`
        : `color:${el.color};font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;`);
       const assetAttr = el.assetName ? `data-asset="${escapeHtml(el.assetName)}"` : '';
+      // V1.1: the mo connection field is el.mo. Add both data-mo (legacy) and
+      // data-tbjs-type + data-tbjs-name so TBJS.autoDiscover() picks it up.
+      const tbjsType = el.type === 'joystick' ? 'joystick' : el.type === 'button' ? 'button' : '';
+      const tbjsName = el.mo || el.name;
+      const tbjsAttrs = tbjsType ? `data-tbjs-type="${tbjsType}" data-tbjs-name="${escapeHtml(tbjsName)}"` : '';
       const moAttr = el.mo ? `data-mo="${escapeHtml(el.mo)}"` : '';
       const inner = el.type === 'image' ? '' : escapeHtml(el.text || el.name);
-      return `    <div class="ui-element ui-${el.type}" data-type="${el.type}" data-name="${escapeHtml(el.name)}" ${moAttr} ${assetAttr} style="${style}">${inner}</div>`;
+      return `    <div class="ui-element ui-${el.type}" data-type="${el.type}" data-name="${escapeHtml(el.name)}" ${moAttr} ${tbjsAttrs} ${assetAttr} style="${style}">${inner}</div>`;
     }).join('\n');
 
     const assetData = State.assets.map(a => `    "${a.name}": "${a.dataUrl}"`).join(',\n');
 
-    const gameHtml = proj ? proj.raw : '<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0f0f0f;color:#888;display:flex;align-items:center;justify-content:center;height:100vh;"><p>No game uploaded.</p></body></html>';
+    // V1.1 critical fix: the old export put the game inside an <iframe>, which
+    // meant window.mo in the parent (where the UI lives) was NOT the same
+    // object as window.mo inside the iframe (where the game script runs). The
+    // game's mo reads were always undefined, so button presses had no effect.
+    //
+    // The new export inlines the game directly into the page so UI and game
+    // share the same window.mo. We extract the game's CONFIG JSON, Three.js
+    // source, and player script from the uploaded HTML and re-emit them here.
+    let gameThreeSource = '';
+    let gameConfigJson = '{}';
+    let gamePlayerScript = '';
+    if (proj && proj.raw) {
+      // Extract Three.js source from the game's first <script> block
+      const threeMatch = proj.raw.match(/<script>([\s\S]*?)<\/script>/);
+      if (threeMatch && threeMatch[1].length > 50000) gameThreeSource = threeMatch[1];
+      // Extract CONFIG JSON using brace-walking
+      const cfgStart = proj.raw.indexOf('var CONFIG = {');
+      if (cfgStart !== -1) {
+        const openIdx = proj.raw.indexOf('{', cfgStart);
+        let depth = 0, endIdx = -1, inStr = false, esc = false;
+        for (let i = openIdx; i < proj.raw.length; i++) {
+          const ch = proj.raw[i];
+          if (esc) { esc = false; continue; }
+          if (ch === '\\') { esc = true; continue; }
+          if (ch === '"') { inStr = !inStr; continue; }
+          if (inStr) continue;
+          if (ch === '{') depth++;
+          else if (ch === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+        }
+        if (endIdx !== -1) gameConfigJson = proj.raw.slice(openIdx, endIdx + 1);
+      }
+      // Extract player script (the IIFE after the CONFIG)
+      const playerMatch = proj.raw.match(/<script>\s*(\(function \(\) \{[\s\S]*?\}\)\(\);)\s*<\/script>/);
+      if (playerMatch) gamePlayerScript = playerMatch[1];
+    }
+
+    // Read tbjs.js content if available (inline it so the export is standalone)
+    let tbjsInline = '';
+    try {
+      // If we have the tbjs.js content in State, use it; otherwise use a minimal fallback
+      tbjsInline = (typeof TBJS_SOURCE !== 'undefined' && TBJS_SOURCE) ? TBJS_SOURCE : '';
+    } catch (e) {}
+    if (!tbjsInline) {
+      // Minimal inline TBJS fallback — same as before but with data-tbjs-* support
+      tbjsInline = `(function(){var s={};function ep(n){if(!s[n]){if(n==='joystick'||n==='camera')s[n]={x:0,y:0,active:false};else s[n]=false;}}function cl(v,a,b){return Math.max(a,Math.min(b,v));}
+function bj(e,n){var r=e.getBoundingClientRect(),rad=Math.min(r.width,r.height)/2,pid=null,cx=r.left+r.width/2,cy=r.top+r.height/2;
+function od(ev){ev.preventDefault();pid=ev.pointerId!=null?ev.pointerId:'m';if(ev.setPointerCapture&&ev.pointerId!=null)try{e.setPointerCapture(ev.pointerId)}catch(x){}om(ev);}
+function om(ev){if(pid===null)return;if(ev.pointerId!=null&&ev.pointerId!==pid)return;var x=(ev.clientX-cx)/rad,y=(ev.clientY-cy)/rad,m=Math.sqrt(x*x+y*y);if(m>1){x/=m;y/=m;}ep(n);s[n].x=x;s[n].y=y;s[n].active=true;}
+function ou(){pid=null;ep(n);s[n].x=0;s[n].y=0;s[n].active=false;}
+e.addEventListener('pointerdown',od);e.addEventListener('pointermove',om);e.addEventListener('pointerup',ou);e.addEventListener('pointercancel',ou);e.addEventListener('pointerleave',ou);}
+function bb(e,n){ep(n);function od(ev){ev.preventDefault();s[n]=true;e.classList.add('tbjs-active');}function ou(){s[n]=false;e.classList.remove('tbjs-active');}
+e.addEventListener('pointerdown',od);e.addEventListener('pointerup',ou);e.addEventListener('pointercancel',ou);e.addEventListener('pointerleave',ou);}
+function ad(){document.querySelectorAll('[data-tbjs-type]').forEach(function(e){var t=e.getAttribute('data-tbjs-type'),n=e.getAttribute('data-tbjs-name')||'action';ep(n);if(t==='joystick')bj(e,n);else bb(e,n);});}
+window.mo=s;window.TBJS={version:'1.1',autoDiscover:ad,state:s};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ad);else ad();})();`;
+    }
+
+    // Build the final HTML — game inlined, not in an iframe
+    const gameScript = gameThreeSource ? `
+<script>
+${gameThreeSource}
+<\/script>
+<script>
+var CONFIG = ${gameConfigJson};
+${gamePlayerScript}
+<\/script>` : '';
 
     return `<!DOCTYPE html>
-<!-- CodeHot UI V15 exported overlay. Bundles original game + UI overlay + TBJS. -->
+<!-- CodeHot UI V1 exported game. Bundles game + UI overlay + TBJS in one file. -->
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>CodeHot Game + UI</title>
 <style>
-  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
-  #gameFrame { position:absolute; inset:0; width:100%; height:100%; border:0; }
-  #uiLayer { position:absolute; inset:0; pointer-events:none; }
-  #uiLayer .ui-element { pointer-events:auto; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87ceeb; }
+  #gameCanvas, #codehot-canvas { display:block; position:absolute; top:0; left:0; width:100%; height:100%; }
+  #uiLayer { position:absolute; inset:0; pointer-events:none; z-index:100; }
+  #uiLayer .ui-element { pointer-events:auto; -webkit-user-select:none; user-select:none; touch-action:none; }
+  #uiLayer .ui-element:active { opacity:0.8; }
 </style>
 </head>
 <body>
-<iframe id="gameFrame" srcdoc="${escapeHtml(gameHtml).replace(/"/g, '&quot;')}"></iframe>
+<canvas id="codehot-canvas"></canvas>
 <div id="uiLayer">
 ${elementsHtml}
 </div>
-<script src="tbjs.js"><\/script>
 <script>
-/* TBJS bridge: wires UI elements to window.mo. Loaded inline as a fallback
-   when tbjs.js is not present. */
-(function () {
-  window.mo = window.mo || { joystick: { x: 0, y: 0 } };
-  var ASSETS = {
-${assetData}
-  };
-  var ui = document.getElementById('uiLayer');
-  // Apply image backgrounds
-  Array.prototype.forEach.call(ui.querySelectorAll('.ui-image[data-asset]'), function (el) {
-    var name = el.getAttribute('data-asset');
-    if (ASSETS[name]) el.style.backgroundImage = 'url(' + ASSETS[name] + ')';
-  });
-  // Buttons -> boolean mo
-  Array.prototype.forEach.call(ui.querySelectorAll('.ui-button[data-mo]'), function (el) {
-    var key = el.getAttribute('data-mo');
-    if (key.indexOf('joystick.') === 0) return;
-    window.mo[key] = false;
-    var set = function (v) { window.mo[key] = v; };
-    el.addEventListener('touchstart', function (e) { e.preventDefault(); set(true); }, { passive: false });
-    el.addEventListener('touchend',   function (e) { e.preventDefault(); set(false); }, { passive: false });
-    el.addEventListener('mousedown',  function () { set(true); });
-    el.addEventListener('mouseup',    function () { set(false); });
-    el.addEventListener('mouseleave', function () { set(false); });
-  });
-  // Joystick -> analog mo.joystick.x / mo.joystick.y
-  Array.prototype.forEach.call(ui.querySelectorAll('.ui-joystick'), function (el) {
-    var cx = el.offsetWidth / 2, cy = el.offsetHeight / 2;
-    var rect = null;
-    function handle(t) {
-      if (!rect) rect = el.getBoundingClientRect();
-      var px, py;
-      if (t.touches && t.touches[0]) { px = t.touches[0].clientX - rect.left; py = t.touches[0].clientY - rect.top; }
-      else { px = t.clientX - rect.left; py = t.clientY - rect.top; }
-      var dx = (px - cx) / cx, dy = (py - cy) / cy;
-      var mag = Math.sqrt(dx * dx + dy * dy);
-      if (mag > 1) { dx /= mag; dy /= mag; }
-      window.mo.joystick.x = dx;
-      window.mo.joystick.y = dy;
-    }
-    function reset() { window.mo.joystick.x = 0; window.mo.joystick.y = 0; }
-    el.addEventListener('touchstart', function (e) { e.preventDefault(); handle(e); }, { passive: false });
-    el.addEventListener('touchmove',  function (e) { e.preventDefault(); handle(e); }, { passive: false });
-    el.addEventListener('touchend',   function (e) { e.preventDefault(); reset(); }, { passive: false });
-    el.addEventListener('mousedown',  function (e) { handle(e); });
-    el.addEventListener('mousemove',  function (e) { if (e.buttons) handle(e); });
-    el.addEventListener('mouseup',    reset);
-    el.addEventListener('mouseleave', reset);
-  });
-})();
+/* TBJS — Touch Binding JS. Connects UI elements to the mo object that game
+   scripts read. Auto-discovers elements with data-tbjs-type attributes. */
+${tbjsInline}
 <\/script>
+${gameScript}
 </body>
 </html>`;
   }
