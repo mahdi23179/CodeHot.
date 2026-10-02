@@ -1,0 +1,2447 @@
+<!DOCTYPE html>
+<!-- CodeHot UI V15 | single-file UI designer for the CodeHot game engine.
+     Two tabs: Chat (AI UI builder) + Design (manual canvas editor).
+     All state persists under localStorage keys prefixed with `codehot-ui-`.
+     Visual identity matches CodeHot V14 exactly (colors, fonts, tab bar, header). -->
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CodeHot UI V15</title>
+  <style>
+    /* ============================================================
+       Design tokens — copied verbatim from CodeHot V14
+       ============================================================ */
+    :root {
+      --st-bg-primary: #0f0f0f;
+      --st-bg-panel: #161b22;
+      --st-bg-input: #0f0f0f;
+      --st-border: #2a2a2a;
+      --st-text-primary: #e0e0e0;
+      --st-text-secondary: #888888;
+      --st-accent: #ff6b35;
+      --st-accent-text: #ffffff;
+      --st-hover-bg: rgba(255, 255, 255, 0.05);
+      --st-danger: #ff4a4a;
+      --st-success: #4caf50;
+      --st-shadow: rgba(0, 0, 0, 0.4);
+    }
+    [data-theme="light"] {
+      --st-bg-primary: #f5f5f5;
+      --st-bg-panel: #ffffff;
+      --st-bg-input: #f0f0f0;
+      --st-border: #e0e0e0;
+      --st-text-primary: #1a1a1a;
+      --st-text-secondary: #666666;
+      --st-accent: #ff6b35;
+      --st-accent-text: #ffffff;
+      --st-hover-bg: rgba(0, 0, 0, 0.04);
+      --st-danger: #d92c2c;
+      --st-success: #4caf50;
+      --st-shadow: rgba(0, 0, 0, 0.15);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Roboto, sans-serif;
+      font-size: 14px;
+      background: var(--st-bg-primary);
+      color: var(--st-text-primary);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ============================================================
+       App shell — header, panels, bottom tab bar (matches V14)
+       ============================================================ */
+    #app {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+    }
+
+    .tab-panel {
+      display: none; flex: 1; min-height: 0;
+      flex-direction: column;
+      background: var(--st-bg-primary);
+    }
+    .tab-panel.active { display: flex; }
+
+    /* Header — matches #st-header in V14 */
+    .app-header {
+      height: 44px;
+      background: var(--st-bg-panel);
+      border-bottom: 1px solid var(--st-border);
+      display: flex; align-items: center;
+      padding: 0 14px; gap: 8px;
+      flex-shrink: 0;
+    }
+    .app-header .header-title {
+      font-size: 14px; font-weight: 700;
+      color: var(--st-text-primary);
+      flex: 1;
+    }
+    .header-icon-btn {
+      width: 36px; height: 36px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: none; border: none;
+      color: var(--st-text-secondary);
+      cursor: pointer; border-radius: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .header-icon-btn:hover { background: var(--st-hover-bg); color: var(--st-text-primary); }
+    .header-icon-btn svg { width: 20px; height: 20px; }
+
+    /* Bottom tab bar — matches #bottomTabBar in V14 */
+    #bottomTabBar {
+      flex-shrink: 0;
+      display: flex; direction: ltr;
+      background: var(--st-bg-panel);
+      border-top: 1px solid var(--st-border);
+      min-height: 52px;
+    }
+    #bottomTabBar.sh-rtl { flex-direction: row-reverse; }
+    .sh-tab-btn {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 3px; min-height: 44px; padding: 6px 2px;
+      background: none; border: none; cursor: pointer;
+      color: var(--st-text-secondary);
+      transition: color 0.2s ease;
+    }
+    .sh-tab-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+    .sh-tab-label {
+      font-size: 11px; font-weight: 600;
+      color: inherit;
+    }
+    .sh-tab-btn.sh-active { color: var(--st-accent); }
+
+    /* ============================================================
+       Shared building blocks (match V14 .st-* styles)
+       ============================================================ */
+    .st-text-input, select.st-text-input, textarea.st-text-input {
+      width: 100%; padding: 10px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-primary);
+      border-radius: 5px;
+      font-size: 12px; font-family: inherit;
+      outline: none; transition: border-color 0.15s;
+    }
+    .st-text-input:focus { border-color: var(--st-accent); }
+    textarea.st-text-input { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+    .st-settings-button {
+      padding: 11px 14px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-primary);
+      border-radius: 5px;
+      font-size: 12px; font-weight: 600;
+      cursor: pointer; text-align: center;
+      transition: background 0.2s;
+      min-height: 44px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .st-settings-button:hover { background: var(--st-hover-bg); }
+    .st-settings-button.st-primary {
+      background: var(--st-accent); border-color: var(--st-accent);
+      color: var(--st-accent-text);
+    }
+    .st-settings-button.st-danger {
+      color: var(--st-danger); border-color: var(--st-danger);
+    }
+    .st-settings-button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .st-settings-button svg { width: 16px; height: 16px; }
+
+    .st-section-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 15px 14px; cursor: pointer; user-select: none;
+      font-size: 13px; font-weight: 600;
+      transition: background 0.15s; min-height: 44px;
+    }
+    .st-section-header:hover { background: var(--st-hover-bg); }
+    .st-section-chevron {
+      display: flex; align-items: center;
+      transition: transform 0.2s;
+      color: var(--st-text-secondary); flex-shrink: 0;
+      margin-inline-start: auto;
+    }
+    .st-section-header.st-collapsed .st-section-chevron { transform: rotate(-90deg); }
+    .st-section-body {
+      padding: 2px 14px 18px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .st-section-body.st-collapsed { display: none; }
+    .st-settings-section {
+      border-bottom: 1px solid var(--st-border);
+    }
+    .st-setting-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; min-height: 30px;
+    }
+    .st-setting-row.st-stacked { flex-direction: column; align-items: stretch; gap: 6px; }
+    .st-setting-label { font-size: 12px; color: var(--st-text-primary); }
+    .st-setting-hint { font-size: 10px; color: var(--st-text-secondary); line-height: 1.4; }
+
+    /* Modal — matches .st-modal-overlay in V14 */
+    .st-modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none; z-index: 300;
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .st-modal-overlay.st-visible { display: flex; }
+    .st-settings-modal {
+      background: var(--st-bg-panel);
+      border: 1px solid var(--st-border);
+      border-radius: 8px; padding: 16px;
+      max-width: 360px; width: 100%;
+      display: flex; flex-direction: column; gap: 14px;
+      max-height: 80vh; overflow-y: auto;
+    }
+    .st-settings-modal-title { font-size: 14px; font-weight: 600; color: var(--st-text-primary); }
+    .st-settings-modal-message { font-size: 12px; color: var(--st-text-primary); line-height: 1.5; }
+    .st-settings-modal-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 80px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--st-bg-panel);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-primary);
+      padding: 10px 16px; border-radius: 6px;
+      font-size: 12px; font-weight: 600;
+      z-index: 400; opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      box-shadow: 0 4px 12px var(--st-shadow);
+    }
+    .toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: var(--st-success); }
+    .toast.error { border-color: var(--st-danger); }
+
+    /* ============================================================
+       Tab 1: Chat
+       ============================================================ */
+    .chat-messages {
+      flex: 1; overflow-y: auto;
+      padding: 14px;
+      display: flex; flex-direction: column;
+      gap: 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .chat-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px; padding: 30px;
+      color: var(--st-text-secondary); text-align: center;
+    }
+    .chat-empty svg { width: 56px; height: 56px; opacity: 0.5; }
+    .chat-empty .empty-title { font-size: 14px; font-weight: 600; color: var(--st-text-primary); }
+    .chat-empty .empty-hint { font-size: 12px; line-height: 1.6; max-width: 280px; }
+
+    .chat-bubble {
+      max-width: 85%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px; line-height: 1.6;
+      word-wrap: break-word; word-break: break-word;
+      white-space: pre-wrap;
+      animation: bubbleIn 0.18s ease-out;
+    }
+    @keyframes bubbleIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: rgba(255, 107, 53, 0.15);
+      border: 1px solid rgba(255, 107, 53, 0.4);
+      color: var(--st-text-primary);
+      border-bottom-right-radius: 3px;
+    }
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: var(--st-bg-panel);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-primary);
+      border-bottom-left-radius: 3px;
+    }
+    .chat-bubble.system {
+      align-self: center;
+      background: transparent;
+      border: 1px dashed var(--st-border);
+      color: var(--st-text-secondary);
+      font-size: 11px; max-width: 90%; text-align: center;
+    }
+    .chat-bubble.system.error { border-color: var(--st-danger); color: var(--st-danger); }
+    .chat-bubble.system.success { border-color: var(--st-success); color: var(--st-success); }
+
+    /* Code card inside assistant message */
+    .code-card {
+      margin-top: 10px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .code-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--st-border);
+      background: var(--st-bg-panel);
+    }
+    .code-card-title {
+      font-size: 11px; font-weight: 600;
+      color: var(--st-text-secondary);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .code-card-title svg { width: 14px; height: 14px; }
+    .code-card-actions { display: flex; gap: 6px; }
+    .code-card-btn {
+      padding: 5px 10px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-primary);
+      border-radius: 4px;
+      font-size: 11px; font-weight: 600;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .code-card-btn:hover { background: var(--st-hover-bg); }
+    .code-card-btn.primary {
+      background: var(--st-accent); border-color: var(--st-accent);
+      color: var(--st-accent-text);
+    }
+    .code-card-btn svg { width: 12px; height: 12px; }
+    .code-card pre {
+      max-height: 320px; overflow: auto;
+      padding: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px; line-height: 1.5;
+      color: var(--st-text-primary);
+      white-space: pre;
+      direction: ltr; text-align: left;
+    }
+    .code-card pre.collapsed { display: none; }
+
+    /* Typing indicator */
+    .typing-indicator {
+      align-self: flex-start;
+      background: var(--st-bg-panel);
+      border: 1px solid var(--st-border);
+      border-radius: 10px;
+      border-bottom-left-radius: 3px;
+      padding: 12px 14px;
+      display: none; gap: 4px;
+    }
+    .typing-indicator.visible { display: inline-flex; }
+    .typing-indicator span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--st-text-secondary);
+      animation: typingDot 1.2s infinite ease-in-out;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingDot {
+      0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+      30% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Chat input bar (fixed above the bottom tab bar) */
+    .chat-input-bar {
+      flex-shrink: 0;
+      background: var(--st-bg-panel);
+      border-top: 1px solid var(--st-border);
+      padding: 8px 10px;
+      display: flex; align-items: flex-end; gap: 8px;
+      position: relative;
+    }
+    .chat-textarea {
+      flex: 1;
+      min-height: 40px; max-height: 120px;
+      padding: 10px 12px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-primary);
+      border-radius: 8px;
+      font-size: 13px; font-family: inherit;
+      line-height: 1.4; resize: none;
+      outline: none; transition: border-color 0.15s;
+    }
+    .chat-textarea:focus { border-color: var(--st-accent); }
+    .chat-textarea::placeholder { color: var(--st-text-secondary); }
+
+    .chat-action-btn {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-secondary);
+      border-radius: 8px; cursor: pointer;
+      flex-shrink: 0; transition: background 0.15s, color 0.15s;
+    }
+    .chat-action-btn:hover { background: var(--st-hover-bg); color: var(--st-text-primary); }
+    .chat-action-btn svg { width: 18px; height: 18px; }
+    .chat-action-btn.active { color: var(--st-accent); border-color: var(--st-accent); }
+    .chat-send-btn {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--st-accent); border: none;
+      color: var(--st-accent-text);
+      border-radius: 8px; cursor: pointer;
+      flex-shrink: 0; transition: opacity 0.15s;
+    }
+    .chat-send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .chat-send-btn svg { width: 18px; height: 18px; transform: rotate(180deg); }
+
+    /* + button popover menu */
+    .plus-menu {
+      position: absolute;
+      bottom: 54px; inset-inline-end: 10px;
+      background: var(--st-bg-panel);
+      border: 1px solid var(--st-border);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px var(--st-shadow);
+      min-width: 180px;
+      overflow: hidden;
+      display: none;
+      z-index: 50;
+    }
+    .plus-menu.visible { display: block; }
+    .plus-menu-item {
+      width: 100%;
+      padding: 12px 14px;
+      background: none; border: none;
+      color: var(--st-text-primary);
+      font-size: 12px; font-weight: 600;
+      text-align: start; cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--st-border);
+      transition: background 0.15s;
+    }
+    .plus-menu-item:last-child { border-bottom: none; }
+    .plus-menu-item:hover { background: var(--st-hover-bg); }
+    .plus-menu-item svg { width: 16px; height: 16px; color: var(--st-accent); }
+    .plus-menu-divider {
+      padding: 4px 14px;
+      font-size: 10px; font-weight: 700;
+      color: var(--st-text-secondary);
+      background: var(--st-bg-input);
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    /* ============================================================
+       Tab 2: Design
+       ============================================================ */
+    .design-toolbar {
+      flex-shrink: 0;
+      background: var(--st-bg-panel);
+      border-bottom: 1px solid var(--st-border);
+      padding: 8px 10px;
+      display: flex; align-items: center; gap: 6px;
+      overflow-x: auto; white-space: nowrap;
+    }
+    .design-toolbar .toolbar-spacer { flex: 1; }
+
+    .design-canvas-wrap {
+      flex: 1; overflow: auto;
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 20px; gap: 14px;
+      background:
+        repeating-linear-gradient(45deg,
+          transparent, transparent 10px,
+          rgba(255,255,255,0.015) 10px, rgba(255,255,255,0.015) 20px);
+    }
+
+    /* Palette */
+    .design-palette {
+      flex-shrink: 0;
+      width: 130px;
+      background: var(--st-bg-panel);
+      border: 1px solid var(--st-border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex; flex-direction: column; gap: 8px;
+      align-self: flex-start;
+    }
+    .palette-title {
+      font-size: 10px; font-weight: 700;
+      color: var(--st-text-secondary);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--st-border);
+    }
+    .palette-item {
+      width: 100%;
+      padding: 10px 8px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      border-radius: 5px;
+      color: var(--st-text-primary);
+      font-size: 11px; font-weight: 600;
+      cursor: grab; text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .palette-item:hover { border-color: var(--st-accent); background: var(--st-hover-bg); }
+    .palette-item:active { cursor: grabbing; }
+    .palette-item svg { width: 22px; height: 22px; color: var(--st-accent); }
+
+    /* Phone-frame preview */
+    .phone-frame {
+      position: relative;
+      width: 375px;
+      height: 667px;
+      background: #000;
+      border-radius: 36px;
+      border: 8px solid #1a1a1a;
+      box-shadow: 0 12px 40px var(--st-shadow), inset 0 0 0 1px #333;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .phone-frame .phone-notch {
+      position: absolute;
+      top: 0; left: 50%; transform: translateX(-50%);
+      width: 120px; height: 22px;
+      background: #1a1a1a;
+      border-bottom-left-radius: 14px;
+      border-bottom-right-radius: 14px;
+      z-index: 20;
+    }
+    .phone-screen {
+      position: absolute; inset: 0;
+      overflow: hidden;
+      background: var(--st-bg-input);
+    }
+    .phone-screen iframe {
+      width: 100%; height: 100%;
+      border: none; display: block;
+      pointer-events: none;
+    }
+    .phone-screen .empty-screen {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px;
+      color: var(--st-text-secondary);
+      font-size: 11px; text-align: center;
+      padding: 20px;
+    }
+    .empty-screen svg { width: 40px; height: 40px; opacity: 0.4; }
+
+    /* Draggable UI elements inside the phone preview */
+    .ui-element {
+      position: absolute;
+      display: flex; align-items: center; justify-content: center;
+      cursor: move; user-select: none;
+      transition: outline 0.1s;
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+      z-index: 5;
+    }
+    .ui-element.selected { outline-color: var(--st-accent); }
+    .ui-element.joystick {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      background: rgba(255, 107, 53, 0.25);
+      border: 2px solid var(--st-accent);
+    }
+    .ui-element.joystick::after {
+      content: '';
+      position: absolute;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--st-accent);
+      opacity: 0.8;
+    }
+    .ui-element.button {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: rgba(255, 107, 53, 0.5);
+      border: 2px solid var(--st-accent);
+      color: var(--st-accent-text);
+      font-size: 11px; font-weight: 700;
+    }
+    .ui-element.image {
+      width: 80px; height: 80px;
+      background: var(--st-bg-panel);
+      border: 2px solid var(--st-border);
+      background-size: cover; background-position: center;
+    }
+    .ui-element.text {
+      min-width: 60px; min-height: 24px;
+      padding: 4px 8px;
+      background: transparent;
+      color: var(--st-text-primary);
+      font-size: 13px; font-weight: 600;
+    }
+    .ui-element .ui-handle {
+      position: absolute;
+      bottom: -6px; right: -6px;
+      width: 14px; height: 14px;
+      background: var(--st-accent);
+      border: 2px solid var(--st-bg-primary);
+      border-radius: 50%;
+      display: none;
+      cursor: nwse-resize;
+    }
+    .ui-element.selected .ui-handle { display: block; }
+    .ui-element .ui-name-tag {
+      position: absolute;
+      top: -22px; left: 0;
+      background: var(--st-accent);
+      color: var(--st-accent-text);
+      font-size: 9px; font-weight: 700;
+      padding: 2px 6px; border-radius: 3px;
+      white-space: nowrap; display: none;
+    }
+    .ui-element.selected .ui-name-tag { display: block; }
+
+    /* Properties panel */
+    .design-properties {
+      flex-shrink: 0;
+      width: 240px;
+      background: var(--st-bg-panel);
+      border: 1px solid var(--st-border);
+      border-radius: 8px;
+      padding: 10px;
+      align-self: flex-start;
+      max-height: 667px;
+      overflow-y: auto;
+    }
+    .properties-title {
+      font-size: 10px; font-weight: 700;
+      color: var(--st-text-secondary);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--st-border);
+      margin-bottom: 10px;
+    }
+    .prop-empty {
+      padding: 20px 10px;
+      color: var(--st-text-secondary);
+      font-size: 11px; text-align: center; line-height: 1.5;
+    }
+    .prop-row {
+      display: flex; flex-direction: column; gap: 4px;
+      margin-bottom: 10px;
+    }
+    .prop-label {
+      font-size: 10px; font-weight: 600;
+      color: var(--st-text-secondary);
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .prop-row-two {
+      display: flex; gap: 6px;
+    }
+    .prop-row-two > div { flex: 1; }
+    .prop-row input, .prop-row select {
+      padding: 8px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-primary);
+      border-radius: 4px;
+      font-size: 11px; font-family: inherit;
+      outline: none;
+    }
+    .prop-row input:focus, .prop-row select:focus { border-color: var(--st-accent); }
+    .prop-color-row {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .prop-color-row input[type="color"] {
+      width: 36px; height: 32px; padding: 2px;
+      border: 1px solid var(--st-border);
+      border-radius: 4px; background: var(--st-bg-input); cursor: pointer;
+    }
+    .prop-color-row input[type="text"] { flex: 1; }
+    .prop-actions { display: flex; gap: 6px; margin-top: 6px; }
+    .prop-actions button { flex: 1; }
+
+    /* Inline prompt editor (shown when user adds prompt via + menu) */
+    .prompt-editor {
+      display: none;
+      padding: 10px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-accent);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .prompt-editor.visible { display: block; }
+    .prompt-editor .prompt-editor-label {
+      font-size: 10px; font-weight: 700;
+      color: var(--st-accent);
+      margin-bottom: 6px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .prompt-editor textarea {
+      width: 100%; min-height: 60px;
+      background: var(--st-bg-primary);
+      border: 1px solid var(--st-border);
+      color: var(--st-text-primary);
+      border-radius: 4px;
+      padding: 8px; font-size: 11px;
+      font-family: inherit; resize: vertical; outline: none;
+    }
+    .prompt-editor textarea:focus { border-color: var(--st-accent); }
+
+    /* Asset list (after images are added) */
+    .asset-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 8px;
+      background: var(--st-bg-input);
+      border: 1px solid var(--st-border);
+      border-radius: 12px;
+      font-size: 10px; color: var(--st-text-secondary);
+      margin: 2px;
+    }
+    .asset-chip svg { width: 10px; height: 10px; color: var(--st-accent); }
+    .asset-chip .chip-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ============================================================
+       Settings modal (gear icon in header)
+       ============================================================ */
+    .settings-sheet {
+      position: fixed;
+      inset: 0; z-index: 350;
+      display: none;
+      align-items: stretch; justify-content: stretch;
+    }
+    .settings-sheet.visible { display: flex; }
+    .settings-sheet-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.5);
+    }
+    .settings-sheet-panel {
+      position: absolute;
+      inset-inline-end: 0; top: 0; bottom: 0;
+      width: 320px; max-width: 100%;
+      background: var(--st-bg-primary);
+      border-inline-start: 1px solid var(--st-border);
+      display: flex; flex-direction: column;
+      animation: slideIn 0.2s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+    [dir="rtl"] @keyframes slideIn {
+      from { transform: translateX(-100%); }
+      to { transform: translateX(0); }
+    }
+    .settings-sheet-panel .sheet-header {
+      height: 44px;
+      background: var(--st-bg-panel);
+      border-bottom: 1px solid var(--st-border);
+      display: flex; align-items: center;
+      padding: 0 14px; gap: 10px;
+      flex-shrink: 0;
+    }
+    .settings-sheet-panel .sheet-header .sheet-title {
+      flex: 1; font-size: 14px; font-weight: 700;
+      color: var(--st-text-primary);
+    }
+    .settings-sheet-panel .sheet-body {
+      flex: 1; overflow-y: auto;
+    }
+    .st-segmented {
+      display: flex;
+      border: 1px solid var(--st-border);
+      border-radius: 6px; overflow: hidden;
+      flex-shrink: 0;
+    }
+    .st-segmented button {
+      flex: 1;
+      padding: 8px 14px;
+      background: var(--st-bg-input);
+      border: none;
+      color: var(--st-text-secondary);
+      font-size: 11px; font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      min-height: 36px;
+    }
+    .st-segmented button.st-active {
+      background: var(--st-accent);
+      color: var(--st-accent-text);
+    }
+
+    /* Hidden file inputs */
+    .hidden-input { display: none; }
+
+    /* Responsive: stack palette/properties under canvas on small screens */
+    @media (max-width: 900px) {
+      .design-canvas-wrap { flex-direction: column; align-items: center; }
+      .design-palette, .design-properties { width: 100%; max-width: 375px; }
+    }
+
+    /* Code highlighting (minimal) */
+    .tok-key { color: #ff9d72; }
+    .tok-str { color: #9ddf6c; }
+    .tok-com { color: #6a6a6a; font-style: italic; }
+    .tok-num { color: #ffd479; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- ===================== Tab 1: Chat ===================== -->
+    <section class="tab-panel active" id="panel-chat" data-tab="chat">
+      <header class="app-header">
+        <div class="header-title" data-i18n="chatTitle">کدهات UI</div>
+        <button class="header-icon-btn" id="btnUploadProject" title="Upload CodeHot HTML" aria-label="Upload">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </button>
+        <button class="header-icon-btn" id="btnSettings" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </header>
+
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-empty" id="chatEmpty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+          </svg>
+          <div class="empty-title" data-i18n="emptyTitle">به کدهات UI خوش اومدی</div>
+          <div class="empty-hint" data-i18n="emptyHint">برای شروع فایل HTML بازی CodeHot رو آپلود کن، بعد دستورت رو بنویس تا UI متناسب با اسکریپت‌هات ساخته بشه.</div>
+        </div>
+        <div class="typing-indicator" id="typingIndicator">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <div class="chat-input-bar">
+        <div class="plus-menu" id="plusMenu">
+          <div class="plus-menu-divider" data-i18n="addItem">افزودن</div>
+          <button class="plus-menu-item" data-action="image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span data-i18n="image">تصویر</span>
+          </button>
+          <button class="plus-menu-item" data-action="prompt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span data-i18n="prompt">پرامپت</span>
+          </button>
+          <div class="plus-menu-divider" data-i18n="connectButton">اتصال دکمه</div>
+          <div id="plusMenuButtons"></div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column;">
+          <div class="prompt-editor" id="promptEditor">
+            <div class="prompt-editor-label">
+              <span data-i18n="extraPrompt">پرامپت اضافه</span>
+              <button class="header-icon-btn" id="btnClosePrompt" style="width:20px;height:20px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <textarea id="extraPromptText" placeholder="دستورالعمل اضافی برای هوش مصنوعی..."></textarea>
+          </div>
+          <textarea class="chat-textarea" id="chatTextarea" rows="1"
+                    placeholder="دستورت رو بنویس..." data-i18n-placeholder="chatPlaceholder"></textarea>
+        </div>
+        <button class="chat-action-btn" id="btnPlus" title="Add" aria-label="Add">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="chat-send-btn" id="btnSend" title="Send" aria-label="Send" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- ===================== Tab 2: Design ===================== -->
+    <section class="tab-panel" id="panel-design" data-tab="design">
+      <header class="app-header">
+        <div class="header-title" data-i18n="designTitle">طراحی دستی</div>
+        <button class="header-icon-btn" id="btnExport" title="Export HTML" aria-label="Export">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+      </header>
+
+      <div class="design-toolbar">
+        <button class="st-settings-button st-primary" id="btnAddJoystick" style="min-height:36px;padding:6px 12px;font-size:11px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+          <span data-i18n="joystick">جویستیک</span>
+        </button>
+        <button class="st-settings-button" id="btnAddButton" style="min-height:36px;padding:6px 12px;font-size:11px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>
+          <span data-i18n="button">دکمه</span>
+        </button>
+        <button class="st-settings-button" id="btnAddImage" style="min-height:36px;padding:6px 12px;font-size:11px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <span data-i18n="image">تصویر</span>
+        </button>
+        <button class="st-settings-button" id="btnAddText" style="min-height:36px;padding:6px 12px;font-size:11px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+          <span data-i18n="text">متن</span>
+        </button>
+        <div class="toolbar-spacer"></div>
+        <button class="st-settings-button" id="btnClearCanvas" style="min-height:36px;padding:6px 12px;font-size:11px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+          <span data-i18n="clear">پاک کردن</span>
+        </button>
+      </div>
+
+      <div class="design-canvas-wrap">
+        <div class="design-palette">
+          <div class="palette-title" data-i18n="palette">پالت</div>
+          <div class="palette-item" data-add="joystick" draggable="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+            <span data-i18n="joystick">جویستیک</span>
+          </div>
+          <div class="palette-item" data-add="button" draggable="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>
+            <span data-i18n="button">دکمه</span>
+          </div>
+          <div class="palette-item" data-add="image" draggable="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span data-i18n="image">تصویر</span>
+          </div>
+          <div class="palette-item" data-add="text" draggable="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+            <span data-i18n="text">متن</span>
+          </div>
+        </div>
+
+        <div class="phone-frame" id="phoneFrame">
+          <div class="phone-notch"></div>
+          <div class="phone-screen" id="phoneScreen">
+            <div class="empty-screen" id="phoneEmpty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+              <div data-i18n="noGame">بازی آپلود نشده</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="design-properties" id="designProperties">
+          <div class="properties-title" data-i18n="properties">ویژگی‌ها</div>
+          <div class="prop-empty" id="propEmpty" data-i18n="selectElement">یک عنصر را انتخاب کن</div>
+          <div id="propBody" style="display:none;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Bottom tab bar ===================== -->
+    <nav id="bottomTabBar" class="sh-rtl">
+      <button class="sh-tab-btn sh-active" data-tab="chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+        </svg>
+        <span class="sh-tab-label" data-i18n="chat">چت</span>
+      </button>
+      <button class="sh-tab-btn" data-tab="design">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+          <path d="M2 2l7.586 7.586"/>
+          <circle cx="11" cy="11" r="2"/>
+        </svg>
+        <span class="sh-tab-label" data-i18n="design">دیزاین</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Settings sheet (slide-in from right) -->
+  <div class="settings-sheet" id="settingsSheet">
+    <div class="settings-sheet-backdrop" data-close-settings></div>
+    <div class="settings-sheet-panel">
+      <header class="sheet-header">
+        <div class="sheet-title" data-i18n="settings">تنظیمات</div>
+        <button class="header-icon-btn" data-close-settings>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </header>
+      <div class="sheet-body" id="settingsBody"></div>
+    </div>
+  </div>
+
+  <!-- Generic modal -->
+  <div class="st-modal-overlay" id="genericModal">
+    <div class="st-settings-modal">
+      <div class="st-settings-modal-title" id="modalTitle">Title</div>
+      <div class="st-settings-modal-message" id="modalMessage">Message</div>
+      <div class="st-settings-modal-buttons" id="modalButtons"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Hidden file inputs -->
+  <input type="file" id="fileInputProject" class="hidden-input" accept=".html,.htm">
+  <input type="file" id="fileInputImage" class="hidden-input" accept="image/*">
+  <input type="file" id="fileInputImageElement" class="hidden-input" accept="image/*">
+
+  <script>
+  /* ============================================================
+     CodeHot UI V15 — application logic
+     Single-file. No external deps. All state in localStorage under
+     `codehot-ui-*` keys. AI calls go through the same CodeHot worker.
+     ============================================================ */
+  'use strict';
+
+  // ── Constants ────────────────────────────────────────────────
+  // Same worker CodeHot V14 uses for its AI chat. It exposes an
+  // OpenAI-compatible POST endpoint that takes { messages: [...] }
+  // and returns { choices: [{ message: { content } }] }.
+  const WORKER_URL = 'https://nokhbe.m46680279.workers.dev/';
+
+  const STORAGE_KEYS = {
+    conversation: 'codehot-ui-conversation',
+    project:      'codehot-ui-project',
+    canvas:       'codehot-ui-canvas',
+    settings:     'codehot-ui-settings',
+    assets:       'codehot-ui-assets',
+    extraPrompt:  'codehot-ui-extra-prompt'
+  };
+
+  const I18N = {
+    fa: {
+      chatTitle: 'کدهات UI',
+      designTitle: 'طراحی دستی',
+      chat: 'چت', design: 'دیزاین', settings: 'تنظیمات',
+      chatPlaceholder: 'دستورت رو بنویس...',
+      emptyTitle: 'به کدهات UI خوش اومدی',
+      emptyHint: 'برای شروع فایل HTML بازی CodeHot رو آپلود کن، بعد دستورت رو بنویس تا UI متناسب با اسکریپت‌هات ساخته بشه.',
+      addItem: 'افزودن', image: 'تصویر', prompt: 'پرامپت', connectButton: 'اتصال دکمه',
+      extraPrompt: 'پرامپت اضافه',
+      joystick: 'جویستیک', button: 'دکمه', text: 'متن', palette: 'پالت',
+      properties: 'ویژگی‌ها', selectElement: 'یک عنصر را انتخاب کن',
+      clear: 'پاک کردن', noGame: 'بازی آپلود نشده',
+      export: 'خروجی', viewCode: 'مشاهده کد', copyCode: 'کپی کد', applyToCanvas: 'اعمال روی بوم',
+      uploadSuccess: 'فایل با موفقیت بارگذاری شد',
+      uploadInvalid: 'فایل نامعتبر — CONFIG پیدا نشد',
+      noButtonDetected: 'دکمه‌ای شناسایی نشد. اول فایل بازی رو آپلود کن.',
+      customButton: 'دکمه سفارشی',
+      enterName: 'نام دکمه را وارد کن',
+      name: 'نام', position: 'موقعیت', size: 'اندازه', color: 'رنگ',
+      connectMo: 'اتصال mo', deleteElement: 'حذف عنصر',
+      imageAsset: 'تصویر افزودی',
+      theme: 'پوسته', language: 'زبان', dark: 'تیره', light: 'روشن',
+      clearConversation: 'پاک کردن مکالمه', clearAll: 'پاک کردن همه داده‌ها',
+      dataManagement: 'مدیریت داده', appearance: 'ظاهر',
+      confirmClear: 'آیا مطمئنی؟', confirm: 'تایید', cancel: 'انصراف',
+      sending: 'در حال ارسال...', ready: 'آماده', error: 'خطا',
+      codeCopied: 'کد کپی شد', codeApplied: 'روی بوم اعمال شد',
+      exportReady: 'خروجی آماده شد — فایل دانلود شد',
+      noElements: 'عنصری روی بوم نیست',
+      moMarkers: 'مارکرهای mo',
+      objects: 'اشیاء', scripts: 'اسکریپت‌ها',
+      assetNamePrompt: 'نام تصویر را وارد کن'
+    },
+    en: {
+      chatTitle: 'CodeHot UI',
+      designTitle: 'Manual Design',
+      chat: 'Chat', design: 'Design', settings: 'Settings',
+      chatPlaceholder: 'Type your instruction...',
+      emptyTitle: 'Welcome to CodeHot UI',
+      emptyHint: 'Upload your CodeHot game HTML file to start, then describe the UI you need. The AI will read your scripts and design a matching overlay.',
+      addItem: 'Add', image: 'Image', prompt: 'Prompt', connectButton: 'Connect Button',
+      extraPrompt: 'Extra Prompt',
+      joystick: 'Joystick', button: 'Button', text: 'Text', palette: 'Palette',
+      properties: 'Properties', selectElement: 'Select an element',
+      clear: 'Clear', noGame: 'No game uploaded',
+      export: 'Export', viewCode: 'View Code', copyCode: 'Copy', applyToCanvas: 'Apply to Canvas',
+      uploadSuccess: 'File uploaded successfully',
+      uploadInvalid: 'Invalid file — CONFIG not found',
+      noButtonDetected: 'No buttons detected. Upload a game file first.',
+      customButton: 'Custom Button',
+      enterName: 'Enter button name',
+      name: 'Name', position: 'Position', size: 'Size', color: 'Color',
+      connectMo: 'Connect mo', deleteElement: 'Delete Element',
+      imageAsset: 'Added Image Asset',
+      theme: 'Theme', language: 'Language', dark: 'Dark', light: 'Light',
+      clearConversation: 'Clear Conversation', clearAll: 'Clear All Data',
+      dataManagement: 'Data Management', appearance: 'Appearance',
+      confirmClear: 'Are you sure?', confirm: 'Confirm', cancel: 'Cancel',
+      sending: 'Sending...', ready: 'Ready', error: 'Error',
+      codeCopied: 'Code copied', codeApplied: 'Applied to canvas',
+      exportReady: 'Export ready — file downloaded',
+      noElements: 'No elements on canvas',
+      moMarkers: 'mo Markers',
+      objects: 'Objects', scripts: 'Scripts',
+      assetNamePrompt: 'Enter image name'
+    }
+  };
+
+  // ── State ────────────────────────────────────────────────────
+  const State = {
+    settings: { theme: 'dark', language: 'fa' },
+    project: null,           // { raw: htmlString, config: parsedConfig, objects, scripts, moMarkers }
+    canvas: [],              // UI elements on the design canvas
+    assets: [],              // [{ name, dataUrl }] uploaded images
+    conversation: [],        // [{ role, content }]
+    isSending: false,
+    selectedElementId: null,
+    extraPrompt: ''
+  };
+
+  // ── Persistence ──────────────────────────────────────────────
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(State.settings));
+      localStorage.setItem(STORAGE_KEYS.project, JSON.stringify(State.project));
+      localStorage.setItem(STORAGE_KEYS.canvas, JSON.stringify(State.canvas));
+      localStorage.setItem(STORAGE_KEYS.assets, JSON.stringify(State.assets));
+      localStorage.setItem(STORAGE_KEYS.conversation, JSON.stringify(State.conversation));
+      localStorage.setItem(STORAGE_KEYS.extraPrompt, State.extraPrompt);
+    } catch (e) {
+      console.warn('[persist] failed:', e);
+    }
+  }
+  function loadState() {
+    try {
+      const s = localStorage.getItem(STORAGE_KEYS.settings);
+      if (s) State.settings = Object.assign(State.settings, JSON.parse(s));
+      const p = localStorage.getItem(STORAGE_KEYS.project);
+      if (p) State.project = JSON.parse(p);
+      const c = localStorage.getItem(STORAGE_KEYS.canvas);
+      if (c) State.canvas = JSON.parse(c);
+      const a = localStorage.getItem(STORAGE_KEYS.assets);
+      if (a) State.assets = JSON.parse(a);
+      const conv = localStorage.getItem(STORAGE_KEYS.conversation);
+      if (conv) State.conversation = JSON.parse(conv);
+      const ep = localStorage.getItem(STORAGE_KEYS.extraPrompt);
+      if (ep) State.extraPrompt = ep;
+    } catch (e) { console.warn('[persist] load failed:', e); }
+  }
+
+  // ── i18n helper ──────────────────────────────────────────────
+  function t(key) {
+    return (I18N[State.settings.language] && I18N[State.settings.language][key]) ||
+           I18N.en[key] || key;
+  }
+  function applyI18n() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      el.textContent = t(el.getAttribute('data-i18n'));
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+    document.documentElement.lang = State.settings.language;
+    document.documentElement.dir = State.settings.language === 'fa' ? 'rtl' : 'ltr';
+  }
+
+  // ── Theme ────────────────────────────────────────────────────
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', State.settings.theme);
+  }
+
+  // ── Utility: escape HTML ─────────────────────────────────────
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str == null ? '' : str);
+    return div.innerHTML;
+  }
+
+  // ── Toast ────────────────────────────────────────────────────
+  let toastTimer = null;
+  function showToast(message, type) {
+    const el = document.getElementById('toast');
+    el.textContent = message;
+    el.className = 'toast visible' + (type ? ' ' + type : '');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast'; }, 2400);
+  }
+
+  // ── Generic modal (promise-based) ────────────────────────────
+  function showModal(title, message, buttons) {
+    return new Promise(resolve => {
+      const overlay = document.getElementById('genericModal');
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalMessage').textContent = message;
+      const btnWrap = document.getElementById('modalButtons');
+      btnWrap.innerHTML = '';
+      buttons.forEach(b => {
+        const btn = document.createElement('button');
+        btn.className = 'st-settings-button' + (b.primary ? ' st-primary' : '') + (b.danger ? ' st-danger' : '');
+        btn.textContent = b.label;
+        btn.style.minHeight = '36px';
+        btn.style.padding = '8px 16px';
+        btn.onclick = () => {
+          overlay.classList.remove('st-visible');
+          resolve(b.value);
+        };
+        btnWrap.appendChild(btn);
+      });
+      overlay.classList.add('st-visible');
+    });
+  }
+
+  /* ============================================================
+     CodeHot file parser
+     Same brace-walking algorithm as V14's importProjectFile, plus
+     mo-marker scanning across all extracted scripts.
+     ============================================================ */
+  function parseCodeHotHtml(text) {
+    const startIdx = text.indexOf('var CONFIG = {');
+    if (startIdx === -1) return null;
+    const openIdx = text.indexOf('{', startIdx);
+    let depth = 0, endIdx = -1, inString = false, escape = false;
+    for (let i = openIdx; i < text.length; i++) {
+      const ch = text[i];
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+    }
+    if (endIdx === -1) return null;
+    let cfg;
+    try { cfg = JSON.parse(text.slice(openIdx, endIdx + 1)); }
+    catch (e) { return null; }
+
+    const objects = (cfg.objects || []).map(o => ({
+      id: o.id, name: o.name, type: o.type
+    }));
+
+    // scripts is { objectId: codeString } OR an array. Handle both.
+    const scripts = {};
+    let scriptCollection = cfg.scripts;
+    if (Array.isArray(scriptCollection)) {
+      scriptCollection.forEach(s => {
+        if (s && (s.objectId || s.object)) {
+          scripts[s.objectId || s.object] = s.code || s.source || '';
+        }
+      });
+    } else if (scriptCollection && typeof scriptCollection === 'object') {
+      Object.keys(scriptCollection).forEach(k => {
+        const v = scriptCollection[k];
+        scripts[k] = typeof v === 'string' ? v : (v && (v.code || v.source)) || '';
+      });
+    }
+
+    // mo-marker scan across all scripts.
+    const moSet = new Set();
+    const moRegex = /mo\.([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    Object.keys(scripts).forEach(k => {
+      const code = scripts[k];
+      if (!code) return;
+      let m;
+      while ((m = moRegex.exec(code)) !== null) {
+        moSet.add(m[1]);
+      }
+    });
+    const moMarkers = Array.from(moSet);
+
+    return { raw: text, config: cfg, objects, scripts, moMarkers };
+  }
+
+  // ── Project upload handler ───────────────────────────────────
+  function handleProjectUpload(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = typeof e.target.result === 'string'
+        ? e.target.result
+        : new TextDecoder().decode(e.target.result);
+      const parsed = parseCodeHotHtml(text);
+      if (!parsed) {
+        showToast(t('uploadInvalid'), 'error');
+        return;
+      }
+      State.project = parsed;
+      // Auto-detect existing buttons from mo markers: anything that
+      // isn't x/y/axis qualifies as a "button" candidate.
+      saveState();
+      refreshPlusMenuButtons();
+      refreshMoMarkerOptions();
+      refreshPhoneScreen();
+      showToast(t('uploadSuccess'), 'success');
+      // System notice in chat
+      addSystemMessage(
+        `${t('uploadSuccess')} — ${parsed.objects.length} ${t('objects')}, ` +
+        `${Object.keys(parsed.scripts).length} ${t('scripts')}, ` +
+        `${parsed.moMarkers.length} ${t('moMarkers')}.`,
+        'success'
+      );
+    };
+    reader.onerror = () => showToast(t('uploadInvalid'), 'error');
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ── Phone screen rendering ───────────────────────────────────
+  function refreshPhoneScreen() {
+    const screen = document.getElementById('phoneScreen');
+    const empty = document.getElementById('phoneEmpty');
+    // Remove existing iframe + ui-elements (keep empty state node)
+    Array.from(screen.children).forEach(c => {
+      if (c !== empty) c.remove();
+    });
+    if (State.project && State.project.raw) {
+      empty.style.display = 'none';
+      const iframe = document.createElement('iframe');
+      iframe.sandbox = 'allow-scripts';
+      iframe.srcdoc = State.project.raw;
+      screen.appendChild(iframe);
+    } else {
+      empty.style.display = '';
+    }
+    // Render UI elements from State.canvas
+    State.canvas.forEach(el => renderCanvasElement(el));
+  }
+
+  /* ============================================================
+     Canvas element model & rendering
+     Each element: { id, type, name, x, y, w, h, color, text, mo, assetName }
+     ============================================================ */
+  function genId() { return 'el_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+
+  function createElement(type, opts) {
+    opts = opts || {};
+    const el = {
+      id: genId(),
+      type: type,
+      name: opts.name || defaultName(type),
+      x: opts.x != null ? opts.x : 30,
+      y: opts.y != null ? opts.y : 30,
+      w: opts.w != null ? opts.w : defaultSize(type).w,
+      h: opts.h != null ? opts.h : defaultSize(type).h,
+      color: opts.color || defaultColor(type),
+      text: opts.text || '',
+      mo: opts.mo || '',
+      assetName: opts.assetName || ''
+    };
+    State.canvas.push(el);
+    saveState();
+    renderCanvasElement(el);
+    selectElement(el.id);
+    return el;
+  }
+
+  function defaultName(type) {
+    const map = { joystick: 'joystick', button: 'btn', image: 'img', text: 'label' };
+    const base = map[type] || 'el';
+    let i = 1;
+    while (State.canvas.some(e => e.name === base + '_' + i)) i++;
+    return base + '_' + i;
+  }
+  function defaultSize(type) {
+    if (type === 'joystick') return { w: 100, h: 100 };
+    if (type === 'button') return { w: 64, h: 64 };
+    if (type === 'image') return { w: 80, h: 80 };
+    if (type === 'text') return { w: 100, h: 28 };
+    return { w: 80, h: 80 };
+  }
+  function defaultColor(type) {
+    if (type === 'joystick' || type === 'button') return '#ff6b35';
+    if (type === 'text') return '#e0e0e0';
+    return '#161b22';
+  }
+
+  function renderCanvasElement(el) {
+    const screen = document.getElementById('phoneScreen');
+    let node = document.getElementById('el-' + el.id);
+    if (!node) {
+      node = document.createElement('div');
+      node.id = 'el-' + el.id;
+      node.className = 'ui-element ' + el.type;
+      node.dataset.elId = el.id;
+      screen.appendChild(node);
+      attachElementInteraction(node);
+    }
+    node.style.left = el.x + 'px';
+    node.style.top = el.y + 'px';
+    node.style.width = el.w + 'px';
+    node.style.height = el.h + 'px';
+    if (el.type === 'button') {
+      node.style.background = hexToRgba(el.color, 0.5);
+      node.style.borderColor = el.color;
+      node.textContent = el.text || el.name;
+    } else if (el.type === 'joystick') {
+      node.style.background = hexToRgba(el.color, 0.25);
+      node.style.borderColor = el.color;
+      node.textContent = '';
+    } else if (el.type === 'image') {
+      node.textContent = '';
+      const asset = State.assets.find(a => a.name === el.assetName);
+      if (asset) {
+        node.style.backgroundImage = 'url(' + asset.dataUrl + ')';
+        node.style.backgroundSize = 'cover';
+        node.style.backgroundPosition = 'center';
+      } else {
+        node.style.backgroundImage = '';
+      }
+    } else if (el.type === 'text') {
+      node.style.color = el.color;
+      node.textContent = el.text || el.name;
+    }
+    // name tag + handle
+    let tag = node.querySelector('.ui-name-tag');
+    if (!tag) {
+      tag = document.createElement('div');
+      tag.className = 'ui-name-tag';
+      node.appendChild(tag);
+    }
+    tag.textContent = el.name + (el.mo ? ' → mo.' + el.mo : '');
+    let handle = node.querySelector('.ui-handle');
+    if (!handle) {
+      handle = document.createElement('div');
+      handle.className = 'ui-handle';
+      node.appendChild(handle);
+    }
+    // selection
+    node.classList.toggle('selected', el.id === State.selectedElementId);
+  }
+
+  function hexToRgba(hex, a) {
+    if (!hex || hex[0] !== '#') return hex;
+    let h = hex.slice(1);
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // Drag + resize for canvas elements
+  function attachElementInteraction(node) {
+    let dragMode = null; // 'move' | 'resize'
+    let startX, startY, origX, origY, origW, origH;
+    const elId = node.dataset.elId;
+
+    function pointerDown(e, mode) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragMode = mode;
+      selectElement(elId);
+      const pt = getPoint(e);
+      startX = pt.x; startY = pt.y;
+      const el = State.canvas.find(x => x.id === elId);
+      if (!el) return;
+      origX = el.x; origY = el.y; origW = el.w; origH = el.h;
+      window.addEventListener('mousemove', pointerMove);
+      window.addEventListener('mouseup', pointerUp);
+      window.addEventListener('touchmove', pointerMove, { passive: false });
+      window.addEventListener('touchend', pointerUp);
+    }
+    function pointerMove(e) {
+      if (!dragMode) return;
+      e.preventDefault();
+      const pt = getPoint(e);
+      const dx = pt.x - startX, dy = pt.y - startY;
+      const el = State.canvas.find(x => x.id === elId);
+      if (!el) return;
+      if (dragMode === 'move') {
+        el.x = Math.max(0, Math.round(origX + dx));
+        el.y = Math.max(0, Math.round(origY + dy));
+      } else {
+        el.w = Math.max(20, Math.round(origW + dx));
+        el.h = Math.max(20, Math.round(origH + dy));
+      }
+      renderCanvasElement(el);
+      if (el.id === State.selectedElementId) syncPropertiesPanel(el);
+    }
+    function pointerUp() {
+      if (dragMode) saveState();
+      dragMode = null;
+      window.removeEventListener('mousemove', pointerMove);
+      window.removeEventListener('mouseup', pointerUp);
+      window.removeEventListener('touchmove', pointerMove);
+      window.removeEventListener('touchend', pointerUp);
+    }
+    function getPoint(e) {
+      if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      return { x: e.clientX, y: e.clientY };
+    }
+
+    node.addEventListener('mousedown', (e) => pointerDown(e, 'move'));
+    node.addEventListener('touchstart', (e) => pointerDown(e, 'move'), { passive: false });
+    const handle = node.querySelector('.ui-handle');
+    if (handle) {
+      handle.addEventListener('mousedown', (e) => pointerDown(e, 'resize'));
+      handle.addEventListener('touchstart', (e) => pointerDown(e, 'resize'), { passive: false });
+    }
+  }
+
+  function selectElement(id) {
+    State.selectedElementId = id;
+    State.canvas.forEach(el => {
+      const n = document.getElementById('el-' + el.id);
+      if (n) n.classList.toggle('selected', el.id === id);
+    });
+    renderPropertiesPanel();
+  }
+
+  function deleteElement(id) {
+    State.canvas = State.canvas.filter(e => e.id !== id);
+    const n = document.getElementById('el-' + id);
+    if (n) n.remove();
+    if (State.selectedElementId === id) State.selectedElementId = null;
+    saveState();
+    renderPropertiesPanel();
+  }
+
+  function clearCanvas() {
+    State.canvas.forEach(el => {
+      const n = document.getElementById('el-' + el.id);
+      if (n) n.remove();
+    });
+    State.canvas = [];
+    State.selectedElementId = null;
+    saveState();
+    renderPropertiesPanel();
+  }
+
+  /* ============================================================
+     Properties panel
+     ============================================================ */
+  function renderPropertiesPanel() {
+    const empty = document.getElementById('propEmpty');
+    const body = document.getElementById('propBody');
+    if (!State.selectedElementId) {
+      empty.style.display = '';
+      body.style.display = 'none';
+      return;
+    }
+    const el = State.canvas.find(e => e.id === State.selectedElementId);
+    if (!el) {
+      empty.style.display = '';
+      body.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    body.style.display = '';
+
+    const moOptions = getMoOptions();
+    const assetOptions = State.assets;
+
+    body.innerHTML = `
+      <div class="prop-row">
+        <div class="prop-label">${t('name')}</div>
+        <input type="text" data-prop="name" value="${escapeHtml(el.name)}">
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">${t('position')}</div>
+        <div class="prop-row-two">
+          <div><input type="number" data-prop="x" value="${el.x}" placeholder="X"></div>
+          <div><input type="number" data-prop="y" value="${el.y}" placeholder="Y"></div>
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">${t('size')}</div>
+        <div class="prop-row-two">
+          <div><input type="number" data-prop="w" value="${el.w}" placeholder="W"></div>
+          <div><input type="number" data-prop="h" value="${el.h}" placeholder="H"></div>
+        </div>
+      </div>
+      ${el.type !== 'image' ? `
+      <div class="prop-row">
+        <div class="prop-label">${t('color')}</div>
+        <div class="prop-color-row">
+          <input type="color" data-prop="color" value="${el.color}">
+          <input type="text" data-prop="color" value="${el.color}">
+        </div>
+      </div>` : ''}
+      ${el.type === 'button' || el.type === 'text' ? `
+      <div class="prop-row">
+        <div class="prop-label">${t('text')}</div>
+        <input type="text" data-prop="text" value="${escapeHtml(el.text || '')}">
+      </div>` : ''}
+      ${el.type === 'image' ? `
+      <div class="prop-row">
+        <div class="prop-label">${t('imageAsset')}</div>
+        <select data-prop="assetName">
+          <option value="">—</option>
+          ${assetOptions.map(a => `<option value="${a.name}" ${a.name === el.assetName ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      <div class="prop-row">
+        <div class="prop-label">${t('connectMo')}</div>
+        <select data-prop="mo">
+          <option value="">—</option>
+          ${moOptions.map(m => `<option value="${m}" ${m === el.mo ? 'selected' : ''}>mo.${m}</option>`).join('')}
+        </select>
+      </div>
+      <div class="prop-actions">
+        <button class="st-settings-button st-danger" id="propDelete" style="font-size:11px;min-height:36px;">${t('deleteElement')}</button>
+      </div>
+    `;
+
+    body.querySelectorAll('[data-prop]').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const prop = e.target.dataset.prop;
+        let val = e.target.value;
+        if (['x','y','w','h'].includes(prop)) val = parseInt(val) || 0;
+        el[prop] = val;
+        // Keep color inputs in sync
+        if (prop === 'color') {
+          body.querySelectorAll('[data-prop="color"]').forEach(other => { if (other !== e.target) other.value = val; });
+        }
+        renderCanvasElement(el);
+        saveState();
+      });
+    });
+    document.getElementById('propDelete').onclick = () => deleteElement(el.id);
+  }
+
+  function syncPropertiesPanel(el) {
+    const body = document.getElementById('propBody');
+    if (!body) return;
+    const xIn = body.querySelector('[data-prop="x"]');
+    const yIn = body.querySelector('[data-prop="y"]');
+    const wIn = body.querySelector('[data-prop="w"]');
+    const hIn = body.querySelector('[data-prop="h"]');
+    if (xIn) xIn.value = el.x;
+    if (yIn) yIn.value = el.y;
+    if (wIn) wIn.value = el.w;
+    if (hIn) hIn.value = el.h;
+  }
+
+  function getMoOptions() {
+    // Default set + detected markers from uploaded project.
+    const defaults = ['joystick.x', 'joystick.y', 'jump', 'action', 'fire', 'reload'];
+    const set = new Set(defaults);
+    if (State.project && State.project.moMarkers) {
+      State.project.moMarkers.forEach(m => set.add(m));
+    }
+    return Array.from(set);
+  }
+
+  function refreshMoMarkerOptions() {
+    // Re-render properties panel if currently shown.
+    if (State.selectedElementId) renderPropertiesPanel();
+  }
+
+  /* ============================================================
+     + menu: detected buttons
+     ============================================================ */
+  function refreshPlusMenuButtons() {
+    const wrap = document.getElementById('plusMenuButtons');
+    wrap.innerHTML = '';
+    const markers = (State.project && State.project.moMarkers) || [];
+    if (markers.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'plus-menu-item';
+      empty.style.color = 'var(--st-text-secondary)';
+      empty.style.fontWeight = '400';
+      empty.style.cursor = 'default';
+      empty.textContent = t('noButtonDetected');
+      wrap.appendChild(empty);
+    } else {
+      markers.forEach(m => {
+        const btn = document.createElement('button');
+        btn.className = 'plus-menu-item';
+        btn.dataset.mo = m;
+        btn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>
+          <span>mo.${escapeHtml(m)}</span>`;
+        btn.onclick = () => handlePlusButton(m);
+        wrap.appendChild(btn);
+      });
+    }
+    // Custom button
+    const custom = document.createElement('button');
+    custom.className = 'plus-menu-item';
+    custom.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>${t('customButton')}</span>`;
+    custom.onclick = () => handlePlusCustomButton();
+    wrap.appendChild(custom);
+  }
+
+  function handlePlusButton(moMarker) {
+    // Inject a quick "add a button connected to mo.X" instruction into the chat input.
+    const ta = document.getElementById('chatTextarea');
+    const ins = `یک دکمه بساز و به mo.${moMarker} وصلش کن`;
+    ta.value = (ta.value ? ta.value + ' ' : '') + ins;
+    autoGrowTextarea(ta);
+    updateSendButton();
+    closePlusMenu();
+    showToast('mo.' + moMarker, 'success');
+  }
+
+  function handlePlusCustomButton() {
+    closeModalless(() => {
+      const name = prompt(t('enterName') + ':', '');
+      if (!name) { closePlusMenu(); return; }
+      const ta = document.getElementById('chatTextarea');
+      const ins = `یک دکمه به نام «${name}» بساز`;
+      ta.value = (ta.value ? ta.value + ' ' : '') + ins;
+      autoGrowTextarea(ta);
+      updateSendButton();
+      closePlusMenu();
+    });
+  }
+  // Tiny helper since we don't want to use the modal here. Kept for clarity.
+  function closeModalless(cb) { cb(); }
+
+  /* ============================================================
+     + menu: image upload
+     ============================================================ */
+  function handlePlusImage() {
+    closePlusMenu();
+    document.getElementById('fileInputImage').click();
+  }
+  function onImagePicked(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      const name = prompt(t('assetNamePrompt') + ':', file.name.replace(/\.[^.]+$/, ''));
+      if (!name) return;
+      State.assets.push({ name: name, dataUrl: dataUrl });
+      saveState();
+      showToast(t('imageAsset') + ': ' + name, 'success');
+      // Notify chat context
+      addSystemMessage(t('imageAsset') + ': ' + name, 'success');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* ============================================================
+     + menu: extra prompt editor
+     ============================================================ */
+  function openPromptEditor() {
+    closePlusMenu();
+    const ed = document.getElementById('promptEditor');
+    ed.classList.add('visible');
+    const ta = document.getElementById('extraPromptText');
+    ta.value = State.extraPrompt || '';
+    ta.focus();
+  }
+  function closePromptEditor() {
+    document.getElementById('promptEditor').classList.remove('visible');
+  }
+
+  /* ============================================================
+     + menu plumbing
+     ============================================================ */
+  function openPlusMenu() {
+    document.getElementById('plusMenu').classList.add('visible');
+    document.getElementById('btnPlus').classList.add('active');
+  }
+  function closePlusMenu() {
+    document.getElementById('plusMenu').classList.remove('visible');
+    document.getElementById('btnPlus').classList.remove('active');
+  }
+
+  /* ============================================================
+     Chat: rendering & history
+     ============================================================ */
+  function addSystemMessage(text, type) {
+    const wrap = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'chat-bubble system' + (type ? ' ' + type : '');
+    div.textContent = text;
+    const typing = document.getElementById('typingIndicator');
+    wrap.insertBefore(div, typing);
+    scrollChatToBottom();
+  }
+
+  function addUserMessage(text) {
+    State.conversation.push({ role: 'user', content: text });
+    renderChatMessage('user', text);
+    saveState();
+  }
+
+  function addAssistantMessage(content) {
+    State.conversation.push({ role: 'assistant', content: content });
+    renderChatMessage('assistant', content);
+    saveState();
+  }
+
+  function renderChatMessage(role, content) {
+    const wrap = document.getElementById('chatMessages');
+    const empty = document.getElementById('chatEmpty');
+    if (empty) empty.style.display = 'none';
+
+    const div = document.createElement('div');
+    div.className = 'chat-bubble ' + role;
+
+    if (role === 'assistant') {
+      // Split content into prose + code blocks. Code blocks render as cards.
+      const parts = splitCodeBlocks(content);
+      parts.forEach(p => {
+        if (p.type === 'code') {
+          div.appendChild(renderCodeCard(p.code, p.lang));
+        } else {
+          const prose = document.createElement('div');
+          prose.textContent = p.text;
+          div.appendChild(prose);
+        }
+      });
+    } else {
+      div.textContent = content;
+    }
+    const typing = document.getElementById('typingIndicator');
+    wrap.insertBefore(div, typing);
+    scrollChatToBottom();
+  }
+
+  function splitCodeBlocks(text) {
+    // Splits on ```lang\n...``` fences. Anything outside becomes prose.
+    const parts = [];
+    const re = /```([a-zA-Z]*)\n?([\s\S]*?)```/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) {
+        const txt = text.slice(last, m.index).trim();
+        if (txt) parts.push({ type: 'text', text: txt });
+      }
+      parts.push({ type: 'code', lang: m[1] || 'html', code: m[2].replace(/\n$/, '') });
+      last = re.lastIndex;
+    }
+    if (last < text.length) {
+      const txt = text.slice(last).trim();
+      if (txt) parts.push({ type: 'text', text: txt });
+    }
+    if (parts.length === 0) parts.push({ type: 'text', text: text });
+    return parts;
+  }
+
+  function renderCodeCard(code, lang) {
+    const card = document.createElement('div');
+    card.className = 'code-card';
+    card.innerHTML = `
+      <div class="code-card-header">
+        <div class="code-card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <span>${escapeHtml(lang || 'html')}</span>
+        </div>
+        <div class="code-card-actions">
+          <button class="code-card-btn" data-act="copy">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span>${t('copyCode')}</span>
+          </button>
+          <button class="code-card-btn primary" data-act="apply">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>${t('applyToCanvas')}</span>
+          </button>
+        </div>
+      </div>
+      <pre class="collapsed">${escapeHtml(code)}</pre>
+    `;
+    // Wire up buttons
+    const pre = card.querySelector('pre');
+    card.querySelector('[data-act="copy"]').onclick = (e) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(code).then(() => {
+        showToast(t('codeCopied'), 'success');
+      });
+    };
+    card.querySelector('[data-act="apply"]').onclick = (e) => {
+      e.stopPropagation();
+      applyCodeToCanvas(code);
+      showToast(t('codeApplied'), 'success');
+    };
+    // Toggle code visibility on header click
+    card.querySelector('.code-card-header').addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      pre.classList.toggle('collapsed');
+    });
+    return card;
+  }
+
+  // Apply AI-generated UI code to the design canvas by parsing
+  // <div class="ui-element" ...> style hints. Best-effort.
+  function applyCodeToCanvas(htmlCode) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString('<div>' + htmlCode + '</div>', 'text/html');
+      const nodes = doc.querySelectorAll('.ui-element, [data-ui]');
+      if (nodes.length === 0) {
+        // Fallback: just stash it as a custom HTML element on canvas.
+        showToast('No .ui-element found', 'error');
+        return;
+      }
+      nodes.forEach(n => {
+        const type = n.dataset.type || (n.classList.contains('joystick') ? 'joystick'
+                  : n.classList.contains('button') ? 'button'
+                  : n.classList.contains('image') ? 'image'
+                  : 'text');
+        const x = parseInt(n.style.left) || 30;
+        const y = parseInt(n.style.top) || 30;
+        const w = parseInt(n.style.width) || defaultSize(type).w;
+        const h = parseInt(n.style.height) || defaultSize(type).h;
+        createElement(type, {
+          name: n.dataset.name || defaultName(type),
+          x, y, w, h,
+          color: n.style.borderColor || defaultColor(type),
+          text: n.textContent.trim(),
+          mo: n.dataset.mo || ''
+        });
+      });
+    } catch (e) {
+      console.error('[applyCode]', e);
+      showToast('Apply failed: ' + e.message, 'error');
+    }
+  }
+
+  function scrollChatToBottom() {
+    const wrap = document.getElementById('chatMessages');
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function showTyping() {
+    document.getElementById('typingIndicator').classList.add('visible');
+    scrollChatToBottom();
+  }
+  function hideTyping() {
+    document.getElementById('typingIndicator').classList.remove('visible');
+  }
+
+  /* ============================================================
+     AI integration
+     Same worker, same { messages: [...] } contract as CodeHot V14.
+     ============================================================ */
+  function buildSystemPrompt() {
+    const lang = State.settings.language === 'fa' ? 'Persian' : 'English';
+    const proj = State.project;
+    const objects = proj ? proj.objects : [];
+    const scripts = proj ? proj.scripts : {};
+    const moMarkers = proj ? proj.moMarkers : [];
+    const assets = State.assets;
+    const extraPrompt = State.extraPrompt;
+
+    return `You are CodeHot UI Designer — an AI specialized in building mobile game UI overlays for the CodeHot game engine. You design overlays (joysticks, buttons, images, text) that sit on top of an existing CodeHot game and connect to its scripts via "mo" markers.
+
+=== LIVE PROJECT STATE ===
+objects: ${JSON.stringify(objects, null, 2)}
+scripts: ${JSON.stringify(scripts, null, 2).slice(0, 8000)}
+mo markers detected: ${JSON.stringify(moMarkers)}
+uploaded image assets: ${JSON.stringify(assets.map(a => ({ name: a.name })))}
+${extraPrompt ? 'extra user instruction: ' + extraPrompt : ''}
+
+=== OUTPUT RULES ===
+1. Always respond in ${lang}.
+2. When the user asks for a UI element, output a complete HTML+CSS+JS snippet inside a single \`\`\`html fence.
+3. The snippet must contain one or more <div class="ui-element" data-type="..." data-name="..." data-mo="..." style="position:absolute; left:Xpx; top:Ypx; width:Wpx; height:Hpx; ..."> elements. Use data-type="joystick|button|image|text".
+4. For buttons: connect to mo markers actually detected in the user's scripts. Examples: data-mo="jump", data-mo="action", data-mo="joystick.x". Never invent a mo marker that is not in the detected list above unless the user explicitly asks.
+5. For joysticks: bind to mo.joystick.x and mo.joystick.y.
+6. For images: reference uploaded asset names via data-asset="<name>".
+7. Include a small <script> tag at the end that wires touch/mouse events on each UI element to the mo.* surface (assume window.mo exists with boolean / number properties).
+8. Also include a 1-2 sentence Persian prose explanation before the code block.
+9. Never use emojis. Use SVG icons only.
+
+=== TBJS contract ===
+The final exported overlay loads alongside <script src=\"tbjs.js\"><\/script>. TBJS exposes window.mo with: mo.joystick = { x:0, y:0 }, mo.<buttonName> = false (true while pressed). Your script should write to these properties in response to touchstart/touchmove/touchend on the UI elements.`;
+  }
+
+  function buildCombinedPrompt(systemPrompt, history, newUserMessage) {
+    const historyText = history.length > 0
+      ? '\n\n=== CONVERSATION SO FAR ===\n' + history.map(m =>
+          (m.role === 'user' ? 'User: ' : 'Assistant: ') + m.content
+        ).join('\n\n')
+      : '';
+    return `${systemPrompt}${historyText}\n\n=== NEW USER MESSAGE ===\nUser: ${newUserMessage}\n\nRespond as the assistant, in character, following all instructions above.`;
+  }
+
+  async function sendToAI(userMessage) {
+    if (State.isSending) return;
+    if (!navigator.onLine) {
+      addSystemMessage('Offline — message queued.', 'error');
+      return;
+    }
+    State.isSending = true;
+    setSending(true);
+    showTyping();
+
+    const systemPrompt = buildSystemPrompt();
+    const priorHistory = State.conversation.slice(0, -1).slice(-10);
+    const combinedPrompt = buildCombinedPrompt(systemPrompt, priorHistory, userMessage);
+    const requestBody = { messages: [{ role: 'user', content: combinedPrompt }] };
+
+    let res = null, rawText = '', lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        res = await fetch(WORKER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+        rawText = await res.text();
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < 2) await new Promise(r => setTimeout(r, 450 * (attempt + 1)));
+      }
+    }
+    if (!res) {
+      hideTyping();
+      State.isSending = false;
+      setSending(false);
+      addSystemMessage('Network error: ' + (lastErr ? lastErr.message : 'unknown'), 'error');
+      return;
+    }
+    if (!res.ok) {
+      hideTyping();
+      State.isSending = false;
+      setSending(false);
+      addSystemMessage('HTTP ' + res.status + ': ' + rawText.slice(0, 160), 'error');
+      return;
+    }
+
+    let data;
+    try { data = JSON.parse(rawText); }
+    catch (e) {
+      hideTyping();
+      State.isSending = false;
+      setSending(false);
+      addSystemMessage('Bad JSON: ' + rawText.slice(0, 160), 'error');
+      return;
+    }
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      hideTyping();
+      State.isSending = false;
+      setSending(false);
+      addSystemMessage('Unexpected response shape', 'error');
+      return;
+    }
+    const content = data.choices[0].message.content || '';
+    hideTyping();
+    State.isSending = false;
+    setSending(false);
+    addAssistantMessage(content);
+  }
+
+  function setSending(v) {
+    const btn = document.getElementById('btnSend');
+    const ta = document.getElementById('chatTextarea');
+    btn.disabled = v || !ta.value.trim();
+    ta.disabled = v;
+  }
+
+  function updateSendButton() {
+    const ta = document.getElementById('chatTextarea');
+    const btn = document.getElementById('btnSend');
+    btn.disabled = State.isSending || !ta.value.trim();
+  }
+
+  function autoGrowTextarea(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(120, ta.scrollHeight) + 'px';
+  }
+
+  /* ============================================================
+     Export — final runnable HTML
+     ============================================================ */
+  function buildExportHtml() {
+    const proj = State.project;
+    const elementsHtml = State.canvas.map(el => {
+      const style = `position:absolute;left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;` +
+        (el.type === 'joystick' ? `border-radius:50%;background:${hexToRgba(el.color, 0.25)};border:2px solid ${el.color};`
+       : el.type === 'button' ? `border-radius:50%;background:${hexToRgba(el.color, 0.5)};border:2px solid ${el.color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;`
+       : el.type === 'image' ? `border:2px solid #2a2a2a;background:#161b22;background-size:cover;background-position:center;`
+       : `color:${el.color};font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;`);
+      const assetAttr = el.assetName ? `data-asset="${escapeHtml(el.assetName)}"` : '';
+      const moAttr = el.mo ? `data-mo="${escapeHtml(el.mo)}"` : '';
+      const inner = el.type === 'image' ? '' : escapeHtml(el.text || el.name);
+      return `    <div class="ui-element ui-${el.type}" data-type="${el.type}" data-name="${escapeHtml(el.name)}" ${moAttr} ${assetAttr} style="${style}">${inner}</div>`;
+    }).join('\n');
+
+    const assetData = State.assets.map(a => `    "${a.name}": "${a.dataUrl}"`).join(',\n');
+
+    const gameHtml = proj ? proj.raw : '<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0f0f0f;color:#888;display:flex;align-items:center;justify-content:center;height:100vh;"><p>No game uploaded.</p></body></html>';
+
+    return `<!DOCTYPE html>
+<!-- CodeHot UI V15 exported overlay. Bundles original game + UI overlay + TBJS. -->
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>CodeHot Game + UI</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
+  #gameFrame { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  #uiLayer { position:absolute; inset:0; pointer-events:none; }
+  #uiLayer .ui-element { pointer-events:auto; }
+</style>
+</head>
+<body>
+<iframe id="gameFrame" srcdoc="${escapeHtml(gameHtml).replace(/"/g, '&quot;')}"></iframe>
+<div id="uiLayer">
+${elementsHtml}
+</div>
+<script src="tbjs.js"><\/script>
+<script>
+/* TBJS bridge: wires UI elements to window.mo. Loaded inline as a fallback
+   when tbjs.js is not present. */
+(function () {
+  window.mo = window.mo || { joystick: { x: 0, y: 0 } };
+  var ASSETS = {
+${assetData}
+  };
+  var ui = document.getElementById('uiLayer');
+  // Apply image backgrounds
+  Array.prototype.forEach.call(ui.querySelectorAll('.ui-image[data-asset]'), function (el) {
+    var name = el.getAttribute('data-asset');
+    if (ASSETS[name]) el.style.backgroundImage = 'url(' + ASSETS[name] + ')';
+  });
+  // Buttons -> boolean mo
+  Array.prototype.forEach.call(ui.querySelectorAll('.ui-button[data-mo]'), function (el) {
+    var key = el.getAttribute('data-mo');
+    if (key.indexOf('joystick.') === 0) return;
+    window.mo[key] = false;
+    var set = function (v) { window.mo[key] = v; };
+    el.addEventListener('touchstart', function (e) { e.preventDefault(); set(true); }, { passive: false });
+    el.addEventListener('touchend',   function (e) { e.preventDefault(); set(false); }, { passive: false });
+    el.addEventListener('mousedown',  function () { set(true); });
+    el.addEventListener('mouseup',    function () { set(false); });
+    el.addEventListener('mouseleave', function () { set(false); });
+  });
+  // Joystick -> analog mo.joystick.x / mo.joystick.y
+  Array.prototype.forEach.call(ui.querySelectorAll('.ui-joystick'), function (el) {
+    var cx = el.offsetWidth / 2, cy = el.offsetHeight / 2;
+    var rect = null;
+    function handle(t) {
+      if (!rect) rect = el.getBoundingClientRect();
+      var px, py;
+      if (t.touches && t.touches[0]) { px = t.touches[0].clientX - rect.left; py = t.touches[0].clientY - rect.top; }
+      else { px = t.clientX - rect.left; py = t.clientY - rect.top; }
+      var dx = (px - cx) / cx, dy = (py - cy) / cy;
+      var mag = Math.sqrt(dx * dx + dy * dy);
+      if (mag > 1) { dx /= mag; dy /= mag; }
+      window.mo.joystick.x = dx;
+      window.mo.joystick.y = dy;
+    }
+    function reset() { window.mo.joystick.x = 0; window.mo.joystick.y = 0; }
+    el.addEventListener('touchstart', function (e) { e.preventDefault(); handle(e); }, { passive: false });
+    el.addEventListener('touchmove',  function (e) { e.preventDefault(); handle(e); }, { passive: false });
+    el.addEventListener('touchend',   function (e) { e.preventDefault(); reset(); }, { passive: false });
+    el.addEventListener('mousedown',  function (e) { handle(e); });
+    el.addEventListener('mousemove',  function (e) { if (e.buttons) handle(e); });
+    el.addEventListener('mouseup',    reset);
+    el.addEventListener('mouseleave', reset);
+  });
+})();
+<\/script>
+</body>
+</html>`;
+  }
+
+  function exportHtml() {
+    const html = buildExportHtml();
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'codehot-ui-export.html';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    showToast(t('exportReady'), 'success');
+  }
+
+  /* ============================================================
+     Settings sheet
+     ============================================================ */
+  function renderSettingsSheet() {
+    const body = document.getElementById('settingsBody');
+    body.innerHTML = `
+      <div class="st-settings-section">
+        <div class="st-section-header">
+          <span>${t('appearance')}</span>
+          <span class="st-section-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="st-section-body">
+          <div class="st-setting-row">
+            <span class="st-setting-label">${t('theme')}</span>
+            <div class="st-segmented" id="themeSeg">
+              <button data-val="dark" class="${State.settings.theme==='dark'?'st-active':''}">${t('dark')}</button>
+              <button data-val="light" class="${State.settings.theme==='light'?'st-active':''}">${t('light')}</button>
+            </div>
+          </div>
+          <div class="st-setting-row">
+            <span class="st-setting-label">${t('language')}</span>
+            <div class="st-segmented" id="langSeg">
+              <button data-val="fa" class="${State.settings.language==='fa'?'st-active':''}">فا</button>
+              <button data-val="en" class="${State.settings.language==='en'?'st-active':''}">EN</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="st-settings-section">
+        <div class="st-section-header">
+          <span>${t('dataManagement')}</span>
+          <span class="st-section-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="st-section-body">
+          <button class="st-settings-button" id="btnClearConv">${t('clearConversation')}</button>
+          <button class="st-settings-button st-danger" id="btnClearAll">${t('clearAll')}</button>
+        </div>
+      </div>
+
+      <div class="st-settings-section">
+        <div class="st-section-header st-collapsed">
+          <span>${t('moMarkers')}</span>
+          <span class="st-section-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="st-section-body st-collapsed">
+          <div class="st-preview-box">
+            ${State.project && State.project.moMarkers && State.project.moMarkers.length
+              ? State.project.moMarkers.map(m => '<div class="asset-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg><span class="chip-name">mo.' + escapeHtml(m) + '</span></div>').join('')
+              : '<div class="st-setting-hint">' + t('noButtonDetected') + '</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Section collapse toggles
+    body.querySelectorAll('.st-section-header').forEach(h => {
+      h.addEventListener('click', () => {
+        h.classList.toggle('st-collapsed');
+        const b = h.nextElementSibling;
+        if (b) b.classList.toggle('st-collapsed');
+      });
+    });
+    // Theme buttons
+    body.querySelectorAll('#themeSeg button').forEach(b => {
+      b.addEventListener('click', () => {
+        State.settings.theme = b.dataset.val;
+        applyTheme();
+        saveState();
+        renderSettingsSheet();
+      });
+    });
+    // Language buttons
+    body.querySelectorAll('#langSeg button').forEach(b => {
+      b.addEventListener('click', () => {
+        State.settings.language = b.dataset.val;
+        applyI18n();
+        saveState();
+        renderSettingsSheet();
+        refreshPlusMenuButtons();
+        renderPropertiesPanel();
+      });
+    });
+    // Clear conversation
+    body.querySelector('#btnClearConv').onclick = async () => {
+      const ok = await showModal(t('confirmClear'), t('clearConversation'), [
+        { label: t('cancel'), value: false },
+        { label: t('confirm'), value: true, danger: true }
+      ]);
+      if (!ok) return;
+      State.conversation = [];
+      document.querySelectorAll('.chat-bubble').forEach(n => n.remove());
+      const empty = document.getElementById('chatEmpty');
+      if (empty) empty.style.display = '';
+      saveState();
+    };
+    // Clear all
+    body.querySelector('#btnClearAll').onclick = async () => {
+      const ok = await showModal(t('confirmClear'), t('clearAll'), [
+        { label: t('cancel'), value: false },
+        { label: t('confirm'), value: true, danger: true }
+      ]);
+      if (!ok) return;
+      Object.keys(STORAGE_KEYS).forEach(k => { try { localStorage.removeItem(STORAGE_KEYS[k]); } catch (e) {} });
+      location.reload();
+    };
+  }
+
+  /* ============================================================
+     Tab switching
+     ============================================================ */
+  function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => {
+      p.classList.toggle('active', p.dataset.tab === name);
+    });
+    document.querySelectorAll('.sh-tab-btn').forEach(b => {
+      b.classList.toggle('sh-active', b.dataset.tab === name);
+    });
+    if (name === 'design') {
+      refreshPhoneScreen();
+      renderPropertiesPanel();
+    }
+  }
+
+  /* ============================================================
+     Wire up the DOM
+     ============================================================ */
+  function wire() {
+    // Tab bar
+    document.querySelectorAll('.sh-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    // Upload project
+    document.getElementById('btnUploadProject').addEventListener('click', () => {
+      document.getElementById('fileInputProject').click();
+    });
+    document.getElementById('fileInputProject').addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (f) handleProjectUpload(f);
+    });
+
+    // Settings
+    document.getElementById('btnSettings').addEventListener('click', () => {
+      renderSettingsSheet();
+      document.getElementById('settingsSheet').classList.add('visible');
+    });
+    document.querySelectorAll('[data-close-settings]').forEach(b => {
+      b.addEventListener('click', () => {
+        document.getElementById('settingsSheet').classList.remove('visible');
+      });
+    });
+
+    // Chat textarea
+    const ta = document.getElementById('chatTextarea');
+    ta.addEventListener('input', () => {
+      autoGrowTextarea(ta);
+      updateSendButton();
+    });
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width: 600px)').matches) {
+        e.preventDefault();
+        submitChat();
+      }
+    });
+    document.getElementById('btnSend').addEventListener('click', submitChat);
+
+    // + button & menu
+    document.getElementById('btnPlus').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = document.getElementById('plusMenu');
+      if (menu.classList.contains('visible')) closePlusMenu();
+      else openPlusMenu();
+    });
+    document.querySelectorAll('#plusMenu [data-action]').forEach(b => {
+      b.addEventListener('click', () => {
+        const a = b.dataset.action;
+        if (a === 'image') handlePlusImage();
+        else if (a === 'prompt') openPromptEditor();
+      });
+    });
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('plusMenu');
+      if (menu.classList.contains('visible') &&
+          !menu.contains(e.target) &&
+          e.target.id !== 'btnPlus' &&
+          !e.target.closest('#btnPlus')) {
+        closePlusMenu();
+      }
+    });
+
+    // Extra prompt editor
+    document.getElementById('btnClosePrompt').addEventListener('click', () => {
+      const ta2 = document.getElementById('extraPromptText');
+      State.extraPrompt = ta2.value;
+      saveState();
+      closePromptEditor();
+    });
+    document.getElementById('extraPromptText').addEventListener('input', (e) => {
+      State.extraPrompt = e.target.value;
+      saveState();
+    });
+
+    // Image upload from + menu
+    document.getElementById('fileInputImage').addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (f) onImagePicked(f);
+    });
+
+    // Design toolbar buttons
+    document.getElementById('btnAddJoystick').addEventListener('click', () => createElement('joystick'));
+    document.getElementById('btnAddButton').addEventListener('click', () => createElement('button'));
+    document.getElementById('btnAddImage').addEventListener('click', () => {
+      document.getElementById('fileInputImageElement').click();
+    });
+    document.getElementById('btnAddText').addEventListener('click', () => createElement('text'));
+    document.getElementById('btnClearCanvas').addEventListener('click', async () => {
+      if (State.canvas.length === 0) return;
+      const ok = await showModal(t('confirmClear'), t('clear'), [
+        { label: t('cancel'), value: false },
+        { label: t('confirm'), value: true, danger: true }
+      ]);
+      if (ok) clearCanvas();
+    });
+    // Image element upload
+    document.getElementById('fileInputImageElement').addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target.result;
+        const name = (f.name || 'image').replace(/\.[^.]+$/, '');
+        State.assets.push({ name, dataUrl });
+        saveState();
+        createElement('image', { assetName: name });
+      };
+      reader.readAsDataURL(f);
+    });
+
+    // Palette drag & drop (HTML5 DnD)
+    document.querySelectorAll('.palette-item').forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/x-codehot-ui', item.dataset.add);
+      });
+    });
+    const phoneScreen = document.getElementById('phoneScreen');
+    phoneScreen.addEventListener('dragover', (e) => { e.preventDefault(); });
+    phoneScreen.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData('text/x-codehot-ui');
+      if (!type) return;
+      const rect = phoneScreen.getBoundingClientRect();
+      const x = Math.round(e.clientX - rect.left);
+      const y = Math.round(e.clientY - rect.top);
+      createElement(type, { x: Math.max(0, x - 30), y: Math.max(0, y - 30) });
+    });
+
+    // Click empty canvas area to deselect
+    phoneScreen.addEventListener('click', (e) => {
+      if (e.target === phoneScreen || e.target.id === 'phoneEmpty') {
+        selectElement(null);
+      }
+    });
+
+    // Export
+    document.getElementById('btnExport').addEventListener('click', exportHtml);
+  }
+
+  function submitChat() {
+    const ta = document.getElementById('chatTextarea');
+    const msg = ta.value.trim();
+    if (!msg || State.isSending) return;
+    addUserMessage(msg);
+    ta.value = '';
+    autoGrowTextarea(ta);
+    updateSendButton();
+    sendToAI(msg);
+  }
+
+  /* ============================================================
+     Init
+     ============================================================ */
+  function init() {
+    loadState();
+    applyTheme();
+    applyI18n();
+    wire();
+    refreshPlusMenuButtons();
+    refreshPhoneScreen();
+    renderPropertiesPanel();
+    // Restore chat history
+    if (State.conversation.length > 0) {
+      const empty = document.getElementById('chatEmpty');
+      if (empty) empty.style.display = 'none';
+      State.conversation.forEach(m => renderChatMessage(m.role, m.content));
+    }
+    // Restore extra prompt editor visibility
+    if (State.extraPrompt) {
+      document.getElementById('extraPromptText').value = State.extraPrompt;
+      document.getElementById('promptEditor').classList.add('visible');
+    }
+    updateSendButton();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
