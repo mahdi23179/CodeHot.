@@ -17339,6 +17339,11 @@ Rules:
     return global.CodeHotScriptStore.set(id, { objectId: id, objectName: objectName, code: code, updatedAt: Date.now() }, sceneData().objects);
   }
   function validateAndStore(id, code, objectName) {
+    // V15.5: sanitize ALL code before storing — convert ctx.input,
+    // document.keydown, e.code to mo markers. This is the LAST line
+    // of defense: even if the AI bypasses cleanActionCode (e.g. via
+    // @@COMMAND@@ protocol), the code is still sanitized here.
+    code = sanitizeScriptCodeGlobal(code);
     var rt = global.CodeHotRuntime;
     if (rt && typeof rt.validateScript === 'function') {
       var check = rt.validateScript(code);
@@ -17346,9 +17351,6 @@ Rules:
     }
     var saved = storeScript(id, code, objectName);
     if (!saved) return fail('Could not persist script binding.');
-    // V12 fix: reload must be called as a METHOD. Capturing the bare function
-    // reference (var refreshApi = rt.reload; refreshApi()) ran it with `this`
-    // undefined, so the live behavior was never replaced while playing.
     try {
       if (runtimeState().isPlaying && global.CodeHotRuntime && typeof global.CodeHotRuntime.reload === 'function') {
         global.CodeHotRuntime.reload();
@@ -17893,9 +17895,69 @@ Rules:
   'use strict';
   if (!global || !global.CodeHotAgent) return;
 
+  // V15.5: Global script sanitizer — accessible from ALL IIFEs.
+  global.sanitizeScriptCodeGlobal = function(code) {
+    if (!code) return code;
+    var s = String(code);
+    var keyToMo = {
+      'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right',
+      'KeyW': 'up', 'KeyS': 'down', 'KeyA': 'left', 'KeyD': 'right',
+      'Space': 'jump', 'KeyE': 'action', 'Enter': 'action',
+      'KeyF': 'fire', 'ShiftLeft': 'fire', 'ShiftRight': 'fire',
+      'KeyQ': 'shield', 'Escape': 'cancel',
+      'Up': 'up', 'Down': 'down', 'Left': 'left', 'Right': 'right'
+    };
+    s = s.replace(/ctx\.input\.isKeyDown\s*\(\s*['"]([^'"]+)['"]\s*\)/g, function(m, key) {
+      return 'mo.' + (keyToMo[key] || key.toLowerCase().replace(/^arrow/, '').replace(/^key/, ''));
+    });
+    s = s.replace(/ctx\.input\.isKeyDown(?!\s*\()/g, 'true');
+    s = s.replace(/ctx\.input\.key\s*===?\s*['"]([^'"]+)['"]/g, function(m, key) {
+      return 'mo.' + (keyToMo[key] || key.toLowerCase().replace(/^arrow/, '').replace(/^key/, ''));
+    });
+    s = s.replace(/ctx\.input\s*&&\s*/g, '');
+    s = s.replace(/ctx\.input/g, 'true');
+    s = s.replace(/e\.code\s*===?\s*['"]([^'"]+)['"]/g, function(m, key) {
+      return 'mo.' + (keyToMo[key] || key.toLowerCase().replace(/^arrow/, '').replace(/^key/, ''));
+    });
+    s = s.replace(/e\.key\s*===?\s*['"]([^'"]+)['"]/g, function(m, key) {
+      return 'mo.' + (keyToMo[key] || key.toLowerCase().replace(/^arrow/, '').replace(/^key/, ''));
+    });
+    s = s.replace(/document\.addEventListener\s*\(\s*['"]key(?:down|up)['"]\s*,\s*[a-zA-Z_][a-zA-Z0-9_.]*\s*\)\s*;?/g, '');
+    s = s.replace(/document\.removeEventListener\s*\(\s*['"]key(?:down|up)['"]\s*,\s*[^)]+\)\s*;?/g, '');
+    // Walk braces for inline function callbacks
+    var pat = /document\.addEventListener\s*\(\s*['"]key(?:down|up)['"]\s*,\s*function\s*\(/g;
+    var result = '', lastIdx = 0, match;
+    while ((match = pat.exec(s)) !== null) {
+      var bs = s.indexOf('{', match.index + match[0].length);
+      if (bs === -1) continue;
+      var d = 1, i = bs + 1, inS = false, sc = null, es = false;
+      while (i < s.length && d > 0) {
+        var ch = s[i];
+        if (es) { es = false; i++; continue; }
+        if (ch === '\\') { es = true; i++; continue; }
+        if (inS) { if (ch === sc) inS = false; }
+        else { if (ch === '"' || ch === "'" || ch === '`') { inS = true; sc = ch; } else if (ch === '{') d++; else if (ch === '}') d--; }
+        i++;
+      }
+      var ab = s.slice(i).match(/^\s*\)\s*;?/);
+      var ei = ab ? i + ab[0].length : i;
+      result += s.slice(lastIdx, match.index);
+      lastIdx = ei;
+    }
+    result += s.slice(lastIdx);
+    s = result;
+    s = s.replace(/self\.userData\s*=\s*self\.userData\s*\|\|\s*\{\s*\}\s*;?/g, '');
+    s = s.replace(/self\.userData\.\w+\s*=\s*(?:true|false)\s*;?/g, '');
+    s = s.replace(/self\.userData\s*&&\s*self\.userData\.moveUp/g, 'mo.up');
+    s = s.replace(/self\.userData\s*&&\s*self\.userData\.moveDown/g, 'mo.down');
+    s = s.replace(/self\.userData\s*&&\s*self\.userData\.moveLeft/g, 'mo.left');
+    s = s.replace(/self\.userData\s*&&\s*self\.userData\.moveRight/g, 'mo.right');
+    s = s.replace(/self\.userData\s*&&\s*self\.userData\.\w+/g, 'mo.action');
+    s = s.replace(/\n\s*\n\s*\n/g, '\n\n');
+    return s;
+  };
+
   var agent = global.CodeHotAgent;
-  if (agent.__v12Escalation) return; // idempotent
-  agent.__v12Escalation = true;
 
   var WORKER_URL = global.CodeHotAIEndpoint || 'https://nokhbe.m46680279.workers.dev/';
   // Free-model workers occasionally take >45s. A timeout abort must not kill
