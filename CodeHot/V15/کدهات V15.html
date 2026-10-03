@@ -6205,8 +6205,16 @@ ThemeManager.load();
         this._savingTimer = setTimeout(() => indicator.classList.remove('st-active'), 800);
       }
     }
+    // V15.5: expose SettingsUIManager to window AFTER the class is defined.
+    // Without this, the class was trapped inside the IIFE and the init
+    // handler couldn't access it.
+    try { window.SettingsUIManager = SettingsUIManager; } catch (e) {}
 
-    document.addEventListener('DOMContentLoaded', () => {
+    // V15.5 fix: if DOMContentLoaded already fired (readyState !== 'loading'),
+    // run init immediately. Otherwise wait for the event. Previously this
+    // only listened for DOMContentLoaded, which never fires if the script
+    // tag is at the bottom of the body and the DOM is already ready.
+    function initSettings() {
       const fileInputBackup = document.getElementById('st-fileInputBackup');
 
       SettingsManager.load();
@@ -6214,28 +6222,27 @@ ThemeManager.load();
       SettingsUIManager.applyLanguage();
       SettingsUIManager.render();
 
-      fileInputBackup.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        e.target.value = '';
-        if (!file) return;
+      if (fileInputBackup) {
+        fileInputBackup.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          e.target.value = '';
+          if (!file) return;
 
-        SettingsAssetsUIManager.showConfirmDialog(SettingsUIManager.t('importBackupConfirm'), () => {
-          SettingsManager.importBackup(file, (success, errorType) => {
-            if (success) {
-              SettingsUIManager.applyTheme();
-              SettingsUIManager.applyLanguage();
-              SettingsUIManager.render();
-              SettingsAssetsUIManager.showToast(SettingsUIManager.t('importSuccess'));
-            } else {
-              SettingsAssetsUIManager.showToast(SettingsUIManager.t('importInvalid'));
-            }
+          SettingsUIManager.showConfirmDialog(SettingsUIManager.t('importBackupConfirm'), () => {
+            SettingsManager.importBackup(file, (success, errorType) => {
+              if (success) {
+                SettingsUIManager.applyTheme();
+                SettingsUIManager.applyLanguage();
+                SettingsUIManager.render();
+                SettingsUIManager.showToast(SettingsUIManager.t('importSuccess'));
+              } else {
+                SettingsUIManager.showToast(SettingsUIManager.t('importInvalid'));
+              }
+            });
           });
         });
-      });
+      }
 
-      // V14: Project file (.html/.zip/.json) import — the previously-disabled
-      // "Open Project" button now actually works. Replaces scene + assets +
-      // scripts atomically; if parsing fails, current data is left untouched.
       const fileInputProject = document.getElementById('st-fileInputProject');
       if (fileInputProject) {
         fileInputProject.addEventListener('change', (e) => {
@@ -6249,14 +6256,20 @@ ThemeManager.load();
               SettingsUIManager.render();
               try { window.dispatchEvent(new CustomEvent('codehot:projectReset')); } catch (err) {}
               try { window.dispatchEvent(new CustomEvent('codehot:projectImported')); } catch (err) {}
-              SettingsAssetsUIManager.showToast(SettingsUIManager.t('importProjectSuccess'));
+              SettingsUIManager.showToast(SettingsUIManager.t('importProjectSuccess'));
             } else {
-              SettingsAssetsUIManager.showToast(SettingsUIManager.t('importProjectInvalid'));
+              SettingsUIManager.showToast(SettingsUIManager.t('importProjectInvalid'));
             }
           });
         });
       }
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSettings);
+    } else {
+      initSettings();
+    }
   
     })(); } catch (e) { console.error('[Shell] SettingsModule failed to initialize:', e); }
 
