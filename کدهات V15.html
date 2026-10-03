@@ -11662,7 +11662,128 @@ Rules:
       // Some models return a fence without a language tag.
       const genericFenced = value.match(/^```\s*\n([\s\S]*?)\n```$/);
       if (genericFenced) value = genericFenced[1].trim();
+      // V15.3: sanitize the code — convert any non-mo input APIs to mo markers.
+      // AI models sometimes ignore the system prompt and use ctx.input,
+      // document.keydown, e.code, etc. This filter catches those and
+      // rewrites them to mo.<buttonName> so CodeHot UI can detect markers.
+      value = sanitizeScriptToMo(value);
       return value.trim();
+    }
+
+    // V15.3: CRITICAL FIX — AI models sometimes ignore the system prompt
+    // and generate code with ctx.input, document.keydown, or e.code.
+    // This function rewrites those patterns to mo markers so:
+    // 1. The code actually works at runtime (ctx.input doesn't exist)
+    // 2. CodeHot UI can detect the mo markers and create matching buttons
+    //
+    // Patterns caught:
+    //   ctx.input.isKeyDown('ArrowUp')  →  mo.up
+    //   ctx.input.key === 'ArrowUp'     →  mo.up
+    //   document.addEventListener('keydown', ...)  →  removed (use mo)
+    //   e.code === 'Space'              →  mo.jump
+    //   e.code === 'ArrowLeft'          →  mo.left
+    //   etc.
+    function sanitizeScriptToMo(code) {
+      if (!code) return code;
+      var s = String(code);
+
+      var keyToMo = {
+        'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right',
+        'KeyW': 'up', 'KeyS': 'down', 'KeyA': 'left', 'KeyD': 'right',
+        'Space': 'jump', 'KeyE': 'action', 'Enter': 'action',
+        'KeyF': 'fire', 'ShiftLeft': 'fire', 'ShiftRight': 'fire',
+        'KeyQ': 'shield', 'Escape': 'cancel',
+        'Up': 'up', 'Down': 'down', 'Left': 'left', 'Right': 'right'
+      };
+
+      // 1. ctx.input.isKeyDown('X') → mo.xxx
+      s = s.replace(/ctx\.input\.isKeyDown\s*\(\s*['"]([^'"]+)['"]\s*\)/g, function(m, key) {
+        return 'mo.' + (keyToMo[key] || key.toLowerCase().replace(/^arrow/, '').replace(/^key/, ''));
+      });
+      // ctx.input.isKeyDown (without call) → true (it's a reference check)
+      s = s.replace(/ctx\.input\.isKeyDown(?!\s*\()/g, 'true');
+      // ctx.input.key === 'X' → mo.xxx
+      s = s.replace(/ctx\.input\.key\s*===?\s*['"]([^'"]+)['"]/g, function(m, key) {
+        return 'mo.' + (keyToMo[key] || key.toLowerCase().replace(/^arrow/, '').replace(/^key/, ''));
+      });
+      // ctx.input && ... → ... (remove ctx.input checks entirely)
+      s = s.replace(/ctx\.input\s*&&\s*/g, '');
+      s = s.replace(/ctx\.input/g, 'true'); // any remaining ctx.input ref
+
+      // 2. e.code === 'X' / e.key === 'X' → mo.xxx
+      s = s.replace(/e\.code\s*===?\s*['"]([^'"]+)['"]/g, function(m, key) {
+        return 'mo.' + (keyToMo[key] || key.toLowerCase().replace(/^arrow/, '').replace(/^key/, ''));
+      });
+      s = s.replace(/e\.key\s*===?\s*['"]([^'"]+)['"]/g, function(m, key) {
+        return 'mo.' + (keyToMo[key] || key.toLowerCase().replace(/^arrow/, '').replace(/^key/, ''));
+      });
+
+      // 3. Remove ALL document.addEventListener('keydown'/'keyup', ...) 
+      // and document.removeEventListener calls — regardless of body complexity.
+      // We use a simple approach: find each addEventListener line and remove
+      // the entire statement (up to the matching semicolon at the same depth).
+      // For simple cases (function refs): just regex.
+      s = s.replace(/document\.addEventListener\s*\(\s*['"]key(?:down|up)['"]\s*,\s*[a-zA-Z_][a-zA-Z0-9_.]*\s*\)\s*;?/g, '');
+      s = s.replace(/document\.removeEventListener\s*\(\s*['"]key(?:down|up)['"]\s*,\s*[^)]+\)\s*;?/g, '');
+      // For inline function callbacks: match document.addEventListener('keydown', function(e) { ... });
+      // We need to find the matching closing brace. Walk the string.
+      s = removeEventListenerBlocks(s);
+
+      // 4. Remove self.userData keyboard state patterns
+      s = s.replace(/self\.userData\s*=\s*self\.userData\s*\|\|\s*\{\s*\}\s*;?/g, '');
+      s = s.replace(/self\.userData\.moveUp\s*=\s*(?:true|false)\s*;?/g, '');
+      s = s.replace(/self\.userData\.moveDown\s*=\s*(?:true|false)\s*;?/g, '');
+      s = s.replace(/self\.userData\.moveLeft\s*=\s*(?:true|false)\s*;?/g, '');
+      s = s.replace(/self\.userData\.moveRight\s*=\s*(?:true|false)\s*;?/g, '');
+      // self.userData && self.userData.moveUp → mo.up (the moveUp was set by keydown)
+      s = s.replace(/self\.userData\s*&&\s*self\.userData\.moveUp/g, 'mo.up');
+      s = s.replace(/self\.userData\s*&&\s*self\.userData\.moveDown/g, 'mo.down');
+      s = s.replace(/self\.userData\s*&&\s*self\.userData\.moveLeft/g, 'mo.left');
+      s = s.replace(/self\.userData\s*&&\s*self\.userData\.moveRight/g, 'mo.right');
+
+      // 5. Clean up empty lines
+      s = s.replace(/\n\s*\n\s*\n/g, '\n\n');
+
+      return s;
+    }
+
+    // Helper: remove document.addEventListener('keydown'/'keyup', function(...) { ... });
+    // by walking braces to find the end of the callback.
+    function removeEventListenerBlocks(s) {
+      var pattern = /document\.addEventListener\s*\(\s*['"]key(?:down|up)['"]\s*,\s*function\s*\(/g;
+      var result = '';
+      var lastIdx = 0;
+      var match;
+      while ((match = pattern.exec(s)) !== null) {
+        // Find the opening brace of the function body
+        var braceStart = s.indexOf('{', match.index + match[0].length);
+        if (braceStart === -1) continue;
+        // Walk braces to find matching close
+        var depth = 1;
+        var i = braceStart + 1;
+        var inStr = false, strChar = null, esc = false;
+        while (i < s.length && depth > 0) {
+          var ch = s[i];
+          if (esc) { esc = false; i++; continue; }
+          if (ch === '\\') { esc = true; i++; continue; }
+          if (inStr) {
+            if (ch === strChar) inStr = false;
+          } else {
+            if (ch === '"' || ch === "'" || ch === '`') { inStr = true; strChar = ch; }
+            else if (ch === '{') depth++;
+            else if (ch === '}') depth--;
+          }
+          i++;
+        }
+        // i now points past the closing brace
+        // Skip optional ); after the closing brace
+        var afterBrace = s.slice(i).match(/^\s*\)\s*;?/);
+        var endIdx = afterBrace ? i + afterBrace[0].length : i;
+        result += s.slice(lastIdx, match.index);
+        lastIdx = endIdx;
+      }
+      result += s.slice(lastIdx);
+      return result;
     }
 
     function parseAIActionBlock(blockText) {
