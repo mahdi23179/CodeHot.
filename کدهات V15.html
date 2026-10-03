@@ -17237,65 +17237,65 @@ Rules:
     }
   });
   // ── V13 physics commands (BUG-002) ─────────────────────────────
-  // Deterministic runtime scripts over the documented API: ground = object's
-  // start Y, gravity 22 u/s², jump impulse 9, speed default 4 u/s. All steps
-  // multiply (ctx.delta || 0.016) so they advance even when frame timing is
-  // unavailable in the host.
+  // V15.2: physScript rewritten to use mo markers instead of document.keydown.
+  // Gravity = 22 u/s², jump impulse 9, speed default 4 u/s. All steps
+  // multiply (ctx.delta || 0.016). The key param is now a button name
+  // (normalized to lowercase) and generates mo.<buttonName> reads.
   function physScript(kind, params) {
-    var key = String(params.KEY || params.JUMP_KEY || 'Space').replace(/[^A-Za-z0-9]/g, '') || 'Space';
+    var rawKey = String(params.KEY || params.JUMP_KEY || 'jump');
+    var btnName = normalizeButtonNamePhys(rawKey);
     var speed = Number(params.SPEED);
     if (!isFinite(speed) || speed <= 0) speed = 4;
     var head =
       'start(ctx, self) {\n' +
-      '  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true, keys: {} };\n';
-    var keyListen =
-      '  self.__ph.kd = function (e) { self.__ph.keys[e.code] = true; };\n' +
-      '  self.__ph.ku = function (e) { self.__ph.keys[e.code] = false; };\n' +
-      '  document.addEventListener("keydown", self.__ph.kd);\n' +
-      '  document.addEventListener("keyup", self.__ph.ku);\n';
+      '  self.__ph = { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n';
     var updateOpen =
       '}\n' +
       'update(ctx, self) {\n' +
       '  var d = (ctx.delta || 0.016);\n' +
-      '  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true, keys: {} };\n' +
+      '  self.__ph = self.__ph || { groundY: Math.min(self.position.y, 0), vy: 0, onGround: true };\n' +
       '  var p = self.position;\n';
     var gravity =
       '  self.__ph.vy -= 22 * d;\n' +
       '  p.y += self.__ph.vy * d;\n' +
       '  if (p.y <= self.__ph.groundY) { p.y = self.__ph.groundY; self.__ph.vy = 0; self.__ph.onGround = true; }\n';
-    var moveKeys =
-      '  var k = self.__ph.keys || {};\n' +
-      '  if (k.ArrowLeft || k.KeyA) p.x -= ' + speed + ' * d;\n' +
-      '  if (k.ArrowRight || k.KeyD) p.x += ' + speed + ' * d;\n' +
-      '  if (k.ArrowUp || k.KeyW) p.z -= ' + speed + ' * d;\n' +
-      '  if (k.ArrowDown || k.KeyS) p.z += ' + speed + ' * d;\n';
+    // V15.2: movement uses mo.joystick.x/y instead of keyboard keys
+    var moveJoy =
+      '  p.x += mo.joystick.x * ' + speed + ' * d;\n' +
+      '  p.z += mo.joystick.y * ' + speed + ' * d;\n';
+    // V15.2: jump uses mo.<btnName> instead of keydown
     var jumpStmt =
-      '  if (k["' + key + '"] && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n';
+      '  if (mo.' + btnName + ' && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n';
     var tail =
       '}\n' +
       'stop(ctx, self) {\n' +
-      '  if (self.__ph) {\n' +
-      '    if (self.__ph.kd) document.removeEventListener("keydown", self.__ph.kd);\n' +
-      '    if (self.__ph.ku) document.removeEventListener("keyup", self.__ph.ku);\n' +
-      '    if (self.__ph.jumpFn) document.removeEventListener("keydown", self.__ph.jumpFn);\n' +
-      '  }\n' +
+      '  if (typeof self.__jumpOriginY === "number") self.position.y = self.__jumpOriginY;\n' +
       '}';
     if (kind === 'GRAVITY') {
       return head + updateOpen + gravity + tail;
     }
     if (kind === 'JUMP_KEY') {
-      return head +
-        '  self.__ph.jumpFn = function (e) {\n' +
-        '    if (e.code === "' + key + '" && !e.repeat && self.__ph.onGround) { self.__ph.vy = 9; self.__ph.onGround = false; }\n' +
-        '  };\n' +
-        '  document.addEventListener("keydown", self.__ph.jumpFn);\n' +
-        updateOpen + gravity + tail;
+      return head + updateOpen + jumpStmt + gravity + tail;
     }
     if (kind === 'MOVE_ON_KEYS') {
-      return head + keyListen + updateOpen + moveKeys + tail;
+      return head + updateOpen + moveJoy + tail;
     }
-    // PHYSICS_SETUP: gravity + jump + key movement in one script.
-    return head + keyListen + updateOpen + moveKeys + jumpStmt + gravity + tail;
+    // PHYSICS_SETUP: gravity + jump + joystick movement in one script.
+    return head + updateOpen + moveJoy + jumpStmt + gravity + tail;
+  }
+
+  // V15.2: normalize button name for physScript (same logic as normalizeButtonName
+  // but defined here since physScript is in a different IIFE scope)
+  function normalizeButtonNamePhys(input) {
+    if (!input) return 'jump';
+    var s = String(input).toLowerCase().trim();
+    s = s.replace(/^arrow/, '').replace(/^key/, '');
+    var map = { 'space': 'jump', ' ': 'jump', 'enter': 'action', 'shift': 'fire' };
+    if (map[s]) return map[s];
+    var faMap = { 'پرش': 'jump', 'بپر': 'jump', 'چپ': 'left', 'راست': 'right', 'بالا': 'up', 'پایین': 'down' };
+    if (faMap[s]) return faMap[s];
+    if (/^[a-z][a-z0-9_]*$/.test(s)) return s;
+    return 'jump';
   }
   Registry.register({
     name: 'GRAVITY', undoable: false, target: 'object',
