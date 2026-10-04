@@ -6746,6 +6746,12 @@ ThemeManager.load();
         if (!object) return false;
         const runtime = window.CodeHotRuntime;
         let canonicalCode = String(code || '').trim();
+        // V15.6: sanitize code BEFORE anything else — convert ctx.input,
+        // document.keydown, e.code to mo markers. This catches code that
+        // arrived via AIActionManager.apply (which bypasses validateAndStore).
+        if (typeof window.sanitizeScriptCodeGlobal === 'function') {
+          canonicalCode = window.sanitizeScriptCodeGlobal(canonicalCode);
+        }
         if (runtime && typeof runtime.normalizeScriptSource === 'function') {
           try { canonicalCode = runtime.normalizeScriptSource(canonicalCode); } catch (e) {
             this.updateStatus('AI code rejected');
